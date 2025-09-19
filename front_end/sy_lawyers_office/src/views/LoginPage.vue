@@ -2,7 +2,7 @@
   <div class="login-container">
     <!-- 登录卡片 -->
     <div class="login-card">
-      <!-- 律所Logo与名称区域 -->
+      <!-- 律所Logo区域 -->
       <div class="firm-header">
         <div class="firm-logo">
           <img src="@/assets/img/logo.png" alt="湖南生元律师事务所Logo" class="logo-image">
@@ -38,6 +38,11 @@
           ></el-input>
         </el-form-item>
 
+        <!-- 记住账号 -->
+        <el-form-item>
+          <el-checkbox v-model="rememberMe">记住账号</el-checkbox>
+        </el-form-item>
+
         <!-- 登录按钮 -->
         <el-form-item>
           <el-button
@@ -61,30 +66,31 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { ElForm, ElFormItem, ElInput, ElButton, ElMessage } from 'element-plus';
-import { useRouter } from 'vue-router';
-import axios  from 'axios';
+// ===== 导入依赖 =====
+import { ref } from 'vue'
+import { ElForm, ElFormItem, ElInput, ElButton, ElMessage, ElCheckbox } from 'element-plus'
+import { useRouter } from 'vue-router'
+import axios from 'axios'
 
-// 路由实例
-const router = useRouter();
+// ===== 路由实例 =====
+const router = useRouter()
 
-// 获取当前年份
-const currentYear = ref(new Date().getFullYear());
+// ===== 当前年份 =====
+const currentYear = ref(new Date().getFullYear())
 
-// 登录表单数据
+// ===== 登录表单数据 =====
 const loginForm = ref({
   username: '', // 律师账号
   password: ''  // 登录密码
-});
+})
 
-// 记住密码状态
-const rememberMe = ref(false);
+// ===== 记住账号状态 =====
+const rememberMe = ref(false)
 
-// 登录加载状态
-const loginLoading = ref(false);
+// ===== 登录按钮加载状态 =====
+const loginLoading = ref(false)
 
-// 表单验证规则
+// ===== 表单验证规则 =====
 const loginRules = ref({
   username: [
     { required: true, message: '请输入账号', trigger: 'blur' },
@@ -94,64 +100,83 @@ const loginRules = ref({
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, max: 20, message: '密码长度需在6-20个字符之间', trigger: 'blur' }
   ]
-});
+})
 
-// 表单引用
-const loginFormRef = ref(null);
+// ===== 表单引用 =====
+const loginFormRef = ref(null)
 
 /**
  * 处理登录逻辑
  */
 const handleLogin = async () => {
-  // 表单验证
-  const valid = await loginFormRef.value.validate();
-  if (!valid) return;
-
-  // 模拟登录加载
-  loginLoading.value = true;
-
   try {
-    // 发送POST请求到FastAPI后端
+    // 表单验证
+    const valid = await loginFormRef.value.validate()
+    if (!valid) return
+
+    loginLoading.value = true
+
+    // 发送POST请求到FastAPI后端登录接口
     const res = await axios.post('http://127.0.0.1:8000/login', {
       username: loginForm.value.username,
       password: loginForm.value.password
     }, {
       headers: { 'Content-Type': 'application/json' }
-    });
+    })
 
-    // 登录成功
-    ElMessage.success(res.data.message);
-    await router.push('/main');
+    // 登录成功，获取 JWT Token
+    const token = res.data.access_token
+    const username = res.data.username
+    const role = res.data.role
+
+    // 保存 Token 到 localStorage，用于后续接口请求
+    localStorage.setItem('token', token)
+    localStorage.setItem('username', username)
+    localStorage.setItem('role', role)
+
+    // 处理记住账号
+    if (rememberMe.value) {
+      localStorage.setItem('rememberMe', 'true')
+      localStorage.setItem('savedUsername', username)
+    } else {
+      localStorage.removeItem('rememberMe')
+      localStorage.removeItem('savedUsername')
+    }
+
+    // 显示成功消息
+    ElMessage.success(`欢迎 ${username} 登录系统！`)
+
+    // 跳转到主界面
+    await router.push('/main')
 
   } catch (err) {
     // 登录失败处理
-    // 控制台输出错误信息
-    console.error(err);
-    ElMessage.error(err.response?.data?.detail || '登录失败');
+    console.error(err)
+    ElMessage.error(err.response?.data?.detail || '登录失败')
   } finally {
-    loginLoading.value = false;
+    loginLoading.value = false
   }
-};
+}
 
 /**
  * 页面初始化 - 读取记住的账号
  */
 const initPage = () => {
-  const savedUsername = localStorage.getItem('lawyerUsername');
-  const savedRemember = localStorage.getItem('rememberMe') === 'true';
+  const savedRemember = localStorage.getItem('rememberMe') === 'true'
+  const savedUsername = localStorage.getItem('savedUsername')
 
   if (savedRemember && savedUsername) {
-    loginForm.value.username = savedUsername;
-    rememberMe.value = true;
+    loginForm.value.username = savedUsername
+    rememberMe.value = true
   }
-};
+}
 
-// 初始化页面
-initPage();
+// 页面初始化
+initPage()
 </script>
 
 <style scoped>
-/* 登录容器 - 全屏居中 */
+/* 登录容器 - 居中显示 */
 .login-container {
   width: 100vw;
   height: 100vh;
@@ -162,18 +187,18 @@ initPage();
   padding: 20px;
 }
 
-/* 登录卡片 */
+/* 登录卡片样式 */
 .login-card {
   width: 100%;
   max-width: 420px;
-  background: #ffffff;
+  background: #fff;
   border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
   padding: 30px;
   box-sizing: border-box;
 }
 
-/* 律所头部信息 */
+/* 律所头部 */
 .firm-header {
   display: flex;
   align-items: center;
@@ -184,7 +209,6 @@ initPage();
 }
 
 .firm-logo {
-  /* 确保图片容器有合适的尺寸 */
   width: 260px;
   height: 60px;
   display: flex;
@@ -193,43 +217,14 @@ initPage();
 }
 
 .logo-image {
-  /* 确保图片适应容器大小 */
   max-width: 100%;
   max-height: 100%;
-  /* 保持图片比例 */
   object-fit: contain;
 }
 
-.firm-name h1 {
-  font-size: 20px;
-  color: #333333;
-  margin: 0 0 5px 0;
-  font-weight: 600;
-}
-
-.firm-name p {
-  font-size: 12px;
-  color: #666666;
-  margin: 0;
-  letter-spacing: 1px;
-}
-
 /* 登录表单 */
-.login-form {
-  width: 100%;
-}
-
 .login-form .el-form-item {
   margin-bottom: 20px;
-}
-
-/* 表单操作区（记住密码/忘记密码） */
-.form-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 25px;
-  font-size: 14px;
 }
 
 /* 登录按钮 */
@@ -254,24 +249,14 @@ initPage();
   color: #999999;
 }
 
-.login-footer p {
-  margin: 5px 0;
-}
-
 /* 响应式调整 */
 @media (max-width: 375px) {
   .login-card {
     padding: 20px;
   }
-
   .firm-header {
     flex-direction: column;
     text-align: center;
-  }
-
-  .firm-logo {
-    margin-right: 0;
-    margin-bottom: 10px;
   }
 }
 </style>
