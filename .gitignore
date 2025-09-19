@@ -1,0 +1,28 @@
+# Node.js (Vue3 前端)
+node_modules/
+dist/
+*.log
+
+# Python (FastAPI 后端)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+.env
+venv/
+env/
+
+# IDE & 编辑器
+.idea/
+.vscode/
+*.swp
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.bak
