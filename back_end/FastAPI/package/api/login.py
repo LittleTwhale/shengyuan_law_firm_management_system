@@ -21,7 +21,6 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
     - 接收账号和密码
     - 验证成功后返回 JWT token
     """
-    print("后端接收的登录数据：", user_data.model_dump())  # 查看是否有字段缺失
     user = authenticate_user(db, user_data.accounts, user_data.password)
     if not user:
         raise HTTPException(
