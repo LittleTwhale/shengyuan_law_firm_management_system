@@ -38,11 +38,6 @@
           ></el-input>
         </el-form-item>
 
-        <!-- 记住账号 -->
-        <el-form-item>
-          <el-checkbox v-model="rememberMe">记住账号</el-checkbox>
-        </el-form-item>
-
         <!-- 登录按钮 -->
         <el-form-item>
           <el-button
@@ -68,7 +63,7 @@
 <script setup>
 // ===== 导入依赖 =====
 import { ref } from 'vue'
-import { ElForm, ElFormItem, ElInput, ElButton, ElMessage, ElCheckbox } from 'element-plus'
+import { ElForm, ElFormItem, ElInput, ElButton, ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 
@@ -83,9 +78,6 @@ const loginForm = ref({
   username: '', // 律师账号
   password: ''  // 登录密码
 })
-
-// ===== 记住账号状态 =====
-const rememberMe = ref(false)
 
 // ===== 登录按钮加载状态 =====
 const loginLoading = ref(false)
@@ -117,8 +109,8 @@ const handleLogin = async () => {
     loginLoading.value = true
 
     // 发送POST请求到FastAPI后端登录接口
-    const res = await axios.post('http://127.0.0.1:8000/login', {
-      username: loginForm.value.username,
+    const res = await axios.post('http://127.0.0.1:8000/auth/login', {
+      accounts: loginForm.value.username,
       password: loginForm.value.password
     }, {
       headers: { 'Content-Type': 'application/json' }
@@ -134,15 +126,6 @@ const handleLogin = async () => {
     localStorage.setItem('username', username)
     localStorage.setItem('role', role)
 
-    // 处理记住账号
-    if (rememberMe.value) {
-      localStorage.setItem('rememberMe', 'true')
-      localStorage.setItem('savedUsername', username)
-    } else {
-      localStorage.removeItem('rememberMe')
-      localStorage.removeItem('savedUsername')
-    }
-
     // 显示成功消息
     ElMessage.success(`欢迎 ${username} 登录系统！`)
 
@@ -152,27 +135,15 @@ const handleLogin = async () => {
   } catch (err) {
     // 登录失败处理
     console.error(err)
-    ElMessage.error(err.response?.data?.detail || '登录失败')
+    ElMessage.error(
+      typeof err.response?.data?.detail === 'string'
+        ? err.response.data.detail
+        : JSON.stringify(err.response?.data?.detail) || '登录失败'
+    )
   } finally {
     loginLoading.value = false
   }
 }
-
-/**
- * 页面初始化 - 读取记住的账号
- */
-const initPage = () => {
-  const savedRemember = localStorage.getItem('rememberMe') === 'true'
-  const savedUsername = localStorage.getItem('savedUsername')
-
-  if (savedRemember && savedUsername) {
-    loginForm.value.username = savedUsername
-    rememberMe.value = true
-  }
-}
-
-// 页面初始化
-initPage()
 </script>
 
 <style scoped>

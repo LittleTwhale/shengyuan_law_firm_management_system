@@ -13,6 +13,6 @@ DATABASE_URL = f"mysql+pymysql://newuser:{db_password}@localhost:3306/shengyuan_
 
 
 # JWT配置
-SECRET_KEY = os.getenv("SECRET_KEY", "changeme123")  # JWT秘钥
+SECRET_KEY = os.getenv("SECRET_KEY")  # JWT秘钥
 ALGORITHM = "HS256"  # 加密算法
 ACCESS_TOKEN_EXPIRE_MINUTES = 60  # token过期时间（分钟）

@@ -20,4 +20,15 @@ class UserOut(UserBase):
     updated_at: datetime = Field(..., description="更新时间")
 
     class Config:
-        orm_mode = True  # 告诉 Pydantic 可以读取 ORM 对象
+        from_attributes = True  # 告诉 Pydantic 可以读取 ORM 对象
+
+# 登录请求模型
+class UserLogin(BaseModel):
+    accounts: str = Field(..., description="用户账号")
+    password: str = Field(..., description="用户密码")
+
+# Token 响应模型
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserOut
