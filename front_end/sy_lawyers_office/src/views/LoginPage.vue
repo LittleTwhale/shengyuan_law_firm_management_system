@@ -118,8 +118,8 @@ const handleLogin = async () => {
 
     // 登录成功，获取 JWT Token
     const token = res.data.access_token
-    const username = res.data.username
-    const role = res.data.role
+    const username = res.data.user.real_name
+    const role = res.data.user.role
 
     // 保存 Token 到 localStorage，用于后续接口请求
     localStorage.setItem('token', token)

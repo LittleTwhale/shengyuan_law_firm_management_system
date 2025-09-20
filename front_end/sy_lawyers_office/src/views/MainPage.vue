@@ -198,7 +198,13 @@ const deleteLawyer=(i,row)=>{lawyerList.value.splice(i,1);ElMessage.success(`律
 const totalFee = computed(()=>caseList.value.reduce((sum,c)=>sum+c.fee,0));
 
 // 登出
-const handleLogout=()=>{router.push('/'); ElMessage.info('已退出登录');};
+const handleLogout=()=>{
+  localStorage.removeItem('token')
+  localStorage.removeItem('username')
+  localStorage.removeItem('role')
+  router.push('/');
+  ElMessage.info('已退出登录');
+};
 </script>
 
 <style scoped>
