@@ -1,11 +1,13 @@
 # main.py
 from fastapi import FastAPI
-from .package.api import login
+from .package.api.login import router as auth_login_router
 from fastapi.middleware.cors import CORSMiddleware
 
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
 ]
 
 
@@ -19,4 +21,4 @@ app.add_middleware(
 )
 
 # 注册登录路由
-app.include_router(login.router)
+app.include_router(auth_login_router)

@@ -109,7 +109,7 @@ const handleLogin = async () => {
     loginLoading.value = true
 
     // 发送POST请求到FastAPI后端登录接口
-    const res = await axios.post('http://127.0.0.1:8000/auth/login', {
+    const res = await axios.post('http://127.0.0.1:8001/auth/login', {
       accounts: loginForm.value.username,
       password: loginForm.value.password
     }, {
@@ -134,7 +134,7 @@ const handleLogin = async () => {
 
   } catch (err) {
     // 登录失败处理
-    console.error(err)
+    console.error("登录错误详情：", err.response?.data);  // 打印完整错误信息
     ElMessage.error(
       typeof err.response?.data?.detail === 'string'
         ? err.response.data.detail

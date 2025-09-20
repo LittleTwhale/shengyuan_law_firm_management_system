@@ -21,27 +21,3 @@ class User(Base):
     created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
     # 更新时间，每次更新记录自动更新时间
     updated_at = Column(DateTime, server_default=func.now(), server_onupdate=func.now(), comment="更新时间")
-
-def test_db_connection():
-    """
-    测试数据库连接并查询 users 表数据
-    """
-    # 创建数据库会话
-    db: Session = SessionLocal()
-    try:
-        # 查询 users 表中的前 5 条数据
-        users = db.query(User).limit(5).all()
-        if users:
-            print("查询成功，前 5 条用户记录如下：")
-            for user in users:
-                print(f"ID: {user.id}, 账号: {user.accounts}, 真实姓名: {user.real_name}, 角色: {user.role}")
-        else:
-            print("users 表为空")
-    except Exception as e:
-        print("数据库查询失败：", e)
-    finally:
-        # 关闭数据库会话
-        db.close()
-
-if __name__ == "__main__":
-    test_db_connection()

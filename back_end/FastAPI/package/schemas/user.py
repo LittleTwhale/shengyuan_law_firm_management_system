@@ -5,7 +5,7 @@ from datetime import datetime
 
 # 用户基础信息模型
 class UserBase(BaseModel):
-    accounts: constr(min_length=3, max_length=50) = Field(..., description="用户账号")
+    accounts: constr(min_length=3, max_length=20) = Field(..., description="用户账号")
     real_name: Optional[str] = Field(None, description="真实姓名")
     role: Optional[str] = Field("user", description="用户角色，可选值: user/admin/owner")
 
