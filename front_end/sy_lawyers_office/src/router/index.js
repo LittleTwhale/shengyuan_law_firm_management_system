@@ -15,7 +15,7 @@ const routes = [
       { path: 'cases', component: CasesPage },
       { path: 'lawyers', component: LawyerManagePage, meta: { roles: ['owner', 'admin'] } }
     ]
-  }
+  },
 ]
 
 const router = createRouter({

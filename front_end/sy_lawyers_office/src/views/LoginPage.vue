@@ -1,5 +1,8 @@
 <template>
   <div class="login-container">
+    <!-- 粒子背景Canvas -->
+    <canvas ref="canvasRef" class="particle-canvas"></canvas>
+
     <!-- 登录卡片 -->
     <div class="login-card">
       <!-- 律所Logo区域 -->
@@ -62,8 +65,8 @@
 
 <script setup>
 // ===== 导入依赖 =====
-import { ref } from 'vue'
-import { ElForm, ElFormItem, ElInput, ElButton, ElMessage } from 'element-plus'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 
@@ -75,12 +78,15 @@ const currentYear = ref(new Date().getFullYear())
 
 // ===== 登录表单数据 =====
 const loginForm = ref({
-  username: '', // 律师账号
-  password: ''  // 登录密码
+  username: '',
+  password: ''
 })
 
 // ===== 登录按钮加载状态 =====
 const loginLoading = ref(false)
+
+// ===== 表单引用 =====
+const loginFormRef = ref(null)
 
 // ===== 表单验证规则 =====
 const loginRules = ref({
@@ -94,12 +100,100 @@ const loginRules = ref({
   ]
 })
 
-// ===== 表单引用 =====
-const loginFormRef = ref(null)
+// ===== Canvas 粒子效果引用 =====
+const canvasRef = ref(null)
+let particles = []
+let animationId = null
 
-/**
- * 处理登录逻辑
- */
+// ===== 粒子类 =====
+class Particle {
+  constructor(canvasWidth, canvasHeight) {
+    this.x = Math.random() * canvasWidth
+    this.y = Math.random() * canvasHeight
+    this.vx = (Math.random() - 0.5)
+    this.vy = (Math.random() - 0.5)
+    this.radius = Math.random() * 2 + 1
+  }
+
+  // 绘制粒子
+  draw(ctx) {
+    ctx.beginPath()
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(22, 93, 255, 0.7)'
+    ctx.fill()
+  }
+
+  // 更新位置
+  update(canvasWidth, canvasHeight) {
+    this.x += this.vx
+    this.y += this.vy
+    if (this.x < 0 || this.x > canvasWidth) this.vx *= -1
+    if (this.y < 0 || this.y > canvasHeight) this.vy *= -1
+  }
+}
+
+// ===== 初始化粒子 =====
+const initParticles = (canvas) => {
+  const count = 80 // 粒子数量
+  particles = []
+  for (let i = 0; i < count; i++) {
+    particles.push(new Particle(canvas.width, canvas.height))
+  }
+}
+
+// ===== 动画循环 =====
+const animate = () => {
+  const canvas = canvasRef.value
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+  // 更新和绘制粒子
+  particles.forEach(p => p.update(canvas.width, canvas.height))
+  particles.forEach(p => p.draw(ctx))
+
+  // 粒子连线
+  for (let i = 0; i < particles.length; i++) {
+    for (let j = i + 1; j < particles.length; j++) {
+      let dx = particles[i].x - particles[j].x
+      let dy = particles[i].y - particles[j].y
+      let dist = Math.sqrt(dx * dx + dy * dy)
+      if (dist < 100) {
+        ctx.beginPath()
+        ctx.strokeStyle = `rgba(22,93,255,${1 - dist / 100})`
+        ctx.lineWidth = 0.5
+        ctx.moveTo(particles[i].x, particles[i].y)
+        ctx.lineTo(particles[j].x, particles[j].y)
+        ctx.stroke()
+      }
+    }
+  }
+
+  animationId = requestAnimationFrame(animate)
+}
+
+// ===== 窗口缩放处理 =====
+const resizeCanvas = () => {
+  const canvas = canvasRef.value
+  if (!canvas) return
+  canvas.width = window.innerWidth
+  canvas.height = window.innerHeight
+  initParticles(canvas, canvas.getContext('2d'))
+}
+
+// ===== 生命周期 =====
+onMounted(() => {
+  resizeCanvas()
+  window.addEventListener('resize', resizeCanvas)
+  animate()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', resizeCanvas)
+  cancelAnimationFrame(animationId)
+})
+
+// ===== 处理登录逻辑 =====
 const handleLogin = async () => {
   try {
     // 表单验证
@@ -116,25 +210,20 @@ const handleLogin = async () => {
       headers: { 'Content-Type': 'application/json' }
     })
 
-    // 登录成功，获取 JWT Token
     const token = res.data.access_token
     const username = res.data.user.real_name
     const role = res.data.user.role
 
-    // 保存 Token 到 localStorage，用于后续接口请求
+    // 保存到本地存储
     localStorage.setItem('token', token)
     localStorage.setItem('username', username)
     localStorage.setItem('role', role)
 
-    // 显示成功消息
     ElMessage.success(`欢迎 ${username} 登录系统！`)
-
-    // 跳转到主界面
     await router.push('/main')
 
   } catch (err) {
-    // 登录失败处理
-    console.error("登录错误详情：", err.response?.data);  // 打印完整错误信息
+    console.error("登录错误详情：", err.response?.data)
     ElMessage.error(
       typeof err.response?.data?.detail === 'string'
         ? err.response.data.detail
@@ -151,15 +240,28 @@ const handleLogin = async () => {
 .login-container {
   width: 100vw;
   height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  position: relative; /* 为粒子背景定位做准备 */
   display: flex;
   justify-content: center;
   align-items: center;
   padding: 20px;
+  overflow: hidden;
+}
+
+/* 粒子Canvas样式 */
+.particle-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0; /* 粒子在卡片下方 */
 }
 
 /* 登录卡片样式 */
 .login-card {
+  position: relative;
+  z-index: 1; /* 确保卡片在粒子层上方 */
   width: 100%;
   max-width: 420px;
   background: #fff;
