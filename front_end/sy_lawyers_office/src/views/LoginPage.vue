@@ -104,22 +104,29 @@ const loginRules = ref({
 const canvasRef = ref(null)
 let particles = []
 let animationId = null
+// eslint-disable-next-line no-unused-vars
+let hue = 0 // 色相基准
 
 // ===== 粒子类 =====
 class Particle {
   constructor(canvasWidth, canvasHeight) {
     this.x = Math.random() * canvasWidth
     this.y = Math.random() * canvasHeight
-    this.vx = (Math.random() - 0.5)
-    this.vy = (Math.random() - 0.5)
+    this.vx = (Math.random() - 0.5) * 1.5
+    this.vy = (Math.random() - 0.5) * 1.5
     this.radius = Math.random() * 2 + 1
+    this.hue = Math.random() * 360 // 随机初始色相
+    this.alpha = Math.random() * 0.5 + 0.5
+    this.delta = Math.random() * 0.02
   }
 
-  // 绘制粒子
+  // 绘制粒子（荧光闪烁）
   draw(ctx) {
     ctx.beginPath()
     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2)
-    ctx.fillStyle = 'rgba(22, 93, 255, 0.7)'
+    this.alpha += this.delta
+    if (this.alpha > 1 || this.alpha < 0.3) this.delta *= -1
+    ctx.fillStyle = `hsla(${this.hue}, 100%, 50%, ${this.alpha})`
     ctx.fill()
   }
 
@@ -127,6 +134,7 @@ class Particle {
   update(canvasWidth, canvasHeight) {
     this.x += this.vx
     this.y += this.vy
+    this.hue += 0.5 // 让粒子颜色也不断变化
     if (this.x < 0 || this.x > canvasWidth) this.vx *= -1
     if (this.y < 0 || this.y > canvasHeight) this.vy *= -1
   }
@@ -148,20 +156,28 @@ const animate = () => {
   const ctx = canvas.getContext('2d')
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 
+  hue += 0.5 // 全局色相也在变化，连线会变彩色
+
   // 更新和绘制粒子
   particles.forEach(p => p.update(canvas.width, canvas.height))
   particles.forEach(p => p.draw(ctx))
 
-  // 粒子连线
+  // 粒子连线（彩色）
   for (let i = 0; i < particles.length; i++) {
     for (let j = i + 1; j < particles.length; j++) {
       let dx = particles[i].x - particles[j].x
       let dy = particles[i].y - particles[j].y
       let dist = Math.sqrt(dx * dx + dy * dy)
-      if (dist < 100) {
+      if (dist < 120) {
         ctx.beginPath()
-        ctx.strokeStyle = `rgba(22,93,255,${1 - dist / 100})`
-        ctx.lineWidth = 0.5
+        const grad = ctx.createLinearGradient(
+          particles[i].x, particles[i].y,
+          particles[j].x, particles[j].y
+        )
+        grad.addColorStop(0, `hsla(${particles[i].hue},100%,50%,${1 - dist / 120})`)
+        grad.addColorStop(1, `hsla(${particles[j].hue},100%,50%,${1 - dist / 120})`)
+        ctx.strokeStyle = grad
+        ctx.lineWidth = Math.min(2, (120 - dist) / 60)
         ctx.moveTo(particles[i].x, particles[i].y)
         ctx.lineTo(particles[j].x, particles[j].y)
         ctx.stroke()
@@ -178,7 +194,7 @@ const resizeCanvas = () => {
   if (!canvas) return
   canvas.width = window.innerWidth
   canvas.height = window.innerHeight
-  initParticles(canvas, canvas.getContext('2d'))
+  initParticles(canvas)
 }
 
 // ===== 生命周期 =====
@@ -196,13 +212,11 @@ onBeforeUnmount(() => {
 // ===== 处理登录逻辑 =====
 const handleLogin = async () => {
   try {
-    // 表单验证
     const valid = await loginFormRef.value.validate()
     if (!valid) return
 
     loginLoading.value = true
 
-    // 发送POST请求到FastAPI后端登录接口
     const res = await axios.post('http://127.0.0.1:8001/auth/login', {
       accounts: loginForm.value.username,
       password: loginForm.value.password
@@ -214,14 +228,12 @@ const handleLogin = async () => {
     const username = res.data.user.real_name
     const role = res.data.user.role
 
-    // 保存到本地存储
     localStorage.setItem('token', token)
     localStorage.setItem('username', username)
     localStorage.setItem('role', role)
 
     ElMessage.success(`欢迎 ${username} 登录系统！`)
     await router.push('/main')
-
   } catch (err) {
     console.error("登录错误详情：", err.response?.data)
     ElMessage.error(
@@ -240,7 +252,7 @@ const handleLogin = async () => {
 .login-container {
   width: 100vw;
   height: 100vh;
-  position: relative; /* 为粒子背景定位做准备 */
+  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -255,13 +267,13 @@ const handleLogin = async () => {
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 0; /* 粒子在卡片下方 */
+  z-index: 0;
 }
 
 /* 登录卡片样式 */
 .login-card {
   position: relative;
-  z-index: 1; /* 确保卡片在粒子层上方 */
+  z-index: 1;
   width: 100%;
   max-width: 420px;
   background: #fff;
@@ -322,7 +334,6 @@ const handleLogin = async () => {
   color: #999999;
 }
 
-/* 响应式调整 */
 @media (max-width: 375px) {
   .login-card {
     padding: 20px;
