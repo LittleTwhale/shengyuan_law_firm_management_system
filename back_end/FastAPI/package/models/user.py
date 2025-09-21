@@ -1,7 +1,7 @@
 # models/user.py
 from sqlalchemy import Column, Integer, String, Enum, DateTime, func
-from ..database.database import Base,SessionLocal
-from sqlalchemy.orm import Session
+from ..database.database import Base
+
 
 # 定义用户模型，对应数据库中的 users 表
 class User(Base):
@@ -21,3 +21,5 @@ class User(Base):
     created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
     # 更新时间，每次更新记录自动更新时间
     updated_at = Column(DateTime, server_default=func.now(), server_onupdate=func.now(), comment="更新时间")
+    # 用户职位，可为空
+    position = Column(String(50), nullable=True, comment="用户职位")

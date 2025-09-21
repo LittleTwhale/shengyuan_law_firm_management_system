@@ -22,18 +22,18 @@
         text-color="#fff"
         active-text-color="#ffd04b"
       >
-        <el-menu-item index="/dashboard/cases">
+        <el-menu-item index="/main/cases">
           <i class="el-icon-document"></i>
           <span>案件管理</span>
         </el-menu-item>
         <el-menu-item
-          index="/dashboard/lawyers"
+          index="/main/lawyers"
           v-if="role === 'owner' || role === 'admin'"
         >
           <i class="el-icon-user"></i>
           <span>律师管理</span>
         </el-menu-item>
-        <el-menu-item index="/dashboard/statistics">
+        <el-menu-item index="/main/statistics">
           <i class="el-icon-data-analysis"></i>
           <span>统计分析</span>
         </el-menu-item>

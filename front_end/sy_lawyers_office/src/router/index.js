@@ -49,7 +49,7 @@ router.beforeEach((to, from, next) => {
     if (to.meta.roles.includes(role)) {
       next()  // 有权限，放行
     } else {
-      // 无权限，跳回 dashboard 首页或弹提示
+      // 无权限，跳回首页或弹提示
       alert('您没有权限访问该页面')
       next('/main')
     }
