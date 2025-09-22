@@ -104,37 +104,48 @@ const loginRules = ref({
 const canvasRef = ref(null)
 let particles = []
 let animationId = null
-// eslint-disable-next-line no-unused-vars
-let hue = 0 // 色相基准
+let hue = 0 // 粒子全局色相基准（保留动态变化）
+let mouseX = null
+let mouseY = null
+let gradientPhase = 0 // 用于背景渐变动画
 
 // ===== 粒子类 =====
 class Particle {
   constructor(canvasWidth, canvasHeight) {
     this.x = Math.random() * canvasWidth
     this.y = Math.random() * canvasHeight
-    this.vx = (Math.random() - 0.5) * 1.5
-    this.vy = (Math.random() - 0.5) * 1.5
-    this.radius = Math.random() * 2 + 1
-    this.hue = Math.random() * 360 // 随机初始色相
-    this.alpha = Math.random() * 0.5 + 0.5
+    this.vx = (Math.random() - 0.5) * 0.75
+    this.vy = (Math.random() - 0.5) * 0.75
+    this.radius = Math.random() * 3 + 2
+    this.hue = Math.random() * 360
+    this.alpha = 0.7
     this.delta = Math.random() * 0.02
   }
-
-  // 绘制粒子（荧光闪烁）
-  draw(ctx) {
+  draw(ctx, mouseX, mouseY) {
     ctx.beginPath()
     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2)
+    ctx.shadowBlur = 20
+    ctx.shadowColor = `hsla(${this.hue}, 100%, 50%, 0.5)`
     this.alpha += this.delta
     if (this.alpha > 1 || this.alpha < 0.3) this.delta *= -1
     ctx.fillStyle = `hsla(${this.hue}, 100%, 50%, ${this.alpha})`
     ctx.fill()
-  }
 
-  // 更新位置
+    // 鼠标交互：粒子排斥
+    if (mouseX && mouseY) {
+      const dx = this.x - mouseX
+      const dy = this.y - mouseY
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      if (dist < 100) {
+        this.vx += dx / dist * 0.03
+        this.vy += dy / dist * 0.03
+      }
+    }
+  }
   update(canvasWidth, canvasHeight) {
     this.x += this.vx
     this.y += this.vy
-    this.hue += 0.5 // 让粒子颜色也不断变化
+    this.hue += 0.5 // 粒子自身色相缓慢变化
     if (this.x < 0 || this.x > canvasWidth) this.vx *= -1
     if (this.y < 0 || this.y > canvasHeight) this.vy *= -1
   }
@@ -142,11 +153,27 @@ class Particle {
 
 // ===== 初始化粒子 =====
 const initParticles = (canvas) => {
-  const count = 80 // 粒子数量
+  const count = 50
   particles = []
   for (let i = 0; i < count; i++) {
     particles.push(new Particle(canvas.width, canvas.height))
   }
+}
+
+// ===== 动态渐变背景 (始终浅蓝→深蓝) =====
+const drawGradientBackground = (ctx, canvas) => {
+  gradientPhase += 0.003 // 渐变变化速度
+  /*
+    只在蓝色区间摆动：
+    200°~240° 大约是浅蓝到深蓝
+    用 sin/cos 让 hue 在蓝色系轻微波动
+  */
+  const blueHue = 220 + Math.sin(gradientPhase) * 20 // 在200-240间摆动
+  const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
+  gradient.addColorStop(0, `hsl(${blueHue}, 80%, 85%)`) // 浅蓝
+  gradient.addColorStop(1, `hsl(${blueHue + 10}, 80%, 40%)`) // 深蓝
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
 }
 
 // ===== 动画循环 =====
@@ -154,15 +181,15 @@ const animate = () => {
   const canvas = canvasRef.value
   if (!canvas) return
   const ctx = canvas.getContext('2d')
-  ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-  hue += 0.5 // 全局色相也在变化，连线会变彩色
+  drawGradientBackground(ctx, canvas)
 
-  // 更新和绘制粒子
+  hue = (hue + 0.5) % 360 // 粒子 hue 保持动态变化并取模，避免无限增大
+
   particles.forEach(p => p.update(canvas.width, canvas.height))
-  particles.forEach(p => p.draw(ctx))
+  particles.forEach(p => p.draw(ctx, mouseX, mouseY))
 
-  // 粒子连线（彩色）
+  // 粒子彩色连线
   for (let i = 0; i < particles.length; i++) {
     for (let j = i + 1; j < particles.length; j++) {
       let dx = particles[i].x - particles[j].x
@@ -197,10 +224,25 @@ const resizeCanvas = () => {
   initParticles(canvas)
 }
 
+// ===== 鼠标交互 =====
+const setupMouseInteraction = () => {
+  const canvas = canvasRef.value
+  if (!canvas) return
+  canvas.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX
+    mouseY = e.clientY
+  })
+  canvas.addEventListener('mouseleave', () => {
+    mouseX = null
+    mouseY = null
+  })
+}
+
 // ===== 生命周期 =====
 onMounted(() => {
   resizeCanvas()
   window.addEventListener('resize', resizeCanvas)
+  setupMouseInteraction()
   animate()
 })
 
@@ -248,7 +290,6 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
-/* 登录容器 - 居中显示 */
 .login-container {
   width: 100vw;
   height: 100vh;
@@ -259,8 +300,6 @@ const handleLogin = async () => {
   padding: 20px;
   overflow: hidden;
 }
-
-/* 粒子Canvas样式 */
 .particle-canvas {
   position: absolute;
   top: 0;
@@ -269,8 +308,6 @@ const handleLogin = async () => {
   height: 100%;
   z-index: 0;
 }
-
-/* 登录卡片样式 */
 .login-card {
   position: relative;
   z-index: 1;
@@ -282,8 +319,6 @@ const handleLogin = async () => {
   padding: 30px;
   box-sizing: border-box;
 }
-
-/* 律所头部 */
 .firm-header {
   display: flex;
   align-items: center;
@@ -292,7 +327,6 @@ const handleLogin = async () => {
   padding-bottom: 20px;
   border-bottom: 1px solid #f0f0f0;
 }
-
 .firm-logo {
   width: 260px;
   height: 60px;
@@ -300,19 +334,14 @@ const handleLogin = async () => {
   align-items: center;
   justify-content: center;
 }
-
 .logo-image {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
 }
-
-/* 登录表单 */
 .login-form .el-form-item {
   margin-bottom: 20px;
 }
-
-/* 登录按钮 */
 .login-btn {
   width: 100%;
   height: 48px;
@@ -321,19 +350,15 @@ const handleLogin = async () => {
   background-color: #165DFF;
   border: none;
 }
-
 .login-btn:hover {
   background-color: #0E42D2;
 }
-
-/* 底部信息 */
 .login-footer {
   margin-top: 30px;
   text-align: center;
   font-size: 12px;
   color: #999999;
 }
-
 @media (max-width: 375px) {
   .login-card {
     padding: 20px;
