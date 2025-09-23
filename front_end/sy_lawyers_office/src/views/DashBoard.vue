@@ -53,15 +53,15 @@ import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-const currentUser = ref(localStorage.getItem('username'))
+const currentUser = ref(sessionStorage.getItem('username'))
 const activeMenu = ref('/dashboard/cases')
-const role = localStorage.getItem('role')
+const role = sessionStorage.getItem('role')
 
 // 登出
 const handleLogout = () => {
-  localStorage.removeItem('token')
-  localStorage.removeItem('username')
-  localStorage.removeItem('role')
+  sessionStorage.removeItem('token')
+  sessionStorage.removeItem('username')
+  sessionStorage.removeItem('role')
   router.push('/')
   ElMessage.info('已退出登录')
 }

@@ -2,26 +2,25 @@
   <div class="lawyer-management">
     <!-- 顶部搜索与操作区 -->
     <div class="toolbar">
-      <el-input
-        v-model="searchKeyword"
-        placeholder="请输入检索条件"
-        clearable
-        @clear="filterData"
-        @keyup.enter="filterData"
-        style="width: 250px"
-      />
-      <el-button
-        type="primary"
-        icon="el-icon-plus"
-        @click="openDialog()"
-      >
-        新增用户
-      </el-button>
+      <div class="toolbar-left">
+        <el-input
+          v-model="searchKeyword"
+          placeholder="请输入检索条件"
+          clearable
+          @clear="fetchUsers"
+          @keyup.enter="fetchUsers"
+          style="width: 250px"
+        />
+      </div>
+      <div class="toolbar-right">
+        <el-button type="primary" icon="el-icon-plus" @click="openDialog()">
+          新增用户
+        </el-button>
+      </div>
     </div>
 
-    <!-- 内容区：表格 + 底部分页 -->
+    <!-- 用户表格 -->
     <div class="content-area">
-      <!-- 用户表格 -->
       <el-table :data="pagedData" border stripe style="flex: 1;">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="accounts" label="账号" width="150" />
@@ -51,14 +50,13 @@
         </el-table-column>
       </el-table>
 
-      <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
           v-model:current-page="page"
           v-model:page-size="pageSize"
           :total="filteredList.length"
           layout="total, prev, pager, next, sizes"
-          :page-sizes="[ 10, 15, 20]"
+          :page-sizes="[10, 15, 20]"
         />
       </div>
     </div>
@@ -67,7 +65,7 @@
     <el-dialog :title="editUser ? '编辑用户' : '新增用户'" v-model="dialogVisible">
       <el-form :model="form">
         <el-form-item label="账号">
-          <el-input v-model="form.accounts" />
+          <el-input v-model="form.accounts" :disabled="editUser" />
         </el-form-item>
         <el-form-item label="姓名">
           <el-input v-model="form.real_name" />
@@ -75,13 +73,21 @@
         <el-form-item label="职位">
           <el-input v-model="form.position" />
         </el-form-item>
-        <el-form-item label="角色" v-if="role === 'owner'">
-          <el-select v-model="form.role">
+        <el-form-item label="角色">
+          <el-select v-model="form.role" :disabled="role === 'admin'">
             <el-option label="普通用户" value="user" />
-            <el-option label="管理员" value="admin" />
+            <el-option label="管理员" value="admin" v-if="role === 'owner'" />
           </el-select>
         </el-form-item>
-        <el-form-item label="密码" v-if="!editUser">
+        <el-form-item label="密码" v-if="editUser">
+          <el-input
+            v-model="form.password"
+            type="password"
+            placeholder="不填则不修改密码"
+          />
+        </el-form-item>
+        <!-- 新增用户时保持原来的密码输入框 -->
+        <el-form-item label="密码" v-else>
           <el-input v-model="form.password" type="password" />
         </el-form-item>
       </el-form>
@@ -94,113 +100,134 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
-// 当前角色（模拟登录角色，可改为 'user' / 'admin' / 'owner'）
-const role = localStorage.getItem('role') || 'owner'
+// 当前用户角色
+const role = sessionStorage.getItem('role')
 
-// 模拟数据
-const mockUsers = ref([
-  { id: 1, accounts: 'zhangsan', real_name: '张三', role: 'user', position: '实习律师', created_at: '2025-01-10 09:30' },
-  { id: 2, accounts: 'lisi', real_name: '李四', role: 'admin', position: '合伙人', created_at: '2025-02-15 14:20' },
-  { id: 3, accounts: 'wangwu', real_name: '王五', role: 'user', position: '专职律师', created_at: '2025-03-01 11:05' },
-  { id: 4, accounts: 'owner1', real_name: '赵六', role: 'owner', position: '主任律师', created_at: '2025-03-12 16:45' },
-  { id: 5, accounts: 'heqi', real_name: '何七', role: 'user', position: '兼职律师', created_at: '2025-04-03 18:10' },
-  { id: 6, accounts: 'sunqi', real_name: '孙七', role: 'user', position: '兼职律师', created_at: '2025-04-18 12:30' },
-  { id: 7, accounts: 'liqi', real_name: '李七', role: 'user', position: '兼职律师', created_at: '2025-04-28 17:00' },
-  { id: 8, accounts: 'zhouqi', real_name: '周七', role: 'user', position: '兼职律师', created_at: '2025-05-05 13:45' },
-  { id: 9, accounts: 'zhouqi', real_name: '周八', role: 'user', position: '兼职律师', created_at: '2025-05-12 14:30' },
-  { id: 10, accounts: 'zhouqi', real_name: '周九', role: 'user', position: '兼职律师', created_at: '2025-05-19 15:15' },
-  { id: 11, accounts: 'zhouqi', real_name: '周十', role: 'user', position: '兼职律师', created_at: '2025-05-26 16:30' },
-  { id: 12, accounts: 'zhouqi', real_name: '周十一', role: 'user', position: '兼职律师', created_at: '2025-05-31 17:45' },
-  { id: 13, accounts: 'zhouqi', real_name: '周十二', role: 'user', position: '兼职律师', created_at: '2025-06-02 18:00' },
-  { id: 14, accounts: 'zhouqi', real_name: '周十三', role: 'user', position: '兼职律师', created_at: '2025-06-07 19:15' },
-  { id: 15, accounts: 'zhouqi', real_name: '周十四', role: 'user', position: '兼职律师', created_at: '2025-06-12 19:30' },
-])
-
-// 搜索和分页
+const users = ref([])
 const searchKeyword = ref('')
-const filteredList = computed(() => {
-  if (!searchKeyword.value) return mockUsers.value
-  return mockUsers.value.filter(
-    (u) =>
-      u.accounts.includes(searchKeyword.value) ||
-      u.real_name.includes(searchKeyword.value) ||
-      u.position.includes(searchKeyword.value) ||
-      u.role.includes(searchKeyword.value)
-  )
-})
-
 const page = ref(1)
 const pageSize = ref(5)
+const dialogVisible = ref(false)
+const editUser = ref(false)
+const form = ref({})
+
+// --------------------------
+// 计算属性：搜索和分页
+// --------------------------
+const filteredList = computed(() => {
+  if (!searchKeyword.value) return users.value
+  return users.value.filter(u =>
+    u.accounts.includes(searchKeyword.value) ||
+    u.real_name.includes(searchKeyword.value) ||
+    u.position.includes(searchKeyword.value) ||
+    u.role.includes(searchKeyword.value)
+  )
+})
 const pagedData = computed(() => {
   const start = (page.value - 1) * pageSize.value
   return filteredList.value.slice(start, start + pageSize.value)
 })
 
-// 弹窗
-const dialogVisible = ref(false)
-const editUser = ref(false)
-const form = ref({})
-
+// --------------------------
 // 权限控制
-const canEdit = (row) => {
+// --------------------------
+const canEdit = row => {
   if (role === 'owner') return row.role !== 'owner'
   if (role === 'admin') return row.role === 'user'
   return false
 }
-const canDelete = (row) => canEdit(row)
+const canDelete = row => canEdit(row)
 
+// --------------------------
+// 弹窗操作
+// --------------------------
 const openDialog = (row = null) => {
   if (row) {
     editUser.value = true
     form.value = { ...row }
   } else {
     editUser.value = false
-    form.value = {
-      id: Date.now(),
-      accounts: '',
-      real_name: '',
-      position: '',
-      role: 'user',
-      password: '',
-      created_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
-    }
+    form.value = { accounts: '', real_name: '', position: '', role: 'user', password: '' }
   }
   dialogVisible.value = true
 }
 
-const handleSave = () => {
-  if (editUser.value) {
-    const index = mockUsers.value.findIndex((u) => u.id === form.value.id)
-    if (index !== -1) {
-      mockUsers.value[index] = { ...form.value }
-      ElMessage.success('用户信息已更新')
+// --------------------------
+// 接口请求
+// --------------------------
+const fetchUsers = async () => {
+  try {
+    const res = await fetch(`http://127.0.0.1:8000/lawyer_manage/users?role=${role}`)
+    if (!res.ok) {
+      ElMessage.error('获取用户列表失败')
+      return
     }
-  } else {
-    mockUsers.value.push({ ...form.value })
-    ElMessage.success('用户已新增')
+    users.value = await res.json()
+  } catch (err) {
+    ElMessage.error(err.message)
   }
-  dialogVisible.value = false
 }
 
-const handleDelete = (row) => {
-  ElMessageBox.confirm(`确定要删除用户 ${row.real_name} 吗？`, '提示', {
-    type: 'warning'
-  })
-    .then(() => {
-      mockUsers.value = mockUsers.value.filter((u) => u.id !== row.id)
-      ElMessage.success('用户已删除')
-    })
-    .catch(() => {})
+const handleSave = async () => {
+  try {
+    // 准备提交的数据
+    const payload = { ...form.value }
+    if (editUser.value && !payload.password) {
+      delete payload.password // 空密码不提交
+    }
+    if (editUser.value) {
+      const res = await fetch(`http://127.0.0.1:8000/lawyer_manage/users/${form.value.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      if (!res.ok) {
+        ElMessage.error('更新失败')
+        return
+      }
+      ElMessage.success('用户信息已更新')
+    } else {
+      const res = await fetch(`http://127.0.0.1:8000/lawyer_manage/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      if (!res.ok) {
+        ElMessage.error('新增失败')
+        return
+      }
+      ElMessage.success('用户已新增')
+    }
+    dialogVisible.value = false
+    await fetchUsers()
+  } catch (err) {
+    ElMessage.error(err.message)
+  }
 }
 
-const filterData = () => {
-  page.value = 1 // 搜索后重置到第一页
+const handleDelete = async row => {
+  try {
+    await ElMessageBox.confirm(`确定要删除用户 ${row.real_name} 吗？`, '提示', { type: 'warning' })
+    const res = await fetch(`http://127.0.0.1:8000/lawyer_manage/users/${row.id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      ElMessage.error('删除失败')
+      return
+    }
+    ElMessage.success('用户已删除')
+    await fetchUsers()
+  } catch (err) {
+      ElMessage.error(err.message)
+  }
 }
+
+// --------------------------
+// 初始化
+// --------------------------
+onMounted(() => fetchUsers())
 </script>
-
 <style scoped>
 .lawyer-management {
   display: flex;
@@ -211,7 +238,8 @@ const filterData = () => {
 /* 弹窗样式 */
 .toolbar {
   display: flex;
-  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 10px;
 }
 .content-area {
@@ -220,6 +248,11 @@ const filterData = () => {
   flex: 0.9; /* 占满剩余空间 */
   overflow: hidden;
   position: relative;
+}
+::v-deep(.el-table .cell) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* 分页容器居中 */
 .pagination-container {

@@ -259,7 +259,7 @@ const handleLogin = async () => {
 
     loginLoading.value = true
 
-    const res = await axios.post('http://127.0.0.1:8001/auth/login', {
+    const res = await axios.post('http://127.0.0.1:8000/auth/login', {
       accounts: loginForm.value.username,
       password: loginForm.value.password
     }, {
@@ -270,9 +270,9 @@ const handleLogin = async () => {
     const username = res.data.user.real_name
     const role = res.data.user.role
 
-    localStorage.setItem('token', token)
-    localStorage.setItem('username', username)
-    localStorage.setItem('role', role)
+    sessionStorage.setItem('token', token)
+    sessionStorage.setItem('username', username)
+    sessionStorage.setItem('role', role)
 
     ElMessage.success(`欢迎 ${username} 登录系统！`)
     await router.push('/main')

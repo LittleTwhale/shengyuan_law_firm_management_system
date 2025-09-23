@@ -27,7 +27,7 @@ const router = createRouter({
 const whiteList = ['/login']
 
 router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem('token')
+  const token = sessionStorage.getItem('token')
 
   if (!token && !whiteList.includes(to.path)) {
     // ❌ 没有登录，且访问的不是白名单页面 → 强制跳转到登录页
@@ -42,7 +42,7 @@ router.beforeEach((to, from, next) => {
 })
 
 router.beforeEach((to, from, next) => {
-  const role = localStorage.getItem('role')  // 从本地存储获取用户角色
+  const role = sessionStorage.getItem('role')  // 从本地存储获取用户角色
 
   // 检查是否有 roles 限制
   if (to.meta && to.meta.roles) {
