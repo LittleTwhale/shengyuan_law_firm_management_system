@@ -27,6 +27,13 @@
           <span>案件管理</span>
         </el-menu-item>
         <el-menu-item
+          index="/main/case_review"
+          v-if="role === 'owner' || role === 'admin'"
+        >
+          <i class="el-icon-check"></i>
+          <span>案件审核</span>
+        </el-menu-item>
+        <el-menu-item
           index="/main/lawyers"
           v-if="role === 'owner' || role === 'admin'"
         >

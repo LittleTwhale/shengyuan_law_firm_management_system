@@ -259,7 +259,7 @@ const handleLogin = async () => {
 
     loginLoading.value = true
 
-    const res = await axios.post('http://127.0.0.1:8000/auth/login', {
+    const res = await axios.post('http://127.0.0.1:8001/auth/login', {
       accounts: loginForm.value.username,
       password: loginForm.value.password
     }, {

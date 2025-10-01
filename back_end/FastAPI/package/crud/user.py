@@ -74,3 +74,13 @@ def get_ordinary_users(db: Session) -> List[User]:
     """
     users = db.query(User).filter(User.role == "user").all()
     return cast(List[User], users)
+
+def get_all_lawyers(db: Session):
+    """
+    获取所有律师
+    """
+    return (
+        db.query(User)
+        .filter(User.role != "owner")  # 排除系统设计者
+        .all()
+    )
