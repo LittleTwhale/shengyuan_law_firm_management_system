@@ -69,6 +69,7 @@ const handleLogout = () => {
   sessionStorage.removeItem('token')
   sessionStorage.removeItem('username')
   sessionStorage.removeItem('role')
+  sessionStorage.removeItem('userId')
   router.push('/')
   ElMessage.info('已退出登录')
 }

@@ -68,4 +68,4 @@ class CaseSimpleOut(CaseBase):
 # 案件分页模型
 class CasePageOut(BaseModel):
     total: int
-    items: List[CaseSimpleOut]
+    items: List[CaseOut]

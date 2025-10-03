@@ -269,10 +269,12 @@ const handleLogin = async () => {
     const token = res.data.access_token
     const username = res.data.user.real_name
     const role = res.data.user.role
+    const user_id= res.data.user.id
 
     sessionStorage.setItem('token', token)
     sessionStorage.setItem('username', username)
     sessionStorage.setItem('role', role)
+    sessionStorage.setItem('user_id', user_id)
 
     ElMessage.success(`欢迎 ${username} 登录系统！`)
     await router.push('/main')

@@ -16,7 +16,7 @@
         prop="created_at"
         label="创建时间"
         align="center"
-        :formatter="formatDate"
+        :formatter="(row, column, cellValue) => formatDate(cellValue)"
       />
       <el-table-column label="操作" width="220" align="center">
         <template #default="scope">
@@ -138,6 +138,10 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import CaseForm from './CaseForm.vue' // 引入抽离的CaseForm组件
 
+// -------------------------- 当前用户数据 ----------------------------
+const currentUserID = ref(sessionStorage.getItem('user_id'))
+const currentUserRole = ref(sessionStorage.getItem('role'))
+
 // -------------------------- 表格与分页相关 --------------------------
 const page = ref(1)
 const pageSize = ref(10)
@@ -180,8 +184,8 @@ const loadCases = async () => {
   try {
     const res = await axios.get('http://127.0.0.1:8001/cases', {
       params: {
-        user_id: 1,
-        role: 'admin',
+        user_id: currentUserID.value ,
+        role: currentUserRole.value ,
         skip: (page.value - 1) * pageSize.value,
         limit: pageSize.value
       }
@@ -280,10 +284,64 @@ const deleteCase = async (caseId) => {
 // -------------------------- 辅助工具函数 --------------------------
 // 日期格式化（将时间戳/ISO字符串转为本地日期）
 const formatDate = (dateVal) => {
-  if (!dateVal) return ''
-  const date = new Date(dateVal)
-  return date.toLocaleDateString()
-}
+  if (!dateVal) return '';
+
+  let timestamp;
+
+  // 处理时间戳（数字类型）
+  if (typeof dateVal === 'number') {
+    // 处理秒级时间戳（如果是10位数字）
+    if (dateVal.toString().length === 10) {
+      dateVal *= 1000;
+    }
+    timestamp = dateVal;
+  }
+  // 处理字符串类型
+  else if (typeof dateVal === 'string') {
+    // 尝试多种常见格式转换
+    const formats = [
+      // 尝试不添加Z的情况（本地时间）
+      dateVal.replace(' ', 'T'),
+      // 尝试添加Z的情况（UTC时间）
+      dateVal.replace(' ', 'T') + 'Z',
+      // 尝试直接解析原始字符串
+      dateVal
+    ];
+
+    // 尝试各种格式，找到能正确解析的
+    for (const fmt of formats) {
+      const tempDate = new Date(fmt);
+      if (!isNaN(tempDate.getTime())) {
+        timestamp = tempDate.getTime();
+        break;
+      }
+    }
+  }
+  // 处理Date对象
+  else if (dateVal instanceof Date) {
+    timestamp = dateVal.getTime();
+  }
+
+  // 验证时间戳是否有效
+  if (timestamp === undefined || isNaN(timestamp)) {
+    console.warn('无法解析的日期格式:', dateVal);
+    return '无效日期';
+  }
+
+  const date = new Date(timestamp);
+
+  // 使用toLocaleString()同时显示日期和时间
+  // 可以通过参数自定义格式，例如：
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false // 24小时制
+  });
+};
 
 // 根据律师ID获取律师姓名（查看弹窗用）
 const getLawyerName = computed(() => (lawyerId) => {
