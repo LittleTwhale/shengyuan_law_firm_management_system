@@ -64,13 +64,16 @@
         <el-descriptions-item label="结案状态">{{ caseData.closing_status || '-' }}</el-descriptions-item>
         <el-descriptions-item label="结案方式">{{ caseData.closing_method || '-' }}</el-descriptions-item>
         <el-descriptions-item label="案件地点">{{ caseData.location || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="案件详情">{{ caseData.details || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="案件详情">
+          <div class="case-detail-content" v-text="caseData.details || '-'"></div>
+        </el-descriptions-item>
       </el-descriptions>
 
       <el-divider />
 
       <!-- 保全与状态 -->
       <el-descriptions title="案件状态" :column="2" border>
+        <el-descriptions-item label="审核状态">{{ caseData.review_status }}</el-descriptions-item>
         <el-descriptions-item label="是否重大">{{ caseData.is_major ? '是' : '否' }}</el-descriptions-item>
         <el-descriptions-item label="是否解除">{{ caseData.is_dismissed ? '是' : '否' }}</el-descriptions-item>
         <el-descriptions-item label="是否纸质卷宗">{{ caseData.has_paper_file ? '是' : '否' }}</el-descriptions-item>
@@ -136,6 +139,7 @@ const loadCaseDetail = async () => {
   } catch (err) {
     console.error('加载案件详情失败:', err)
     ElMessage.error('加载案件详情失败')
+    await router.push('/main/cases')
   } finally {
     loading.value = false
   }
@@ -192,5 +196,11 @@ const formatDateTime = (dateVal) => {
 .el-divider {
   margin: 25px 0;
 }
-
+/* 案件详情文本换行样式 */
+.case-detail-content {
+white-space: pre-line; /* 保留换行符，自动处理空格和宽度 */
+line-height: 1.8; /* 增加行高，提升长文本可读性 */
+color: #444; /* 可选：调整文本颜色，区分于标签 */
+padding: 5px 0; /* 可选：增加上下内边距，避免与其他内容拥挤 */
+}
 </style>

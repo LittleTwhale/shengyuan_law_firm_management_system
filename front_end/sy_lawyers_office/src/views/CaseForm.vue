@@ -117,8 +117,17 @@
 
       <!-- 5. 律师分配 -->
       <el-form-item label="主办律师" prop="main_lawyer_id">
-        <el-select v-model="formData.main_lawyer_id" placeholder="请选择主办律师">
-          <el-option v-for="lawyer in lawyers" :key="lawyer.id" :label="lawyer.real_name" :value="lawyer.id"/>
+        <el-select
+          v-model="formData.main_lawyer_id"
+          :disabled="props.currentUserRole === 'user'"
+          placeholder="请选择主办律师"
+        >
+          <el-option
+            v-for="lawyer in props.lawyers"
+            :key="lawyer.id"
+            :label="lawyer.real_name"
+            :value="lawyer.id"
+          />
         </el-select>
       </el-form-item>
 
@@ -237,30 +246,32 @@ import { ref, reactive, watch, computed } from 'vue'
 
 // 1. Props：接收父组件传递的数据
 const props = defineProps({
-    // 接收父组件的弹窗显示状态（v-model 绑定）
-    visible: {
-      type: Boolean,
-      required: true,
-      default: false
-    },
-    // 律师列表（新增/编辑都需要）
-    lawyers: {
-      type: Array,
-      required: true,
-      default: () => []
-    },
-    // 表单初始值（编辑时传入案件数据，新增时为空对象）
-    initialFormData: {
-      type: Object,
-      required: false,
-      default: () => ({})
-    },
-    // 表单模式（新增/编辑，用于差异化逻辑）
-    mode: {
-      type: String,
-      required: true,
-      validator: (value) => ['add', 'edit'].includes(value) // 仅允许add/edit两种值
-  }
+  // 接收父组件的弹窗显示状态（v-model 绑定）
+  visible: {
+    type: Boolean,
+    required: true,
+    default: false
+  },
+  // 律师列表（新增/编辑都需要）
+  lawyers: {
+    type: Array,
+    required: true,
+    default: () => []
+  },
+  // 表单初始值（编辑时传入案件数据，新增时为空对象）
+  initialFormData: {
+    type: Object,
+    required: false,
+    default: () => ({})
+  },
+  // 表单模式（新增/编辑，用于差异化逻辑）
+  mode: {
+    type: String,
+    required: true,
+    validator: (value) => ['add', 'edit'].includes(value) // 仅允许add/edit两种值
+  },
+  currentUserId: [String, Number],
+  currentUserRole: String
 })
 // 使用本地响应式变量替代直接修改 prop
 const dialogVisible = computed({
@@ -280,7 +291,7 @@ const dialogTitle = computed(() => {
 })
 
 // 表单数据
-const formData = reactive({
+const defaultFormData = {
   // 初始化默认值（避免undefined）
   case_category: '',
   commission_date: '',
@@ -304,7 +315,7 @@ const formData = reactive({
   hearing_date: '',
   filing_date: '',
   closing_date: '',
-  main_lawyer_id: '',
+  main_lawyer_id: Number(props.currentUserId),
   assistant_lawyer_id: '',
   execution_lawyer_id: '',
   execution_assistant_id: '',
@@ -326,7 +337,8 @@ const formData = reactive({
   mediation_due_date: '',
   execution_due_date: '',
   details: ''
-})
+}
+const formData = reactive(defaultFormData)
 // 保全状态切换时的处理逻辑
 const handlePreservationChange = (val) => {
   if (!val) {
@@ -357,10 +369,43 @@ watch(
   () => props.initialFormData,
   (newVal) => {
     if (newVal && props.mode === 'edit') {
-      Object.assign(formData, JSON.parse(JSON.stringify(newVal)))
+      const copy = JSON.parse(JSON.stringify(newVal))
+
+      // 将对象型字段转换为 ID
+      copy.main_lawyer_id = copy.main_lawyer?.id || ''
+      copy.assistant_lawyer_id = copy.assistant_lawyer?.id || ''
+      copy.execution_lawyer_id = copy.execution_lawyer?.id || ''
+      copy.execution_assistant_id = copy.execution_assistant?.id || ''
+
+      Object.assign(formData, copy)
     }
   },
   { immediate: true, deep: true }
+)
+watch(
+  () => props.mode,
+  (newMode) => {
+    if (newMode === 'add') {
+      // 清空所有字段
+      Object.keys(formData).forEach(key => (formData[key] = ''))
+
+      // 重置布尔字段为 false
+      const boolKeys = [
+        'is_major',
+        'has_record',
+        'has_paper_file',
+        'is_dismissed',
+        'has_preservation',
+        'is_bank_case'
+      ]
+      boolKeys.forEach(key => (formData[key] = false))
+
+      // 主办律师默认为当前用户
+      if (props.currentUserRole === 'user' || props.currentUserRole === 'admin') {
+        formData.main_lawyer_id = Number(props.currentUserId)
+      }
+    }
+  }
 )
 
 

@@ -48,6 +48,8 @@ class Case(Base):
     execution_assistant_id = Column(Integer, ForeignKey("users.id"), nullable=True, comment="执行助理律师ID")
 
     # 状态与标记
+    review_status = Column(Enum('待审核','已审核','已拒绝'), nullable=False, comment="案件审核状态")
+
     is_major = Column(Boolean, default=False, nullable=False, comment="是否重大")
     has_paper_file = Column(Boolean, default=False, nullable=False, comment="是否纸质卷宗")
     is_dismissed = Column(Boolean, default=False, nullable=False, comment="是否解除")

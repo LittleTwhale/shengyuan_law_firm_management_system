@@ -76,6 +76,7 @@ class CaseOut(BaseModel):
     details: Optional[str] = Field(None, description="案件详情 / Case details")
 
     # ⚙️ 状态与标记
+    review_status: str = Field(..., description="案件审核状态 / Review status")
     is_major: bool = Field(False, description="是否重大 / Is major")
     has_paper_file: bool = Field(False, description="是否纸质卷宗 / Has paper file")
     is_dismissed: bool = Field(False, description="是否解除 / Is dismissed")
@@ -118,6 +119,7 @@ class CaseSimpleOut(BaseModel):
     case_number: str = Field(..., description="案件号 / Case number")
     client_name: str = Field(..., description="委托人 / Client name")
     case_category: str = Field(..., description="案件类别 / Case category")
+    review_status: str = Field(..., description="案件审核状态 / Review status")
     main_lawyer: UserOut = Field(..., description="主办律师 / Main lawyer")
     created_at: datetime = Field(..., description="创建时间 / Created at")
 

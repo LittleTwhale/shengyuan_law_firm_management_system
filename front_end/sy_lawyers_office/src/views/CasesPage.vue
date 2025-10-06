@@ -12,6 +12,7 @@
       <el-table-column prop="client_name" label="委托人" align="center"/>
       <el-table-column prop="case_category" label="案件类别" align="center"/>
       <el-table-column prop="main_lawyer.real_name" label="主办律师" align="center"/>
+      <el-table-column prop="review_status" label="审核状态" align="center"/>
       <el-table-column
         prop="created_at"
         label="创建时间"
@@ -44,6 +45,8 @@
       :lawyers="lawyers"
       :initial-form-data="formData"
       :mode="formMode"
+      :current-user-id="currentUserID"
+      :current-user-role="currentUserRole"
       @submit="handleFormSubmit"
     />
 
@@ -135,12 +138,24 @@ const handleAddClick = () => {
 }
 
 // -------------------------- 编辑案件相关 --------------------------
-const handleEditClick = (row) => {
-  formMode.value = 'edit' // 切换为编辑模式
-  currentCaseId.value = row.case_id // 记录当前编辑的案件ID
-  // 深拷贝案件数据到表单（避免修改子组件数据影响父组件）
-  Object.assign(formData, JSON.parse(JSON.stringify(row)))
-  showFormDialog.value = true
+const handleEditClick = async (row) => {
+  formMode.value = 'edit'
+  currentCaseId.value = row.case_id
+
+  try {
+    // 调接口获取完整案件详情（CaseOut）
+    const res = await axios.get(`http://127.0.0.1:8001/cases/${row.case_id}`)
+    const fullCaseData = res.data
+
+    // 深拷贝 CaseOut 数据到表单
+    Object.assign(formData, JSON.parse(JSON.stringify(fullCaseData)))
+
+    // 打开弹窗
+    showFormDialog.value = true
+  } catch (err) {
+    console.error('加载案件详情失败:', err)
+    ElMessage.error('加载案件详情失败，请稍后重试')
+  }
 }
 
 // -------------------------- CaseForm 组件事件回调 --------------------------
@@ -150,20 +165,20 @@ const handleFormSubmit = async (submittedData) => {
     if (formMode.value === 'add') {
       // 新增案件请求
       await axios.post('http://127.0.0.1:8001/cases/operations', {
-        user_id: 1,
+        user_id: currentUserID.value,
         operation_type: '新增',
         pending_data: submittedData
       })
-      ElMessage.success('新增案件成功')
+      ElMessage.success('新增案件成功,等待管理员审核')
     } else {
       // 编辑案件请求（携带案件ID）
       await axios.post('http://127.0.0.1:8001/cases/operations', {
-        user_id: 1,
+        user_id: currentUserID.value,
         operation_type: '修改',
         case_id: currentCaseId.value,
         pending_data: submittedData
       })
-      ElMessage.success('编辑案件成功')
+      ElMessage.success('编辑案件成功,等待管理员审核')
     }
     // 提交成功后刷新列表并重置状态
     await loadCases()
@@ -190,7 +205,7 @@ const deleteCase = async (caseId) => {
       case_id: caseId,
       pending_data: {}
     })
-    ElMessage.success('删除案件成功')
+    ElMessage.success('删除案件成功,等待管理员审核')
     await loadCases() // 刷新列表
   } catch (err) {
     console.error('删除案件失败:', err)
