@@ -10,7 +10,6 @@ from ..schemas.case_operation import CaseOperationCreate, CaseOperationOut
 from ..crud.user import get_all_lawyers
 from ..crud.case import list_cases_by_user_role, get_case_by_id, count_cases_by_user_role
 from ..crud.case_operation import create_case_operation, list_user_operations, get_operation_by_id
-
 router = APIRouter(
     prefix="/cases",
     tags=["case_manage"]

@@ -4,6 +4,7 @@ import DashBoard from '@/views/DashBoard.vue'
 import CasesPage from '@/views/CasesPage.vue'
 import LawyerManagePage from '@/views/LawyerManagePage.vue'
 import CaseReviewPage from '@/views/CaseReviewPage.vue'
+import CaseDetailPage from '@/views/CaseDetailPage.vue'
 
 const routes = [
   { path: '/', redirect: '/login' },
@@ -15,7 +16,13 @@ const routes = [
     children: [
       { path: 'cases', component: CasesPage },
       { path: 'lawyers', component: LawyerManagePage, meta: { roles: ['owner', 'admin'] } },
-      { path: 'case_review', component: CaseReviewPage, meta: { roles: ['owner', 'admin'] } }
+      { path: 'case_review', component: CaseReviewPage, meta: { roles: ['owner', 'admin'] } },
+      {
+        path: 'cases/:id',
+        name: 'CaseDetail',
+        component: CaseDetailPage,
+        meta: { title: '案件详情' }
+      }
     ]
   },
 ]

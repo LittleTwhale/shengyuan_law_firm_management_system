@@ -47,96 +47,16 @@
       @submit="handleFormSubmit"
     />
 
-    <!-- 2. 查看案件 Dialog -->
-    <el-dialog
-      title="案件详情"
-      v-model:visible="showViewDialog"
-      width="900px"
-      destroy-on-close
-    >
-      <el-descriptions :column="1" border size="default">
-        <!-- 基础信息 -->
-        <el-descriptions-item label="案件号">{{ viewData.case_number || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="案件类别">{{ viewData.case_category || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="委托日期">{{ formatDate(viewData.commission_date) || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="委托人">{{ viewData.client_name || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="委托人身份证/税号">{{ viewData.client_id_number || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="委托人电话">{{ viewData.client_phone || '-' }}</el-descriptions-item>
 
-        <!-- 费用信息 -->
-        <el-descriptions-item label="是否银行案件">{{ viewData.is_bank_case ? '是' : '否' }}</el-descriptions-item>
-        <el-descriptions-item label="案件来源">{{ viewData.case_source || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="收费方式">{{ viewData.fee_method || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="风险比例">{{ viewData.risk_ratio || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="案件收入">{{ viewData.case_income ? `${viewData.case_income} 元` : '-' }}</el-descriptions-item>
-        <el-descriptions-item label="付款到期日">{{ formatDate(viewData.payment_due_date) || '-' }}</el-descriptions-item>
-
-        <!-- 案件主体信息 -->
-        <el-descriptions-item label="案由">{{ viewData.cause || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="介入阶段">{{ viewData.stage || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="原告/申请人">{{ viewData.plaintiff || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="上诉人/第三人信息">{{ viewData.appellant_info || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="补充上诉人/补告">{{ viewData.extra_appellant_info || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="被告">{{ viewData.defendant || '-' }}</el-descriptions-item>
-
-        <!-- 代理与审理 -->
-        <el-descriptions-item label="代理权限">{{ viewData.agency_power || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="审理法院">{{ viewData.court || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="开庭时间">{{ formatDate(viewData.hearing_date) || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="立案日">{{ formatDate(viewData.filing_date) || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="结案时间">{{ formatDate(viewData.closing_date) || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="案件地点">{{ viewData.location || '-' }}</el-descriptions-item>
-
-        <!-- 律师分配 -->
-        <el-descriptions-item label="主办律师">{{ viewData.main_lawyer?.name || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="助理律师">{{ getLawyerName(viewData.assistant_lawyer_id) || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="执行主办律师">{{ getLawyerName(viewData.execution_lawyer_id) || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="执行助理律师">{{ getLawyerName(viewData.execution_assistant_id) || '-' }}</el-descriptions-item>
-
-        <!-- 其他配置 -->
-        <el-descriptions-item label="是否重大">{{ viewData.is_major ? '是' : '否' }}</el-descriptions-item>
-        <el-descriptions-item label="是否纸质卷宗">{{ viewData.has_paper_file ? '是' : '否' }}</el-descriptions-item>
-        <el-descriptions-item label="是否解除">{{ viewData.is_dismissed ? '是' : '否' }}</el-descriptions-item>
-        <el-descriptions-item label="是否笔录">{{ viewData.has_record ? '是' : '否' }}</el-descriptions-item>
-
-        <!-- 保全信息 -->
-        <el-descriptions-item label="是否保全">{{ viewData.has_preservation ? '是' : '否' }}</el-descriptions-item>
-        <el-descriptions-item v-if="viewData.has_preservation" label="保全开始日">{{ formatDate(viewData.preservation_start) || '-' }}</el-descriptions-item>
-        <el-descriptions-item v-if="viewData.has_preservation" label="保全终止日">{{ formatDate(viewData.preservation_end) || '-' }}</el-descriptions-item>
-
-        <!-- 结案与执行 -->
-        <el-descriptions-item label="案号">{{ viewData.case_code || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="结案状态">{{ viewData.closing_status || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="结案方式">{{ viewData.closing_method || '-' }}</el-descriptions-item>
-
-        <!-- 诉讼费 -->
-        <el-descriptions-item label="诉讼费缴费时间">{{ formatDate(viewData.litigation_fee_payment_date) || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="诉讼费缴费金额">{{ viewData.litigation_fee_payment_amount ? `${viewData.litigation_fee_payment_amount} 元` : '-' }}</el-descriptions-item>
-        <el-descriptions-item label="诉讼费退费时间">{{ formatDate(viewData.litigation_fee_refund_date) || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="诉讼费退费金额">{{ viewData.litigation_fee_refund_amount ? `${viewData.litigation_fee_refund_amount} 元` : '-' }}</el-descriptions-item>
-
-        <!-- 执行相关 -->
-        <el-descriptions-item label="申请执行日">{{ formatDate(viewData.execution_application_date) || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="调解到期日">{{ formatDate(viewData.mediation_due_date) || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="执行到期日">{{ formatDate(viewData.execution_due_date) || '-' }}</el-descriptions-item>
-
-        <!-- 案件详情 -->
-        <el-descriptions-item label="案件详情" :span="1">
-          <pre style="white-space: pre-wrap; word-break: break-all; margin: 0">{{ viewData.details || '-' }}</pre>
-        </el-descriptions-item>
-      </el-descriptions>
-      <template #footer>
-        <el-button @click="showViewDialog = false">关闭</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted} from 'vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import CaseForm from './CaseForm.vue' // 引入抽离的CaseForm组件
+import { useRouter } from 'vue-router'
 
 // -------------------------- 当前用户数据 ----------------------------
 const currentUserID = ref(sessionStorage.getItem('user_id'))
@@ -150,7 +70,6 @@ const cases = ref([])
 const tableLoading = ref(false) // 表格加载状态
 
 // -------------------------- 弹窗控制相关 --------------------------
-const showViewDialog = ref(false) // 查看弹窗显示状态
 // 明确指定formMode的类型为'add'或'edit'
 const formMode = ref('add') // 表单模式：'add'（新增）/'edit'（编辑）
 const currentCaseId = ref('') // 当前编辑的案件ID（编辑时用）
@@ -159,7 +78,6 @@ const currentCaseId = ref('') // 当前编辑的案件ID（编辑时用）
 // -------------------------- 数据存储相关 --------------------------
 const lawyers = ref([]) // 律师列表
 const formData = reactive({}) // 传递给CaseForm的表单数据
-const viewData = reactive({}) // 查看弹窗的数据
 
 // -------------------------- 初始化加载 --------------------------
 onMounted(() => {
@@ -256,10 +174,9 @@ const handleFormSubmit = async (submittedData) => {
 }
 
 // -------------------------- 查看案件相关 --------------------------
+const router = useRouter()
 const viewCase = (row) => {
-  // 深拷贝案件数据到查看弹窗
-  Object.assign(viewData, JSON.parse(JSON.stringify(row)))
-  showViewDialog.value = true
+  router.push(`/main/cases/${row.case_id}`)
 }
 
 // -------------------------- 删除案件相关 --------------------------
@@ -343,12 +260,6 @@ const formatDate = (dateVal) => {
   });
 };
 
-// 根据律师ID获取律师姓名（查看弹窗用）
-const getLawyerName = computed(() => (lawyerId) => {
-  if (!lawyerId) return ''
-  const lawyer = lawyers.value.find(item => item.id === lawyerId)
-  return lawyer ? lawyer.real_name : '未知律师'
-})
 </script>
 
 <style scoped>
