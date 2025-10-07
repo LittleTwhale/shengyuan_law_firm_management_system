@@ -1,9 +1,11 @@
 # crud/case.py
 from datetime import datetime
+from typing import List, Optional, cast
 
 from sqlalchemy.orm import Session, joinedload
+
 from ..models.case import Case
-from typing import List, Optional, cast
+from ..schemas.case import CaseCreate, CaseUpdate
 
 
 def get_case_by_id(db: Session, case_id: int) -> Optional[Case]:
@@ -18,7 +20,10 @@ def get_case_by_id(db: Session, case_id: int) -> Optional[Case]:
             joinedload(Case.execution_lawyer),
             joinedload(Case.execution_assistant),
         )
-        .filter(Case.case_id == case_id)
+        .filter(
+            Case.case_id == case_id,
+            Case.is_deleted == False
+        )
         .first()
     )
 
@@ -34,33 +39,33 @@ def list_cases_by_user_role(db: Session, user_id: int, role: str, skip: int = 0,
         joinedload(Case.assistant_lawyer),
         joinedload(Case.execution_lawyer),
         joinedload(Case.execution_assistant),
-    )
+    ).filter(Case.is_deleted == False)
 
     if role not in ["admin", "owner"]:
         query = query.filter(Case.main_lawyer_id == user_id)
 
     cases = query.offset(skip).limit(limit).all()
-    return cast(list[Case],cases)
+    return cast(list[Case], cases)
+
 
 def count_cases_by_user_role(db: Session, user_id: int, role: str) -> int:
     """
     根据用户角色统计案件总数
     """
-    query = db.query(Case)
+    query = db.query(Case).filter(Case.is_deleted == False)
     if role not in ["admin", "owner"]:
         query = query.filter(Case.main_lawyer_id == user_id)
 
     return query.count()
 
 
-def create_case(db: Session, case_data: dict) -> Case:
+def create_case(db: Session, case_in: CaseCreate) -> Case:
     """
     创建新案件（系统自动生成案件号）
     """
-    # 1. 获取年份
     year = datetime.now().year
 
-    # 2. 案件类型映射
+    # 案件类型映射
     type_map = {
         "民事案件": "民字",
         "刑事案件": "刑字",
@@ -69,27 +74,32 @@ def create_case(db: Session, case_data: dict) -> Case:
         "非诉案件": "非诉字",
         "法律顾问业务": "法顾字",
     }
-    case_type = case_data.get("case_category")
+
+    case_type = case_in.case_category
     if case_type not in type_map:
         raise ValueError("未知的案件类型")
 
-    # 3. 查询该类型的最新案件号
+    # 查询该类型的最新案件号
     latest_case = db.query(Case).filter(
         Case.case_category == case_type,
         Case.case_number.like(f"湘生律（{year}）%")
     ).order_by(Case.case_id.desc()).first()
 
-    # 4. 生成下一个序号
+    next_number = 1
     if latest_case:
         last_number = int(latest_case.case_number.split("第")[-1].replace("号", ""))
         next_number = last_number + 1
-    else:
-        next_number = 1
 
-    # 5. 拼接案件号
     case_number = f"湘生律（{year}）{type_map[case_type]}第{next_number}号"
 
-    # 6. 创建案件
+    # 将输入数据转换为字典
+    case_data = case_in.model_dump()
+
+    # 强制设置默认值
+    case_data["review_status"] = "待审核"
+    case_data["is_deleted"] = False
+
+    # 创建案件实例
     new_case = Case(**case_data, case_number=case_number)
     db.add(new_case)
     db.commit()
@@ -97,43 +107,40 @@ def create_case(db: Session, case_data: dict) -> Case:
     return new_case
 
 
-def update_case(db: Session, case_id: int, update_data: dict) -> Optional[Case]:
+def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case]:
     """
     更新已有案件
     """
-    case = cast(
-        Optional[Case],
-        db.query(Case)
-        .options(
-            joinedload(Case.main_lawyer),
-            joinedload(Case.assistant_lawyer),
-            joinedload(Case.execution_lawyer),
-            joinedload(Case.execution_assistant),
-        )
-        .filter(Case.case_id == case_id)
-        .first(),
-    )
+    case = db.query(Case).options(
+        joinedload(Case.main_lawyer),
+        joinedload(Case.assistant_lawyer),
+        joinedload(Case.execution_lawyer),
+        joinedload(Case.execution_assistant),
+    ).filter(
+        Case.case_id == case_id,
+        Case.is_deleted == False
+    ).first()
+
     if not case:
         return None
 
-    for key, value in update_data.items():
-        if hasattr(case, key):
-            setattr(case, key, value)
+    for key, value in case_in.model_dump(exclude_unset=True).items():
+        setattr(case, key, value)
 
     db.commit()
     db.refresh(case)
-    return case
+    return cast(Case, case)
 
 
 def delete_case(db: Session, case_id: int) -> bool:
     """
-    删除案件
+    删除案件（逻辑删除）
     """
-    case = db.query(Case).filter(Case.case_id == case_id).first()
+    case = db.query(Case).filter(Case.case_id == case_id, Case.is_deleted == False).first()
     if not case:
         return False
 
-    db.delete(case)
+    case.is_deleted = True
     db.commit()
     return True
 
@@ -152,10 +159,13 @@ def list_cases_by_lawyer(db: Session, lawyer_id: int) -> List[Case]:
             joinedload(Case.execution_assistant),
         )
         .filter(
-            (Case.main_lawyer_id == lawyer_id)
-            | (Case.assistant_lawyer_id == lawyer_id)
-            | (Case.execution_lawyer_id == lawyer_id)
-            | (Case.execution_assistant_id == lawyer_id)
+            Case.is_deleted == False,
+            (
+                (Case.main_lawyer_id == lawyer_id)
+                | (Case.assistant_lawyer_id == lawyer_id)
+                | (Case.execution_lawyer_id == lawyer_id)
+                | (Case.execution_assistant_id == lawyer_id)
+            )
         )
         .all(),
     )

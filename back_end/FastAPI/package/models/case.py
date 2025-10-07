@@ -12,7 +12,7 @@ class Case(Base):
     case_number = Column(String(50), unique=True, nullable=False, comment="案件号")
     commission_date = Column(Date, nullable=False, comment="委托日期")
     client_name = Column(String(100), nullable=False, comment="委托人")
-    client_id_number = Column(String(18), nullable=False, comment="委托人身份证号/单位税号")
+    client_id_number = Column(String(18), nullable=True, comment="委托人身份证号/单位税号")
     client_phone = Column(String(20), nullable=True, comment="委托人电话")
 
     case_category = Column(Enum('民事案件','非诉案件','刑事案件','行政案件','仲裁案件','法律顾问业务'), nullable=False, comment="案件类别")
@@ -55,6 +55,8 @@ class Case(Base):
     is_dismissed = Column(Boolean, default=False, nullable=False, comment="是否解除")
     has_record = Column(Boolean, default=False, nullable=False, comment="是否笔录")
     has_preservation = Column(Boolean, default=False, nullable=False, comment="是否保全")
+
+    is_deleted = Column(Boolean, default=False, nullable=False, comment="是否删除")
 
     preservation_start = Column(Date, nullable=True, comment="保全开始日")
     preservation_end = Column(Date, nullable=True, comment="保全终止日")

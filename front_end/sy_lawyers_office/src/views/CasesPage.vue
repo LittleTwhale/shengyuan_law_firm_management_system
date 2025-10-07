@@ -163,24 +163,16 @@ const handleEditClick = async (row) => {
 const handleFormSubmit = async (submittedData) => {
   try {
     if (formMode.value === 'add') {
-      // 新增案件请求
-      await axios.post('http://127.0.0.1:8001/cases/operations', {
-        user_id: currentUserID.value,
-        operation_type: '新增',
-        pending_data: submittedData
-      })
-      ElMessage.success('新增案件成功,等待管理员审核')
+      console.log('【新增案件】传给后端的请求数据（JSON格式）：\n', JSON.stringify(submittedData, null, 2));
+      // 调用 /cases/case_create
+      await axios.post('http://127.0.0.1:8001/cases/case_create', submittedData)
+      ElMessage.success('新增案件成功')
     } else {
-      // 编辑案件请求（携带案件ID）
-      await axios.post('http://127.0.0.1:8001/cases/operations', {
-        user_id: currentUserID.value,
-        operation_type: '修改',
-        case_id: currentCaseId.value,
-        pending_data: submittedData
-      })
-      ElMessage.success('编辑案件成功,等待管理员审核')
+      console.log('【新增案件】传给后端的请求数据（JSON格式）：\n', JSON.stringify(submittedData, null, 2));
+      // 调用 /cases/case_update/{case_id}
+      await axios.put(`http://127.0.0.1:8001/cases/case_update/${currentCaseId.value}`, submittedData)
+      ElMessage.success('编辑案件成功')
     }
-    // 提交成功后刷新列表并重置状态
     await loadCases()
   } catch (err) {
     console.error(`${formMode.value === 'add' ? '新增' : '编辑'}案件失败:`, err)
@@ -199,13 +191,8 @@ const deleteCase = async (caseId) => {
   if (!confirm('确定要删除该案件吗？删除后不可恢复！')) return
 
   try {
-    await axios.post('http://127.0.0.1:8001/cases/operations', {
-      user_id: 1,
-      operation_type: '删除',
-      case_id: caseId,
-      pending_data: {}
-    })
-    ElMessage.success('删除案件成功,等待管理员审核')
+    await axios.delete(`http://127.0.0.1:8001/cases/case_delete/${caseId}`)
+    ElMessage.success('删除案件成功')
     await loadCases() // 刷新列表
   } catch (err) {
     console.error('删除案件失败:', err)

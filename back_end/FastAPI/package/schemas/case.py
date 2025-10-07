@@ -5,11 +5,12 @@ from datetime import date, datetime
 from decimal import Decimal
 from .user import UserOut
 
-# 案件基础信息
-class CaseBase(BaseModel):
+# 创建案件
+class CaseCreate(BaseModel):
+    # 🧾 基本信息
     commission_date: date = Field(..., description="委托日期")
     client_name: str = Field(..., description="委托人")
-    client_id_number: str = Field(..., description="委托人身份证号/单位税号")
+    client_id_number: str = Field(None, description="委托人身份证号/单位税号")
     client_phone: Optional[str] = Field(None, description="委托人电话")
     case_category: str = Field(..., description="案件类别")
     is_bank_case: bool = Field(False, description="是否为银行案件")
@@ -17,29 +18,128 @@ class CaseBase(BaseModel):
     fee_method: Optional[str] = Field(None, description="收费方式")
     risk_ratio: Optional[str] = Field(None, description="风险比例")
     case_income: Optional[Decimal] = Field(0, description="案件收入")
-    cause: Optional[str] = Field(None, description="案由")
-    stage: Optional[str] = Field(None, description="介入阶段")
 
+    # ⚖️ 诉讼相关
+    payment_due_date: Optional[date] = None
+    cause: Optional[str] = None
+    stage: Optional[str] = None
+    plaintiff: Optional[str] = None
+    appellant_info: Optional[str] = None
+    extra_appellant_info: Optional[str] = None
+    defendant: Optional[str] = None
+    details: Optional[str] = None
 
-# 创建案件
-class CaseCreate(CaseBase):
+    # 👩‍💼 律师信息
     main_lawyer_id: int = Field(..., description="主办律师ID")
+    assistant_lawyer_id: Optional[int] = None
+    execution_lawyer_id: Optional[int] = None
+    execution_assistant_id: Optional[int] = None
+
+    # 代理/审理信息
+    agency_power: Optional[str] = None
+    court: Optional[str] = None
+    hearing_date: Optional[date] = None
+    filing_date: Optional[date] = None
+    closing_date: Optional[date] = None
+
+    # 状态与标记
+    is_major: bool = False
+    has_paper_file: bool = False
+    is_dismissed: bool = False
+    has_record: bool = False
+    has_preservation: bool = False
+
+    preservation_start: Optional[date] = None
+    preservation_end: Optional[date] = None
+
+    # 结案与执行
+    case_code: Optional[str] = None
+    closing_status: Optional[str] = None
+    closing_method: Optional[str] = None
+
+    # 诉讼费
+    litigation_fee_payment_date: Optional[date] = None
+    litigation_fee_payment_amount: Optional[Decimal] = 0
+    litigation_fee_refund_date: Optional[date] = None
+    litigation_fee_refund_amount: Optional[Decimal] = 0
+
+    # 执行相关
+    execution_application_date: Optional[date] = None
+    mediation_due_date: Optional[date] = None
+    execution_due_date: Optional[date] = None
+
+    class Config:
+        from_attributes = True
 
 
 # 案件更新（部分字段可选）
 class CaseUpdate(BaseModel):
-    commission_date: Optional[date] = None
-    client_name: Optional[str] = None
-    client_id_number: Optional[str] = None
-    client_phone: Optional[str] = None
-    case_category: Optional[str] = None
-    is_bank_case: Optional[bool] = None
-    case_source: Optional[str] = None
-    fee_method: Optional[str] = None
-    risk_ratio: Optional[str] = None
-    case_income: Optional[Decimal] = None
-    cause: Optional[str] = None
-    stage: Optional[str] = None
+    # 基本信息 / Basic info
+    commission_date: Optional[date] = Field(None, description="委托日期 / Commission date")
+    client_name: Optional[str] = Field(None, description="委托人 / Client name")
+    client_id_number: Optional[str] = Field(None, description="委托人身份证号/单位税号 / Client ID / Tax number")
+    client_phone: Optional[str] = Field(None, description="委托人电话 / Client phone")
+    case_category: Optional[str] = Field(None, description="案件类别 / Case category")
+    is_bank_case: Optional[bool] = Field(None, description="是否为银行案件 / Is bank case")
+    case_source: Optional[str] = Field(None, description="案件来源 / Case source")
+    fee_method: Optional[str] = Field(None, description="收费方式 / Fee method")
+    risk_ratio: Optional[str] = Field(None, description="风险比例 / Risk ratio")
+    case_income: Optional[Decimal] = Field(None, description="案件收入 / Case income")
+
+    # 费用/支付相关 / Payment-related
+    payment_due_date: Optional[date] = Field(None, description="付款到期日 / Payment due date")
+
+    # 案件主体 / Case parties & details
+    cause: Optional[str] = Field(None, description="案由 / Cause")
+    stage: Optional[str] = Field(None, description="介入阶段 / Case stage")
+    plaintiff: Optional[str] = Field(None, description="原告 / Plaintiff")
+    appellant_info: Optional[str] = Field(None, description="上诉人/申请人信息 / Appellant info")
+    extra_appellant_info: Optional[str] = Field(None, description="补充上诉人信息 / Extra appellant info")
+    defendant: Optional[str] = Field(None, description="被告 / Defendant")
+    details: Optional[str] = Field(None, description="案件详情 / Case details")
+
+    # 律师分配 / Lawyers
+    main_lawyer_id: Optional[int] = Field(None, description="主办律师ID / Main lawyer ID")
+    assistant_lawyer_id: Optional[int] = Field(None, description="助理律师ID / Assistant lawyer ID")
+    execution_lawyer_id: Optional[int] = Field(None, description="执行主办律师ID / Execution main lawyer ID")
+    execution_assistant_id: Optional[int] = Field(None, description="执行助理ID / Execution assistant ID")
+
+    # 代理/审理信息 / Court & agency
+    agency_power: Optional[str] = Field(None, description="代理权限 / Agency power")
+    court: Optional[str] = Field(None, description="审理法院 / Court")
+    hearing_date: Optional[date] = Field(None, description="开庭时间 / Hearing date")
+    filing_date: Optional[date] = Field(None, description="立案日 / Filing date")
+    closing_date: Optional[date] = Field(None, description="结案时间 / Closing date")
+
+    # 标记/状态 / Flags & status
+    is_major: Optional[bool] = Field(None, description="是否重大 / Is major")
+    has_paper_file: Optional[bool] = Field(None, description="是否纸质卷宗 / Has paper file")
+    is_dismissed: Optional[bool] = Field(None, description="是否解除 / Is dismissed")
+    has_record: Optional[bool] = Field(None, description="是否笔录 / Has record")
+
+    # 保全 / Preservation
+    has_preservation: Optional[bool] = Field(None, description="是否保全 / Has preservation")
+    preservation_start: Optional[date] = Field(None, description="保全开始日 / Preservation start date")
+    preservation_end: Optional[date] = Field(None, description="保全终止日 / Preservation end date")
+
+    # 结案与执行 / Closing & execution
+    case_code: Optional[str] = Field(None, description="法院案号 / Court case code")
+    closing_status: Optional[str] = Field(None, description="结案状态 / Closing status")
+    closing_method: Optional[str] = Field(None, description="结案方式 / Closing method")
+
+    # 诉讼费 / Litigation fee
+    litigation_fee_payment_date: Optional[date] = Field(None, description="诉讼费缴费时间 / Litigation fee payment date")
+    litigation_fee_payment_amount: Optional[Decimal] = Field(None, description="诉讼费缴费金额 / Litigation fee payment amount")
+    litigation_fee_refund_date: Optional[date] = Field(None, description="诉讼费退费时间 / Litigation fee refund date")
+    litigation_fee_refund_amount: Optional[Decimal] = Field(None, description="诉讼费退费金额 / Litigation fee refund amount")
+
+    # 执行相关 / Execution related
+    execution_application_date: Optional[date] = Field(None, description="申请执行日 / Execution application date")
+    mediation_due_date: Optional[date] = Field(None, description="调解到期日 / Mediation due date")
+    execution_due_date: Optional[date] = Field(None, description="执行到期日 / Execution due date")
+
+    class Config:
+        from_attributes = True
 
 
 # 案件返回给前端
@@ -49,7 +149,7 @@ class CaseOut(BaseModel):
     case_number: str = Field(..., description="案件号 / Case number")
     commission_date: date = Field(..., description="委托日期 / Commission date")
     client_name: str = Field(..., description="委托人 / Client name")
-    client_id_number: str = Field(..., description="身份证号/税号 / ID or Tax number")
+    client_id_number: str = Field(None, description="身份证号/税号 / ID or Tax number")
     client_phone: Optional[str] = Field(None, description="电话 / Phone number")
 
     case_category: str = Field(..., description="案件类别 / Case category")

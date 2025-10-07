@@ -26,7 +26,7 @@
       </el-form-item>
 
       <el-form-item label="委托日期" prop="commission_date">
-        <el-date-picker v-model="formData.commission_date" type="date" placeholder="选择日期"/>
+        <el-date-picker v-model="formData.commission_date" type="date" placeholder="选择日期" value-format="YYYY-MM-DD"/>
       </el-form-item>
 
       <el-form-item label="委托人" prop="client_name">
@@ -55,7 +55,7 @@
       </el-form-item>
 
       <el-form-item label="风险比例">
-        <el-input v-model="formData.risk_ratio" placeholder="如10%"/>
+        <el-input v-model="formData.risk_ratio" placeholder="请输入风险比例"/>
       </el-form-item>
 
       <el-form-item label="案件收入" prop="case_income">
@@ -63,7 +63,7 @@
       </el-form-item>
 
       <el-form-item label="付款到期日">
-        <el-date-picker v-model="formData.payment_due_date" type="date"/>
+        <el-date-picker v-model="formData.payment_due_date" type="date" value-format="YYYY-MM-DD"/>
       </el-form-item>
 
       <!-- 3. 案件主体信息 -->
@@ -104,15 +104,15 @@
       </el-form-item>
 
       <el-form-item label="开庭时间">
-        <el-date-picker v-model="formData.hearing_date" type="date"/>
+        <el-date-picker v-model="formData.hearing_date" type="date" value-format="YYYY-MM-DD"/>
       </el-form-item>
 
       <el-form-item label="立案日">
-        <el-date-picker v-model="formData.filing_date" type="date"/>
+        <el-date-picker v-model="formData.filing_date" type="date" value-format="YYYY-MM-DD"/>
       </el-form-item>
 
       <el-form-item label="结案时间">
-        <el-date-picker v-model="formData.closing_date" type="date"/>
+        <el-date-picker v-model="formData.closing_date" type="date" value-format="YYYY-MM-DD"/>
       </el-form-item>
 
       <!-- 5. 律师分配 -->
@@ -175,14 +175,14 @@
         label="保全开始日"
         v-if="formData.has_preservation"
       >
-        <el-date-picker v-model="formData.preservation_start" type="date"/>
+        <el-date-picker v-model="formData.preservation_start" type="date" value-format="YYYY-MM-DD"/>
       </el-form-item>
 
       <el-form-item
         label="保全终止日"
         v-if="formData.has_preservation"
       >
-        <el-date-picker v-model="formData.preservation_end" type="date"/>
+        <el-date-picker v-model="formData.preservation_end" type="date" value-format="YYYY-MM-DD"/>
       </el-form-item>
 
       <!-- 8. 结案与执行 -->
@@ -200,7 +200,7 @@
 
       <!-- 9. 诉讼费相关 -->
       <el-form-item label="诉讼费缴费时间">
-        <el-date-picker v-model="formData.litigation_fee_payment_date" type="date"/>
+        <el-date-picker v-model="formData.litigation_fee_payment_date" type="date" value-format="YYYY-MM-DD"/>
       </el-form-item>
 
       <el-form-item label="诉讼费缴费金额">
@@ -208,7 +208,7 @@
       </el-form-item>
 
       <el-form-item label="诉讼费退费时间">
-        <el-date-picker v-model="formData.litigation_fee_refund_date" type="date"/>
+        <el-date-picker v-model="formData.litigation_fee_refund_date" type="date" value-format="YYYY-MM-DD"/>
       </el-form-item>
 
       <el-form-item label="诉讼费退费金额">
@@ -217,15 +217,15 @@
 
       <!-- 10. 执行相关 -->
       <el-form-item label="申请执行日">
-        <el-date-picker v-model="formData.execution_application_date" type="date"/>
+        <el-date-picker v-model="formData.execution_application_date" type="date" value-format="YYYY-MM-DD"/>
       </el-form-item>
 
       <el-form-item label="调解到期日">
-        <el-date-picker v-model="formData.mediation_due_date" type="date"/>
+        <el-date-picker v-model="formData.mediation_due_date" type="date" value-format="YYYY-MM-DD"/>
       </el-form-item>
 
       <el-form-item label="执行到期日">
-        <el-date-picker v-model="formData.execution_due_date" type="date"/>
+        <el-date-picker v-model="formData.execution_due_date" type="date" value-format="YYYY-MM-DD"/>
       </el-form-item>
 
       <el-form-item label="案件详情">
@@ -289,62 +289,74 @@ const formRef = ref(null) // 表单引用，用于验证
 const dialogTitle = computed(() => {
   return props.mode === 'add' ? '新增案件' : '编辑案件'
 })
+// 工具函数：获取当前日期（Date对象，时分秒设为0，适配el-date-picker的date类型）
+const getCurrentDate = () => {
+  const now = new Date()
+  // 获取本地时区的年、月、日
+  const year = now.getFullYear()
+  // 月份从0开始，需要+1并补零
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  // 日期补零
+  const day = String(now.getDate()).padStart(2, '0')
 
+  // 返回YYYY-MM-DD格式的字符串
+  return `${year}-${month}-${day}`
+}
 // 表单数据
 const defaultFormData = {
   // 初始化默认值（避免undefined）
-  case_category: '',
-  commission_date: '',
-  client_name: '',
-  client_id_number: '',
-  client_phone: '',
+  case_category: "",
+  commission_date: getCurrentDate(),
+  client_name: "",
+  client_id_number: "",
+  client_phone: "",
   is_bank_case: false,
-  case_source: '',
-  fee_method: '',
-  risk_ratio: '',
+  case_source: "",
+  fee_method: "",
+  risk_ratio: "",
   case_income: 0,
-  payment_due_date: '',
-  cause: '',
-  stage: '',
-  plaintiff: '',
-  appellant_info: '',
-  extra_appellant_info: '',
-  defendant: '',
-  agency_power: '',
-  court: '',
-  hearing_date: '',
-  filing_date: '',
-  closing_date: '',
+  payment_due_date: null,
+  cause: "",
+  stage: "",
+  plaintiff: "",
+  appellant_info: "",
+  extra_appellant_info: "",
+  defendant: "",
+  agency_power: "",
+  court: "",
+  hearing_date: null,
+  filing_date: null,
+  closing_date: null,
   main_lawyer_id: Number(props.currentUserId),
-  assistant_lawyer_id: '',
-  execution_lawyer_id: '',
-  execution_assistant_id: '',
+  assistant_lawyer_id: null,
+  execution_lawyer_id: null,
+  execution_assistant_id: null,
   is_major: false,
   has_paper_file: false,
   is_dismissed: false,
   has_record: false,
   has_preservation: false,
-  preservation_start: '',
-  preservation_end: '',
-  case_code: '',
-  closing_status: '',
-  closing_method: '',
-  litigation_fee_payment_date: '',
+  preservation_start: null,
+  preservation_end: null,
+  case_code: "",
+  closing_status: "",
+  closing_method: "",
+  litigation_fee_payment_date: null,
   litigation_fee_payment_amount: 0,
-  litigation_fee_refund_date: '',
+  litigation_fee_refund_date: null,
   litigation_fee_refund_amount: 0,
-  execution_application_date: '',
-  mediation_due_date: '',
-  execution_due_date: '',
-  details: ''
+  execution_application_date: null,
+  mediation_due_date: null,
+  execution_due_date: null,
+  details: ""
 }
 const formData = reactive(defaultFormData)
 // 保全状态切换时的处理逻辑
 const handlePreservationChange = (val) => {
   if (!val) {
     // 如果关闭保全，清空日期
-    formData.preservation_start = ''
-    formData.preservation_end = ''
+    formData.preservation_start = null
+    formData.preservation_end = null
   }
 }
 
@@ -352,15 +364,34 @@ const handlePreservationChange = (val) => {
 const formRules = reactive({
   case_category: [{ required: true, message: '请选择案件类别', trigger: 'change' }],
   client_name: [{ required: true, message: '请输入委托人姓名', trigger: 'blur' }],
-  client_id_number: [{ required: true, message: '请输入委托人身份证/税号', trigger: 'blur' }],
-  client_phone: [
-    { required: true, message: '请输入委托人电话', trigger: 'blur' },
-    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
+  client_id_number: [
+    {
+      required: false,  // 改为非必填
+      message: '请输入委托人身份证号或税号',
+      trigger: 'blur'
+    },
+    {
+      // 自定义校验：非空时必须为16位字符
+      validator: (rule, value, callback) => {
+        // 1. 若未填写（value为空），直接通过校验
+        if (!value) {
+          return callback();
+        }
+        // 2. 若填写了，校验是否为18位字符（数字/字母均可，若需纯数字可加正则）
+        const length = value.trim().length; // 去除空格后计算长度
+        console.log(length);
+        if (length === 18) {
+          callback(); // 长度正确，通过校验
+        } else {
+          callback(new Error('身份证号/税号需为18位字符')); // 长度错误，抛出提示
+        }
+      },
+      trigger: 'blur' // 失去焦点时触发校验
+    }
   ],
-  case_income: [{ required: true, message: '请输入案件收入', trigger: 'blur' }],
-  cause: [{ required: true, message: '请输入案由', trigger: 'blur' }],
   main_lawyer_id: [{ required: true, message: '请选择主办律师', trigger: 'change' }],
-  agency_power: [{ required: true, message: '请选择代理权限', trigger: 'change' }]
+  commission_date: [{ required: true, message: '请选择委托日期', trigger: 'change' }],
+  plaintiff: [{ required: true, message: '请输入原告/申请人信息', trigger: 'blur' }]
 })
 
 // 4. 监听initialFormData变化（编辑时加载案件数据）
@@ -372,10 +403,10 @@ watch(
       const copy = JSON.parse(JSON.stringify(newVal))
 
       // 将对象型字段转换为 ID
-      copy.main_lawyer_id = copy.main_lawyer?.id || ''
-      copy.assistant_lawyer_id = copy.assistant_lawyer?.id || ''
-      copy.execution_lawyer_id = copy.execution_lawyer?.id || ''
-      copy.execution_assistant_id = copy.execution_assistant?.id || ''
+      copy.main_lawyer_id = copy.main_lawyer?.id || null
+      copy.assistant_lawyer_id = copy.assistant_lawyer?.id || null
+      copy.execution_lawyer_id = copy.execution_lawyer?.id || null
+      copy.execution_assistant_id = copy.execution_assistant?.id || null
 
       Object.assign(formData, copy)
     }
@@ -387,7 +418,7 @@ watch(
   (newMode) => {
     if (newMode === 'add') {
       // 清空所有字段
-      Object.keys(formData).forEach(key => (formData[key] = ''))
+      Object.keys(formData).forEach(key => (formData[key] = ""))
 
       // 重置布尔字段为 false
       const boolKeys = [
@@ -400,10 +431,37 @@ watch(
       ]
       boolKeys.forEach(key => (formData[key] = false))
 
+      formData.case_income = 0
+      formData.litigation_fee_payment_amount = 0
+      formData.litigation_fee_refund_amount = 0
+      formData.commission_date = getCurrentDate()
+
       // 主办律师默认为当前用户
       if (props.currentUserRole === 'user' || props.currentUserRole === 'admin') {
         formData.main_lawyer_id = Number(props.currentUserId)
       }
+      // 重置其他律师ID和各日期为null
+      const resetLawyerKeys = [
+        'assistant_lawyer_id',
+        'execution_lawyer_id',
+        'execution_assistant_id'
+      ]
+      resetLawyerKeys.forEach(key => (formData[key] = null))
+
+      const resetDateKeys = [
+        'preservation_start',
+        'preservation_end',
+        'litigation_fee_payment_date',
+        'litigation_fee_refund_date',
+        'execution_application_date',
+        'mediation_due_date',
+        'execution_due_date',
+        'closing_date',
+        'filing_date',
+        'hearing_date',
+        'payment_due_date'
+      ]
+      resetDateKeys.forEach(key => (formData[key] = null))
     }
   }
 )
@@ -424,9 +482,11 @@ const handleSubmit = async () => {
   // 表单验证
   const valid = await formRef.value.validate()
   if (valid) {
-    // 传递表单数据给父组件（深拷贝，避免引用问题）
-    emit('submit', JSON.parse(JSON.stringify(formData)))
-    emit('update:visible', false) // 提交成功后关闭弹窗
+    // 深拷贝避免引用问题
+    const submitData = JSON.parse(JSON.stringify(formData));
+
+    emit('submit', submitData);
+    emit('update:visible', false); // 提交成功后关闭弹窗
   }
 }
 

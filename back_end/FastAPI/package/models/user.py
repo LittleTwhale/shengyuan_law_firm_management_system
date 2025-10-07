@@ -2,7 +2,6 @@
 from sqlalchemy import Column, Integer, String, Enum, DateTime, func
 from sqlalchemy.orm import relationship
 from ..database.database import Base
-from .case_operation import CaseOperation
 
 
 # 定义用户模型，对应数据库中的 users 表
@@ -34,12 +33,6 @@ class User(Base):
     updated_at = Column(DateTime, server_default=func.now(), server_onupdate=func.now(), comment="更新时间")
 
     # ---------------- ORM 关系 ----------------
-    # 用户提交的案件操作记录
-    operations = relationship("CaseOperation", back_populates="user", foreign_keys=[CaseOperation.user_id])
-
-    # 用户作为审核人的操作记录
-    reviewed_operations = relationship("CaseOperation", back_populates="review_user", foreign_keys=[CaseOperation.review_user_id])
-
     # 用户作为主办律师的案件
     main_cases = relationship("Case", back_populates="main_lawyer", foreign_keys="Case.main_lawyer_id")
 
