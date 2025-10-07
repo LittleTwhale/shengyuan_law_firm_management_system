@@ -94,6 +94,63 @@ def count_cases_by_user_role(
 
     return query.count()
 
+def list_bank_cases_by_user_role(
+    db: Session,
+    user_id: int,
+    role: str,
+    skip: int = 0,
+    limit: int = 100,
+    keyword: Optional[str] = None,  # 新增
+) -> List[Case]:
+    """
+    根据用户角色返回银行案件列表
+    - 普通用户：只能看到自己为主办律师的案件
+    - admin/owner：可以看到全部案件
+    """
+    query = db.query(Case).options(
+        joinedload(Case.main_lawyer),
+        joinedload(Case.assistant_lawyer),
+        joinedload(Case.execution_lawyer),
+        joinedload(Case.execution_assistant),
+    ).filter(Case.is_deleted == False,Case.is_bank_case == True)
+
+    # 角色筛选
+    if role not in ["admin", "owner"]:
+        query = query.filter(Case.main_lawyer_id == user_id)
+
+    # 关键词搜索（案件号或委托人）
+    if keyword:
+        query = query.filter(
+            (Case.case_number.like(f"%{keyword}%")) |
+            (Case.client_name.like(f"%{keyword}%"))
+        )
+
+    cases = query.offset(skip).limit(limit).all()
+    return cast(list[Case], cases)
+
+def count_bank_cases_by_user_role(
+    db: Session,
+    user_id: int,
+    role: str,
+    keyword: Optional[str] = None,  # 新增
+) -> int:
+    """
+    根据用户角色统计案件总数
+    """
+    query = db.query(Case).filter(Case.is_deleted == False,Case.is_bank_case == True)
+    # 角色筛选
+    if role not in ["admin", "owner"]:
+        query = query.filter(Case.main_lawyer_id == user_id)
+
+    # 关键词搜索
+    if keyword:
+        query = query.filter(
+            (Case.case_number.like(f"%{keyword}%")) |
+            (Case.client_name.like(f"%{keyword}%"))
+        )
+
+    return query.count()
+
 
 def create_case(db: Session, case_in: CaseCreate) -> Case:
     """

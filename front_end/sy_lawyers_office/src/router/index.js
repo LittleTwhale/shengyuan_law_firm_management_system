@@ -5,6 +5,7 @@ import CasesPage from '@/views/CasesPage.vue'
 import LawyerManagePage from '@/views/LawyerManagePage.vue'
 import CaseReviewPage from '@/views/CaseReviewPage.vue'
 import CaseDetailPage from '@/views/CaseDetailPage.vue'
+import BankCasesPage from '@/views/BankCasesPage.vue'
 
 const routes = [
   { path: '/', redirect: '/login' },
@@ -22,7 +23,8 @@ const routes = [
         name: 'CaseDetail',
         component: CaseDetailPage,
         meta: { title: '案件详情' }
-      }
+      },
+      { path: 'cases/bank_cases', component: BankCasesPage },
     ]
   },
 ]

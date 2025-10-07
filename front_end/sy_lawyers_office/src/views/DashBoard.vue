@@ -40,9 +40,9 @@
           <i class="el-icon-user"></i>
           <span>律师管理</span>
         </el-menu-item>
-        <el-menu-item index="/main/statistics">
-          <i class="el-icon-data-analysis"></i>
-          <span>统计分析</span>
+        <el-menu-item index="/main/cases/bank_cases">
+          <i class="el-icon-bank_cases"></i>
+          <span>银行案件</span>
         </el-menu-item>
       </el-menu>
 

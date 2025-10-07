@@ -10,7 +10,7 @@ from ..schemas.case import CaseOut, CasePageOut, CaseSimpleOut, CaseCreate, Case
 
 from ..crud.user import get_all_lawyers
 from ..crud.case import list_cases_by_user_role, get_case_by_id, count_cases_by_user_role, create_case, update_case, \
-    delete_case, export_cases_by_user_role
+    delete_case, export_cases_by_user_role, list_bank_cases_by_user_role, count_bank_cases_by_user_role
 
 from io import BytesIO
 from urllib.parse import quote
@@ -56,6 +56,37 @@ def get_cases(
     )
     cases_simple = [CaseSimpleOut.model_validate(c) for c in cases]
     return {"items": cases_simple, "total": total}
+
+# 2️⃣ 获取银行案件列表
+@router.get("/bank_cases", response_model=CasePageOut)
+def get_bank_cases(
+        user_id: int,
+        role: str,
+        skip: int = 0,
+        limit: int = 100,
+        keyword: Optional[str] = None,  # 新增搜索关键词参数
+        db: Session = Depends(get_db)
+):
+    """
+    获取银行案件列表
+    """
+    cases = list_bank_cases_by_user_role(
+        db=db,
+        user_id=user_id,
+        role=role,
+        skip=skip,
+        limit=limit,
+        keyword=keyword,
+    )
+    total = count_bank_cases_by_user_role(
+        db=db,
+        user_id=user_id,
+        role=role,
+        keyword=keyword,  # 传递给统计函数
+    )
+    cases_simple = [CaseSimpleOut.model_validate(c) for c in cases]
+    return {"items": cases_simple, "total": total}
+
 
 # 5️⃣ 导出案件表格
 @router.get("/export/all", response_class=StreamingResponse)
