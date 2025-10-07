@@ -79,8 +79,6 @@ class Case(Base):
     updated_at = Column(TIMESTAMP, server_default=func.now(), server_onupdate=func.now(), comment="更新时间")
 
     # ORM 关系
-    operations = relationship("CaseOperation", back_populates="case")
-
     main_lawyer = relationship("User", back_populates="main_cases", foreign_keys="Case.main_lawyer_id")
     assistant_lawyer = relationship("User", back_populates="assistant_cases", foreign_keys="Case.assistant_lawyer_id")
     execution_lawyer = relationship("User", back_populates="execution_cases", foreign_keys="Case.execution_lawyer_id")

@@ -6,6 +6,34 @@
       <el-button type="primary" @click="handleAddClick">新增案件</el-button>
     </div>
 
+    <!-- 搜索与筛选区 -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <el-input
+          v-model="searchKeyword"
+          placeholder="请输入案件号或委托人"
+          clearable
+          @clear="handleSearch"
+          @keyup.enter="handleSearch"
+          style="width: 250px; margin-right: 15px"
+        />
+        <el-select
+          v-model="selectedCategory"
+          placeholder="案件类别筛选"
+          clearable
+          @change="handleSearch"
+          style="width: 200px"
+        >
+          <el-option
+            v-for="category in caseCategories"
+            :key="category.value"
+            :label="category.label"
+            :value="category.value"
+          />
+        </el-select>
+      </div>
+    </div>
+
     <!-- 案件表格 -->
     <el-table :data="cases" border style="width: 100%" v-loading="tableLoading">
       <el-table-column prop="case_number" label="案件号" width="180" align="center"/>
@@ -72,6 +100,19 @@ const total = ref(0)
 const cases = ref([])
 const tableLoading = ref(false) // 表格加载状态
 
+// -------------------------- 搜索与筛选相关 --------------------------
+const searchKeyword = ref('')
+const selectedCategory = ref('')
+// 案件类别选项
+const caseCategories = ref([
+  { label: '民事案件', value: '民事案件' },
+  { label: '刑事案件', value: '刑事案件' },
+  { label: '行政案件', value: '行政案件' },
+  { label: '非诉案件', value: '非诉案件' },
+  { label: '仲裁案件', value: '仲裁案件' },
+  { label: '法律顾问业务', value: '法律顾问业务' }
+])
+
 // -------------------------- 弹窗控制相关 --------------------------
 // 明确指定formMode的类型为'add'或'edit'
 const formMode = ref('add') // 表单模式：'add'（新增）/'edit'（编辑）
@@ -108,7 +149,9 @@ const loadCases = async () => {
         user_id: currentUserID.value ,
         role: currentUserRole.value ,
         skip: (page.value - 1) * pageSize.value,
-        limit: pageSize.value
+        limit: pageSize.value,
+        keyword: searchKeyword.value,  // 搜索关键词
+        category: selectedCategory.value  // 类别筛选
       }
     })
     cases.value = res.data.items || []
@@ -120,6 +163,12 @@ const loadCases = async () => {
   } finally {
     tableLoading.value = false
   }
+}
+
+// -------------------------- 搜索功能 --------------------------
+const handleSearch = () => {
+  page.value = 1  // 重置为第一页
+  loadCases()
 }
 
 // -------------------------- 分页切换 --------------------------

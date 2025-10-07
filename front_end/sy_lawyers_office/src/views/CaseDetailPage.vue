@@ -1,7 +1,7 @@
 <template>
   <div class="case-detail">
     <!-- 顶部返回栏 -->
-    <el-page-header @back="goBack" title="返回案件列表" />
+    <el-page-header @back="goBack" title="返回" />
 
     <!-- 居中标题 -->
     <h2 class="page-title">案件详情</h2>
@@ -118,7 +118,10 @@ const loading = ref(false)
 const caseId = route.params.id
 
 const goBack = () => {
-  router.push('/main/cases')
+  // 从路由状态中获取来源页面路径，默认返回案件管理页面
+  const fromPath = route.query.from || '/main/cases'
+  console.log('fromPath:', fromPath)
+  router.push(fromPath)
 }
 
 const loadCaseDetail = async () => {
