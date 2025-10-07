@@ -371,7 +371,7 @@ const formRules = reactive({
       trigger: 'blur'
     },
     {
-      // 自定义校验：非空时必须为16位字符
+      // 自定义校验：非空时必须为18位字符
       validator: (rule, value, callback) => {
         // 1. 若未填写（value为空），直接通过校验
         if (!value) {

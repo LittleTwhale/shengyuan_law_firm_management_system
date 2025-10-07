@@ -162,6 +162,7 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
 
     for key, value in case_in.model_dump(exclude_unset=True).items():
         setattr(case, key, value)
+    case.review_status = "待审核"
 
     db.commit()
     db.refresh(case)
@@ -205,3 +206,18 @@ def list_cases_by_lawyer(db: Session, lawyer_id: int) -> List[Case]:
         )
         .all(),
     )
+
+# 导出数据查询
+def export_cases_by_user_role(
+        db: Session,
+        user_id: int,
+        role: str
+) -> List[Case]:
+    """查询符合条件的所有案件（无分页）"""
+    query = db.query(Case).filter()
+
+    # 权限过滤
+    if role not in ["admin", "owner"]:
+        query = query.filter(Case.main_lawyer_id == user_id,Case.is_deleted == False)
+
+    return cast(list[Case], query.all())

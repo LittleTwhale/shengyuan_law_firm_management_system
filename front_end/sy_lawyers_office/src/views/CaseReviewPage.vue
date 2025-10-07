@@ -3,9 +3,6 @@
     <!-- 页面头部 -->
     <div class="header">
       <h2>案件审核</h2>
-      <el-button type="primary" @click="toggleHistory">
-        {{ showHistory ? '返回待审核' : '查看历史记录' }}
-      </el-button>
     </div>
 
     <!-- 审核表格 -->
@@ -20,7 +17,12 @@
       <el-table-column prop="client_name" label="委托人" />
       <el-table-column prop="case_category" label="案件类别" />
       <el-table-column prop="main_lawyer.real_name" label="主办律师" />
-      <el-table-column prop="created_at" label="创建时间" :formatter="formatDate" />
+      <el-table-column
+        prop="created_at"
+        label="创建时间"
+        align="center"
+        :formatter="(row, column, cellValue) => formatDate(cellValue)"
+      />
 
       <!-- 操作详情列 -->
       <el-table-column label="案件详情">
@@ -36,7 +38,7 @@
       </el-table-column>
 
       <!-- 操作按钮列 -->
-      <el-table-column v-if="!showHistory" label="操作">
+      <el-table-column  label="操作">
         <template #default="scope">
           <el-button type="success" size="small" @click="review(scope.row, '已审核')">通过</el-button>
           <el-button type="danger" size="small" @click="review(scope.row, '已拒绝')">拒绝</el-button>
@@ -73,12 +75,8 @@ const page = ref(1)
 const pageSize = ref(10)
 const tableLoading = ref(false)
 
-// 状态控制
-const showHistory = ref(false)
-
 // 当前用户信息
 const currentUserRole = ref(sessionStorage.getItem('role'))
-const currentUserId = ref(sessionStorage.getItem('user_id'))
 
 // 加载待审核案件
 const fetchPendingCases = async () => {
@@ -96,44 +94,6 @@ const fetchPendingCases = async () => {
   } catch (err) {
     console.error('获取待审核案件失败:', err)
     ElMessage.error(err.response?.data?.detail || '获取待审核案件失败')
-    casesList.value = []
-    total.value = 0
-  } finally {
-    tableLoading.value = false
-  }
-}
-
-// 切换模式（待审核 <-> 历史记录）
-const toggleHistory = () => {
-  showHistory.value = !showHistory.value
-  page.value = 1 // 重置页码
-  if (showHistory.value) {
-    fetchHistoryCases()
-  } else {
-    fetchPendingCases()
-  }
-}
-
-// 加载历史记录
-const fetchHistoryCases = async () => {
-  tableLoading.value = true
-  try {
-    const res = await axios.get(`${API_BASE}/cases`, {
-      params: {
-        user_id: currentUserId.value,
-        role: currentUserRole.value,
-        skip: (page.value - 1) * pageSize.value,
-        limit: pageSize.value
-      }
-    })
-    // 筛选已审核和已拒绝的案件
-    casesList.value = res.data.items.filter(
-      item => item.review_status === '已审核' || item.review_status === '已拒绝'
-    )
-    total.value = casesList.value.length
-  } catch (err) {
-    console.error('获取历史记录失败:', err)
-    ElMessage.error('获取历史记录失败')
     casesList.value = []
     total.value = 0
   } finally {
@@ -175,23 +135,69 @@ const navigateToDetail = (caseId) => {
 // 分页切换
 const handlePageChange = (p) => {
   page.value = p
-  if (showHistory.value) {
-    fetchHistoryCases()
-  } else {
-    fetchPendingCases()
-  }
+  fetchPendingCases()
 }
 
-// 日期格式化
+// 日期格式化（将时间戳/ISO字符串转为本地日期）
 const formatDate = (dateVal) => {
-  if (!dateVal) return ''
-  const date = new Date(dateVal)
-  return date.toLocaleDateString('zh-CN', {
+  if (!dateVal) return '';
+
+  let timestamp;
+
+  // 处理时间戳（数字类型）
+  if (typeof dateVal === 'number') {
+    // 处理秒级时间戳（如果是10位数字）
+    if (dateVal.toString().length === 10) {
+      dateVal *= 1000;
+    }
+    timestamp = dateVal;
+  }
+  // 处理字符串类型
+  else if (typeof dateVal === 'string') {
+    // 尝试多种常见格式转换
+    const formats = [
+      // 尝试不添加Z的情况（本地时间）
+      dateVal.replace(' ', 'T'),
+      // 尝试添加Z的情况（UTC时间）
+      dateVal.replace(' ', 'T') + 'Z',
+      // 尝试直接解析原始字符串
+      dateVal
+    ];
+
+    // 尝试各种格式，找到能正确解析的
+    for (const fmt of formats) {
+      const tempDate = new Date(fmt);
+      if (!isNaN(tempDate.getTime())) {
+        timestamp = tempDate.getTime();
+        break;
+      }
+    }
+  }
+  // 处理Date对象
+  else if (dateVal instanceof Date) {
+    timestamp = dateVal.getTime();
+  }
+
+  // 验证时间戳是否有效
+  if (timestamp === undefined || isNaN(timestamp)) {
+    console.warn('无法解析的日期格式:', dateVal);
+    return '无效日期';
+  }
+
+  const date = new Date(timestamp);
+
+  // 使用toLocaleString()同时显示日期和时间
+  // 可以通过参数自定义格式，例如：
+  return date.toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
-    day: '2-digit'
-  })
-}
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false // 24小时制
+  });
+};
 
 // 页面加载时初始化
 onMounted(() => {

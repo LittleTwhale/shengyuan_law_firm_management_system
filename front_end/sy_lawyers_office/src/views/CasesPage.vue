@@ -3,7 +3,10 @@
     <!-- 页面头部 -->
     <div class="header">
       <h2>案件管理</h2>
-      <el-button type="primary" @click="handleAddClick">新增案件</el-button>
+      <div class="action-buttons">
+        <el-button type="primary" @click="handleAddClick">新增案件</el-button>
+        <el-button type="success" @click="handleExportClick">导出表格</el-button>
+      </div>
     </div>
 
     <!-- 搜索与筛选区 -->
@@ -248,6 +251,48 @@ const deleteCase = async (caseId) => {
     ElMessage.error('删除案件失败，请重试')
   }
 }
+
+// -------------------------- 导出Excel表格 --------------------------
+const handleExportClick = async () => {
+  try {
+    // 1️⃣ 发起请求到后端接口
+    const response = await axios.get('http://127.0.0.1:8001/cases/export/all', {
+      params: {
+        user_id: currentUserID.value,
+        role: currentUserRole.value
+      },
+      responseType: 'blob' // 告诉 axios 返回文件流
+    });
+
+    // 2️⃣ 创建下载链接
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+
+    // 3️⃣ 动态生成文件名（使用当前时间）
+    const timestamp = new Date().toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).replace(/\D/g, '');
+    link.download = `案件数据_${timestamp}.xlsx`;
+
+    // 4️⃣ 触发下载
+    link.click();
+    window.URL.revokeObjectURL(downloadUrl);
+
+    ElMessage.success('Excel 文件导出成功 ✅');
+  } catch (error) {
+    console.error('导出Excel失败：', error);
+    ElMessage.error('导出失败，请稍后重试 ❌');
+  }
+};
 
 // -------------------------- 辅助工具函数 --------------------------
 // 日期格式化（将时间戳/ISO字符串转为本地日期）
