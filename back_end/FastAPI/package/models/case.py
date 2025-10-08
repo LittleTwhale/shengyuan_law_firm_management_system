@@ -47,6 +47,8 @@ class Case(Base):
     execution_lawyer_id = Column(Integer, ForeignKey("users.id"), nullable=True, comment="执行主办律师ID")
     execution_assistant_id = Column(Integer, ForeignKey("users.id"), nullable=True, comment="执行助理律师ID")
 
+    reviewer_id = Column(Integer, ForeignKey("users.id"), nullable=True, comment="案件审核人ID")
+
     # 状态与标记
     review_status = Column(Enum('待审核','已审核','已拒绝'), nullable=False, comment="案件审核状态")
 
@@ -84,3 +86,4 @@ class Case(Base):
     execution_lawyer = relationship("User", back_populates="execution_cases", foreign_keys="Case.execution_lawyer_id")
     execution_assistant = relationship("User", back_populates="execution_assistant_cases",
                                        foreign_keys="Case.execution_assistant_id")
+    reviewer = relationship("User", foreign_keys="Case.reviewer_id")

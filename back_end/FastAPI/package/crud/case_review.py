@@ -29,7 +29,7 @@ def count_pending_cases(db: Session) -> int:
     return query.count()
 
 
-def update_review_status(db: Session, case_id: int, review_status: str) -> Optional[Case]:
+def update_review_status(db: Session, case_id: int, review_status: str, reviewer_id: int) -> Optional[Case]:
     """更新案件审核状态（已审核/已拒绝）"""
     case = db.query(Case).filter(
         Case.case_id == case_id,
@@ -44,6 +44,7 @@ def update_review_status(db: Session, case_id: int, review_status: str) -> Optio
         raise ValueError("审核状态必须是'已审核'或'已拒绝'")
 
     case.review_status = review_status
+    case.reviewer_id = reviewer_id  # 记录审核人ID
     db.commit()
     db.refresh(case)
     return cast(Case, case)

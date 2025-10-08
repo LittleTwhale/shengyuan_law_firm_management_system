@@ -39,6 +39,7 @@ def get_pending_cases(
 @router.put("/{case_id}/review", response_model=CaseOut)
 def review_case(
         case_id: int,
+        reviewer_id: int,
         review_status: str,  # 接收"已审核"或"已拒绝"
         role: Optional[str] = None,
         db: Session = Depends(get_db)
@@ -57,7 +58,8 @@ def review_case(
         updated_case = update_review_status(
             db=db,
             case_id=case_id,
-            review_status=review_status
+            review_status=review_status,
+            reviewer_id=reviewer_id
         )
         if not updated_case:
             raise HTTPException(

@@ -37,7 +37,7 @@
       <!-- 律师信息 -->
       <el-descriptions title="律师信息" :column="2" border>
         <el-descriptions-item label="主办律师">{{ caseData.main_lawyer?.real_name || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="协办律师">{{ caseData.assistant_lawyer?.real_name || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="助理律师">{{ caseData.assistant_lawyer?.real_name || '-' }}</el-descriptions-item>
         <el-descriptions-item label="执行律师">{{ caseData.execution_lawyer?.real_name || '-' }}</el-descriptions-item>
         <el-descriptions-item label="执行助理">{{ caseData.execution_assistant?.real_name || '-' }}</el-descriptions-item>
       </el-descriptions>
@@ -74,6 +74,7 @@
       <!-- 保全与状态 -->
       <el-descriptions title="案件状态" :column="2" border>
         <el-descriptions-item label="审核状态">{{ caseData.review_status }}</el-descriptions-item>
+        <el-descriptions-item label="审核人">{{ caseData.reviewer?.real_name || '-' }}</el-descriptions-item>
         <el-descriptions-item label="是否重大">{{ caseData.is_major ? '是' : '否' }}</el-descriptions-item>
         <el-descriptions-item label="是否解除">{{ caseData.is_dismissed ? '是' : '否' }}</el-descriptions-item>
         <el-descriptions-item label="是否纸质卷宗">{{ caseData.has_paper_file ? '是' : '否' }}</el-descriptions-item>
@@ -189,15 +190,6 @@ const formatDateTime = (dateVal) => {
 .detail-card {
   margin-top: 10px;
   line-height: 1.6;
-}
-
-.el-descriptions__title {
-  font-weight: bold;
-  color: #1e88e5;
-}
-
-.el-divider {
-  margin: 25px 0;
 }
 /* 案件详情文本换行样式 */
 .case-detail-content {

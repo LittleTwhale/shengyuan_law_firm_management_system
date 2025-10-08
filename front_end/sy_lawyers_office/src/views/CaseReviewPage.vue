@@ -76,6 +76,7 @@ const pageSize = ref(10)
 const tableLoading = ref(false)
 
 // 当前用户信息
+const currentUserId = ref(sessionStorage.getItem('user_id'))
 const currentUserRole = ref(sessionStorage.getItem('role'))
 
 // 加载待审核案件
@@ -108,6 +109,7 @@ const review = async (row, status) => {
       {},
       {
         params: {
+          reviewer_id: currentUserId.value,
           role: currentUserRole.value,
           review_status: status
         }

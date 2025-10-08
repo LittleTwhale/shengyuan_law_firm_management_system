@@ -205,6 +205,7 @@ class CaseOut(BaseModel):
     assistant_lawyer: Optional[UserOut] = None
     execution_lawyer: Optional[UserOut] = None
     execution_assistant: Optional[UserOut] = None
+    reviewer: Optional[UserOut] = None
 
     # 🕒 时间戳
     created_at: datetime = Field(..., description="创建时间 / Created at")

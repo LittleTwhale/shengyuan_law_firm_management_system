@@ -174,7 +174,7 @@ const handleFormSubmit = async (submittedData) => {
     await axios.put(`http://127.0.0.1:8001/cases/case_update/${currentCaseId.value}`, submittedData)
     ElMessage.success('编辑案件成功')
     showFormDialog.value = false
-    loadBankCases()
+    await loadBankCases()
   } catch (err) {
     console.error('编辑案件失败:', err)
     ElMessage.error('编辑案件失败')
