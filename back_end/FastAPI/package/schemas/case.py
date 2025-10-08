@@ -1,6 +1,6 @@
 # schemas/case.py
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import date, datetime
 from decimal import Decimal
 from .user import UserOut
@@ -231,3 +231,13 @@ class CaseSimpleOut(BaseModel):
 class CasePageOut(BaseModel):
     total: int
     items: List[CaseSimpleOut]
+
+# 个人信息案件统计
+class CaseStatistics(BaseModel):
+    main_case_count: int = Field(..., description="主办案件数 / Main case count")
+    total_income: Decimal = Field(..., description="案件收入 / Case income")
+    category_stats: Dict[str, int] = Field(..., description="案件类别统计 / Category statistics")
+    review_case_count: Optional[int] = Field(None, description="审核案件数 / Review case count")
+
+    class Config:
+        from_attributes = True

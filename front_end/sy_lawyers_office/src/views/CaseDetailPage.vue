@@ -128,7 +128,7 @@ const goBack = () => {
 const loadCaseDetail = async () => {
   loading.value = true
   try {
-    const res = await axios.get(`http://127.0.0.1:8001/cases/${caseId}`)
+    const res = await axios.get(`http://127.0.0.1:8002/cases/${caseId}`)
     caseData.value = res.data || {}
 
     // 权限判断逻辑

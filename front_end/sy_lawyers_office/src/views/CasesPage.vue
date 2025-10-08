@@ -135,7 +135,7 @@ onMounted(() => {
 // -------------------------- 律师列表加载 --------------------------
 const loadLawyers = async () => {
   try {
-    const res = await axios.get('http://127.0.0.1:8001/cases/users/lawyers')
+    const res = await axios.get('http://127.0.0.1:8002/cases/users/lawyers')
     lawyers.value = res.data || []
   } catch (err) {
     console.error('加载律师列表失败:', err)
@@ -147,7 +147,7 @@ const loadLawyers = async () => {
 const loadCases = async () => {
   tableLoading.value = true
   try {
-    const res = await axios.get('http://127.0.0.1:8001/cases', {
+    const res = await axios.get('http://127.0.0.1:8002/cases', {
       params: {
         user_id: currentUserID.value ,
         role: currentUserRole.value ,
@@ -196,7 +196,7 @@ const handleEditClick = async (row) => {
 
   try {
     // 调接口获取完整案件详情（CaseOut）
-    const res = await axios.get(`http://127.0.0.1:8001/cases/${row.case_id}`)
+    const res = await axios.get(`http://127.0.0.1:8002/cases/${row.case_id}`)
     const fullCaseData = res.data
 
     // 深拷贝 CaseOut 数据到表单
@@ -215,14 +215,12 @@ const handleEditClick = async (row) => {
 const handleFormSubmit = async (submittedData) => {
   try {
     if (formMode.value === 'add') {
-      console.log('【新增案件】传给后端的请求数据（JSON格式）：\n', JSON.stringify(submittedData, null, 2));
       // 调用 /cases/case_create
-      await axios.post('http://127.0.0.1:8001/cases/case_create', submittedData)
+      await axios.post('http://127.0.0.1:8002/cases/case_create', submittedData)
       ElMessage.success('新增案件成功')
     } else {
-      console.log('【新增案件】传给后端的请求数据（JSON格式）：\n', JSON.stringify(submittedData, null, 2));
       // 调用 /cases/case_update/{case_id}
-      await axios.put(`http://127.0.0.1:8001/cases/case_update/${currentCaseId.value}`, submittedData)
+      await axios.put(`http://127.0.0.1:8002/cases/case_update/${currentCaseId.value}`, submittedData)
       ElMessage.success('编辑案件成功')
     }
     await loadCases()
@@ -243,7 +241,7 @@ const deleteCase = async (caseId) => {
   if (!confirm('确定要删除该案件吗？删除后不可恢复！')) return
 
   try {
-    await axios.delete(`http://127.0.0.1:8001/cases/case_delete/${caseId}`)
+    await axios.delete(`http://127.0.0.1:8002/cases/case_delete/${caseId}`)
     ElMessage.success('删除案件成功')
     await loadCases() // 刷新列表
   } catch (err) {
@@ -256,7 +254,7 @@ const deleteCase = async (caseId) => {
 const handleExportClick = async () => {
   try {
     // 1️⃣ 发起请求到后端接口
-    const response = await axios.get('http://127.0.0.1:8001/cases/export/all', {
+    const response = await axios.get('http://127.0.0.1:8002/cases/export/all', {
       params: {
         user_id: currentUserID.value,
         role: currentUserRole.value

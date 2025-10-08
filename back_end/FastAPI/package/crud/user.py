@@ -1,4 +1,5 @@
 # crud/user.py
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from ..core.security import verify_password,hash_password
 from ..models.user import User
@@ -12,6 +13,11 @@ def get_user_by_accounts(db: Session, accounts: str) -> Optional[User]:
     """
     return db.query(User).filter(User.accounts == accounts).first()
 
+def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
+    """
+    根据ID查询用户
+    """
+    return db.query(User).filter(User.id == user_id).first()
 
 def authenticate_user(db: Session, accounts: str, password: str) -> Optional[User]:
     """
@@ -41,6 +47,21 @@ def create_user(db: Session, user_in: UserCreate) -> User:
     db.refresh(db_user)
     return db_user
 
+
+def change_password(db: Session, user_id: int, old_password: str, new_password: str) -> dict:
+    """修改密码"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    # 验证旧密码
+    if not verify_password(old_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="旧密码不正确")
+
+    # 更新密码
+    user.password_hash = hash_password(new_password)
+    db.commit()
+    return {"message": "密码修改成功"}
 
 def update_user(db: Session, user_id: int, update_data: dict) -> Optional[User]:
     """

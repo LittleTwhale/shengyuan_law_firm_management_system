@@ -208,7 +208,7 @@ const formRules = {
 // --------------------------
 const fetchUsers = async () => {
   try {
-    const res = await fetch(`http://127.0.0.1:8001/lawyer_manage/users?role=${role}`)
+    const res = await fetch(`http://127.0.0.1:8002/lawyer_manage/users?role=${role}`)
     if (!res.ok) {
       ElMessage.error('获取用户列表失败')
       return
@@ -233,7 +233,7 @@ const handleSave = () => {
       }
 
       if (editUser.value) {
-        const res = await fetch(`http://127.0.0.1:8001/lawyer_manage/users/${form.value.id}`, {
+        const res = await fetch(`http://127.0.0.1:8002/lawyer_manage/users/${form.value.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -244,7 +244,7 @@ const handleSave = () => {
         }
         ElMessage.success('用户信息已更新')
       } else {
-        const res = await fetch(`http://127.0.0.1:8001/lawyer_manage/users`, {
+        const res = await fetch(`http://127.0.0.1:8002/lawyer_manage/users`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -270,7 +270,7 @@ const handleSave = () => {
 const handleDelete = async row => {
   try {
     await ElMessageBox.confirm(`确定要删除用户 ${row.real_name} 吗？`, '提示', { type: 'warning' })
-    const res = await fetch(`http://127.0.0.1:8001/lawyer_manage/users/${row.id}`, { method: 'DELETE' })
+    const res = await fetch(`http://127.0.0.1:8002/lawyer_manage/users/${row.id}`, { method: 'DELETE' })
     if (!res.ok) {
       ElMessage.error('删除失败')
       return

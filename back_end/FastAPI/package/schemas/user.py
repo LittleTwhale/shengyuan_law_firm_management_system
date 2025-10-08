@@ -28,6 +28,12 @@ class UserLogin(BaseModel):
     accounts: str = Field(..., description="用户账号")
     password: str = Field(..., description="用户密码")
 
+# 修改密码请求模型
+class ChangePasswordRequest(BaseModel):
+    user_id: int
+    old_password: str
+    new_password: str
+
 # Token 响应模型
 class Token(BaseModel):
     access_token: str

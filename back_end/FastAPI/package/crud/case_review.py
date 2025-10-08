@@ -48,3 +48,8 @@ def update_review_status(db: Session, case_id: int, review_status: str, reviewer
     db.commit()
     db.refresh(case)
     return cast(Case, case)
+
+
+def count_reviewed_cases(db: Session, lawyer_id: int) -> int:
+    """统计审核过的案件数量"""
+    return db.query(Case).filter(Case.reviewer_id == lawyer_id).count()

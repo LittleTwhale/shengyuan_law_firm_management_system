@@ -98,7 +98,7 @@ onMounted(() => {
 // 加载律师列表（复用现有接口）
 const loadLawyers = async () => {
   try {
-    const res = await axios.get('http://127.0.0.1:8001/cases/users/lawyers')
+    const res = await axios.get('http://127.0.0.1:8002/cases/users/lawyers')
     lawyers.value = res.data || []
   } catch (err) {
     console.error('加载律师列表失败:', err)
@@ -110,7 +110,7 @@ const loadLawyers = async () => {
 const loadBankCases = async () => {
   tableLoading.value = true
   try {
-    const res = await axios.get('http://127.0.0.1:8001/cases/bank_cases', {
+    const res = await axios.get('http://127.0.0.1:8002/cases/bank_cases', {
       params: {
         user_id: currentUserID.value,
         role: currentUserRole.value,
@@ -159,7 +159,7 @@ const handleEditClick = async (row) => {
   formMode.value = 'edit'
   currentCaseId.value = row.case_id
   try {
-    const res = await axios.get(`http://127.0.0.1:8001/cases/${row.case_id}`)
+    const res = await axios.get(`http://127.0.0.1:8002/cases/${row.case_id}`)
     Object.assign(formData, JSON.parse(JSON.stringify(res.data)))
     showFormDialog.value = true
   } catch (err) {
@@ -171,7 +171,7 @@ const handleEditClick = async (row) => {
 // 提交编辑表单
 const handleFormSubmit = async (submittedData) => {
   try {
-    await axios.put(`http://127.0.0.1:8001/cases/case_update/${currentCaseId.value}`, submittedData)
+    await axios.put(`http://127.0.0.1:8002/cases/case_update/${currentCaseId.value}`, submittedData)
     ElMessage.success('编辑案件成功')
     showFormDialog.value = false
     await loadBankCases()

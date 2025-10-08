@@ -44,6 +44,10 @@
           <i class="el-icon-bank_cases"></i>
           <span>银行案件</span>
         </el-menu-item>
+        <el-menu-item index="/main/user_profile">
+          <i class="el-icon-user-profile"></i>
+          <span>个人信息</span>
+        </el-menu-item>
       </el-menu>
 
       <!-- 右侧操作区（路由出口） -->

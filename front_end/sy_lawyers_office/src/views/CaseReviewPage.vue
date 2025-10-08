@@ -65,7 +65,7 @@ import { ElMessage } from 'element-plus'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
 
-const API_BASE = 'http://127.0.0.1:8001'
+const API_BASE = 'http://127.0.0.1:8002'
 const router = useRouter()
 
 // 表格数据

@@ -2,6 +2,7 @@
 from datetime import datetime
 from typing import List, Optional, cast
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from ..models.case import Case
@@ -278,3 +279,19 @@ def export_cases_by_user_role(
         query = query.filter(Case.main_lawyer_id == user_id,Case.is_deleted == False)
 
     return cast(list[Case], query.all())
+
+def count_main_cases(db: Session, lawyer_id: int) -> int:
+    """统计主办案件数量"""
+    return db.query(Case).filter(Case.main_lawyer_id == lawyer_id).count()
+
+def sum_main_case_income(db: Session, lawyer_id: int) -> float:
+    """统计主办案件总收费"""
+    result = db.query(func.sum(Case.case_income)).filter(Case.main_lawyer_id == lawyer_id).first()
+    return result[0] or 0
+
+def count_cases_by_category(db: Session, lawyer_id: int) -> dict:
+    """按案件类型统计数量"""
+    categories = db.query(Case.case_category, func.count(Case.case_id)).\
+        filter(Case.main_lawyer_id == lawyer_id).\
+        group_by(Case.case_category).all()
+    return {category: count for category, count in categories}
