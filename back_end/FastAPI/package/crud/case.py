@@ -176,7 +176,7 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
     # 查询该类型的最新案件号
     latest_case = db.query(Case).filter(
         Case.case_category == case_type,
-        Case.case_number.like(f"湘生律（{year}）%")
+        Case.case_number.like(f"湘生律({year})%")
     ).order_by(Case.case_id.desc()).first()
 
     next_number = 1
@@ -184,7 +184,7 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
         last_number = int(latest_case.case_number.split("第")[-1].replace("号", ""))
         next_number = last_number + 1
 
-    case_number = f"湘生律（{year}）{type_map[case_type]}第{next_number}号"
+    case_number = f"湘生律({year}){type_map[case_type]}第{next_number}号"
 
     # 将输入数据转换为字典
     case_data = case_in.model_dump()
@@ -218,8 +218,53 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
     if not case:
         return None
 
+    # 保存旧类型，提取新类型（注意可能未传入新类型）
+    old_category = case.case_category
+    new_category = case_in.case_category or old_category
+
+    # 检查是否修改了案件类别
+    category_changed = (new_category != old_category)
+
+    # 先批量更新其他字段，但跳过案件类别，避免提前改变
     for key, value in case_in.model_dump(exclude_unset=True).items():
+        if key == "case_category":
+            continue  # 延后处理
         setattr(case, key, value)
+
+    # 如果案件类别发生变化，则重新生成编号
+    if category_changed:
+        year = datetime.now().year
+        type_map = {
+            "民事案件": "民字",
+            "刑事案件": "刑字",
+            "仲裁案件": "仲字",
+            "行政案件": "行字",
+            "非诉案件": "非诉字",
+            "法律顾问业务": "法顾字",
+        }
+
+        if new_category not in type_map:
+            raise ValueError("未知的案件类型")
+
+        # 查询该类型最新案件号
+        latest_case = db.query(Case).filter(
+            Case.case_category == new_category,
+            Case.case_number.like(f"湘生律({year})%")
+        ).order_by(Case.case_id.desc()).first()
+
+        next_number = 1
+        if latest_case:
+            try:
+                last_number = int(latest_case.case_number.split("第")[-1].replace("号", ""))
+                next_number = last_number + 1
+            except ValueError:
+                next_number = 1  # 容错处理
+
+        # 生成新编号并更新类型
+        case.case_category = new_category
+        case.case_number = f"湘生律({year}){type_map[new_category]}第{next_number}号"
+
+    # 最后统一设置为待审核
     case.review_status = "待审核"
 
     db.commit()

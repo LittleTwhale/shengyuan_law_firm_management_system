@@ -1,5 +1,5 @@
 # api/user_profile.py
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..crud import user as user_crud
 from ..crud import case as case_crud

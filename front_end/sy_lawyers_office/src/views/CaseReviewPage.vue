@@ -3,15 +3,43 @@
     <!-- 页面头部 -->
     <div class="header">
       <h2>案件审核</h2>
+      <!-- ✅ 新增：批量操作 + 全选按钮 -->
+      <div class="bulk-actions">
+        <el-button
+          type="primary"
+          size="small"
+          @click="toggleSelectAll"
+          :disabled="!casesList.length"
+        >
+          {{ isAllSelected ? '取消全选' : '全选当前页' }}
+        </el-button>
+
+        <el-button
+          type="success"
+          size="small"
+          :disabled="!selectedCases.length"
+          @click="batchReview('已审核')"
+        >批量通过</el-button>
+
+        <el-button
+          type="danger"
+          size="small"
+          :disabled="!selectedCases.length"
+          @click="batchReview('已拒绝')"
+        >批量拒绝</el-button>
+      </div>
     </div>
 
     <!-- 审核表格 -->
     <el-table
+      ref="caseTableRef"
       :data="casesList"
       style="width: 100%"
       border
       v-loading="tableLoading"
+      @selection-change="handleSelectionChange"
     >
+      <el-table-column type="selection" width="55" />
       <el-table-column prop="case_id" label="案件ID" width="80" />
       <el-table-column prop="case_number" label="案件编号" />
       <el-table-column prop="client_name" label="委托人" />
@@ -61,7 +89,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
 
@@ -74,10 +102,69 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
 const tableLoading = ref(false)
+const caseTableRef = ref(null) // 用于控制表格选择
 
 // 当前用户信息
 const currentUserId = ref(sessionStorage.getItem('user_id'))
 const currentUserRole = ref(sessionStorage.getItem('role'))
+
+// ✅ 多选状态
+const selectedCases = ref([])
+const isAllSelected = ref(false) // 记录是否已全选当前页
+
+// ✅ 监听勾选变化
+const handleSelectionChange = (val) => {
+  selectedCases.value = val
+  isAllSelected.value = val.length === casesList.value.length && val.length > 0
+}
+
+// ✅ 切换全选/取消全选
+const toggleSelectAll = () => {
+  if (!caseTableRef.value) return
+  if (isAllSelected.value) {
+    caseTableRef.value.clearSelection() // 取消全选
+  } else {
+    casesList.value.forEach(row => {
+      caseTableRef.value.toggleRowSelection(row, true) // 选中所有行
+    })
+  }
+  isAllSelected.value = !isAllSelected.value
+}
+
+// ✅ 批量审核
+const batchReview = async (status) => {
+  if (!selectedCases.value.length) return
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要将选中的 ${selectedCases.value.length} 个案件标记为「${status}」吗？`,
+      '批量审核确认',
+      { type: status === '已审核' ? 'success' : 'warning' }
+    )
+
+    await Promise.all(
+      selectedCases.value.map(item =>
+        axios.put(`${API_BASE}/case_review/${item.case_id}/review`, {}, {
+          params: {
+            reviewer_id: currentUserId.value,
+            role: currentUserRole.value,
+            review_status: status
+          }
+        })
+      )
+    )
+
+    ElMessage.success(`已成功批量${status === '已审核' ? '通过' : '拒绝'} ${selectedCases.value.length} 个案件`)
+    selectedCases.value = []
+    isAllSelected.value = false
+    await fetchPendingCases()
+  } catch (err) {
+    if (err !== 'cancel') {
+      console.error('批量审核失败:', err)
+      ElMessage.error(err.response?.data?.detail || '批量审核失败')
+    }
+  }
+}
 
 // 加载待审核案件
 const fetchPendingCases = async () => {

@@ -1,6 +1,5 @@
 <template>
   <div class="user-profile-page">
-    <el-page-header @back="goBack" title="个人信息" />
 
     <el-card class="profile-card" v-loading="loading">
       <!-- 基本信息 -->
@@ -269,11 +268,6 @@ const handleChangePassword = async () => {
       ElMessage.error(err.response?.data?.detail || '修改密码失败')
     }
   })
-}
-
-// 返回上一页
-const goBack = () => {
-  router.back()
 }
 
 // 页面加载时初始化
