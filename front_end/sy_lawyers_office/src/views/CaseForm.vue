@@ -231,6 +231,58 @@
       <el-form-item label="案件详情">
         <el-input type="textarea" v-model="formData.details" placeholder="请输入案件详细描述"/>
       </el-form-item>
+
+      <!-- 11. 附件上传区域 -->
+      <el-form-item label="案件附件">
+        <template v-if="props.mode === 'add'">
+          <div class="upload-tip">请先新增案件再去编辑界面上传附件</div>
+        </template>
+        <template v-else>
+          <el-upload
+            class="upload-demo"
+            :action="`http://127.0.0.1:8002/attachments/?case_id=${props.caseId}&uploaded_by=${props.currentUserId}`"
+            :on-success="handleAttachmentUpload"
+            :on-error="handleAttachmentError"
+            :file-list="formData.attachments || []"
+            :auto-upload="true"
+          >
+            <el-button size="small" type="primary">
+              <el-icon><Upload /></el-icon> 上传附件
+            </el-button>
+            <template #tip>
+              <div class="el-upload__tip">
+                支持上传多种格式文件
+              </div>
+            </template>
+          </el-upload>
+
+          <el-table
+            v-if="formData.attachments && formData.attachments.length > 0"
+            :data="formData.attachments"
+            border
+            style="width: 100%; margin-top: 10px"
+          >
+            <el-table-column prop="name" label="文件名" />
+            <el-table-column label="操作">
+              <template #default="scope">
+                <el-button
+                  size="small"
+                  @click="downloadFormAttachment(scope.row.uid)"
+                >
+                  下载
+                </el-button>
+                <el-button
+                  size="small"
+                  type="danger"
+                  @click="deleteFormAttachment(scope.row.uid)"
+                >
+                  删除
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </template>
+      </el-form-item>
     </el-form>
 
     <!-- 底部按钮（通过slot让父组件控制，保持弹窗按钮一致性） -->
@@ -243,6 +295,9 @@
 
 <script setup>
 import { ref, reactive, watch, computed } from 'vue'
+import { Upload } from '@element-plus/icons-vue'
+import axios from 'axios'
+import { ElMessage } from 'element-plus'
 
 // 1. Props：接收父组件传递的数据
 const props = defineProps({
@@ -271,7 +326,8 @@ const props = defineProps({
     validator: (value) => ['add', 'edit'].includes(value) // 仅允许add/edit两种值
   },
   currentUserId: [String, Number],
-  currentUserRole: String
+  currentUserRole: String,
+  caseId: [String, Number]
 })
 // 使用本地响应式变量替代直接修改 prop
 const dialogVisible = computed({
@@ -348,7 +404,8 @@ const defaultFormData = {
   execution_application_date: null,
   mediation_due_date: null,
   execution_due_date: null,
-  details: ""
+  details: "",
+  attachments: [] // 新增附件数组
 }
 const formData = reactive(defaultFormData)
 // 保全状态切换时的处理逻辑
@@ -379,7 +436,6 @@ const formRules = reactive({
         }
         // 2. 若填写了，校验是否为18位字符（数字/字母均可，若需纯数字可加正则）
         const length = value.trim().length; // 去除空格后计算长度
-        console.log(length);
         if (length === 18) {
           callback(); // 长度正确，通过校验
         } else {
@@ -394,14 +450,56 @@ const formRules = reactive({
   plaintiff: [{ required: true, message: '请输入原告/申请人信息', trigger: 'blur' }]
 })
 
-// 4. 监听initialFormData变化（编辑时加载案件数据）
+// 4. 附件相关变量和方法
+const formMode = ref(props.mode) // 表单模式
 
+// 处理附件上传成功
+const handleAttachmentUpload = async (response) => {
+  ElMessage.success('附件上传成功')
+
+  // 将上传的附件添加到表单列表
+  formData.attachments.push({
+    name: response.file_name,
+    uid: response.attachment_id,
+    url: `/attachments/${response.attachment_id}/download`
+  })
+}
+
+// 处理附件上传失败
+const handleAttachmentError = (err) => {
+  console.error('附件上传失败:', err)
+  ElMessage.error('附件上传失败')
+}
+
+// 下载表单中的附件
+const downloadFormAttachment = (attachmentId) => {
+  window.open(`http://127.0.0.1:8002/attachments/${attachmentId}/download`, '_blank')
+}
+
+// 删除表单中的附件
+const deleteFormAttachment = async (attachmentId) => {
+  if (!confirm('确定要删除该附件吗？')) return
+
+  try {
+    await axios.delete(`http://127.0.0.1:8002/attachments/${attachmentId}`)
+    ElMessage.success('附件删除成功')
+
+    // 从表单列表中移除
+    formData.attachments = formData.attachments.filter(
+      item => item.uid !== attachmentId
+    )
+  } catch (err) {
+    console.error('删除附件失败:', err)
+    ElMessage.error('删除附件失败')
+  }
+}
+
+// 5. 监听initialFormData变化（编辑时加载案件数据）
 watch(
   () => props.initialFormData,
   (newVal) => {
     if (newVal && props.mode === 'edit') {
       const copy = JSON.parse(JSON.stringify(newVal))
-
       // 将对象型字段转换为 ID
       copy.main_lawyer_id = copy.main_lawyer?.id || null
       copy.assistant_lawyer_id = copy.assistant_lawyer?.id || null
@@ -409,6 +507,11 @@ watch(
       copy.execution_assistant_id = copy.execution_assistant?.id || null
 
       Object.assign(formData, copy)
+
+      // 加载该案件的附件
+      if (copy.case_id) {
+        loadFormAttachments(copy.case_id)
+      }
     }
   },
   { immediate: true, deep: true }
@@ -416,10 +519,10 @@ watch(
 watch(
   () => props.mode,
   (newMode) => {
+    formMode.value = newMode
     if (newMode === 'add') {
       // 清空所有字段
       Object.keys(formData).forEach(key => (formData[key] = ""))
-
       // 重置布尔字段为 false
       const boolKeys = [
         'is_major',
@@ -435,6 +538,7 @@ watch(
       formData.litigation_fee_payment_amount = 0
       formData.litigation_fee_refund_amount = 0
       formData.commission_date = getCurrentDate()
+      formData.attachments = [] // 清空附件列表
 
       // 主办律师默认为当前用户
       if (props.currentUserRole === 'user' || props.currentUserRole === 'admin') {
@@ -466,8 +570,22 @@ watch(
   }
 )
 
+// 加载表单中的附件列表
+const loadFormAttachments = async (caseId) => {
+  try {
+    const res = await axios.get(`http://127.0.0.1:8002/attachments/case/${caseId}`)
+    formData.attachments = res.data.map(item => ({
+      name: item.file_name,
+      uid: item.attachment_id,
+      url: `/attachments/${item.attachment_id}/download`
+    }))
+  } catch (err) {
+    console.error('加载附件失败:', err)
+    ElMessage.error('加载附件失败')
+  }
+}
 
-// 5. 事件：向父组件传递操作结果
+// 6. 事件：向父组件传递操作结果
 const emit = defineEmits(['submit', 'update:visible'])
 
 // 取消操作：通知父组件关闭弹窗
@@ -484,6 +602,9 @@ const handleSubmit = async () => {
   if (valid) {
     // 深拷贝避免引用问题
     const submitData = JSON.parse(JSON.stringify(formData));
+
+    // 移除附件信息，因为附件是通过单独API上传的
+    delete submitData.attachments;
 
     emit('submit', submitData);
     emit('update:visible', false); // 提交成功后关闭弹窗

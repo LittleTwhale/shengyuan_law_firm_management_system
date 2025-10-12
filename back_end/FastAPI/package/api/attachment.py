@@ -1,0 +1,183 @@
+# api/attachment.py
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from sqlalchemy.orm import Session
+from typing import List
+
+from ..database.database import get_db
+from ..models.attachment import CaseAttachment
+from ..schemas.attachment import AttachmentCreate, AttachmentOut
+from ..crud.attachment import create_attachment, get_attachments_by_case_id, delete_attachment_by_id
+from ..crud.case import get_case_by_id  # 用于验证案件存在性
+
+from fastapi.responses import FileResponse
+import os
+from ..core.config import CASE_ATTACHMENT_ROOT
+
+router = APIRouter(
+    prefix="/attachments",
+    tags=["attachment"]
+)
+
+@router.post("/", response_model=AttachmentOut, status_code=status.HTTP_201_CREATED)
+async def upload_attachment(
+        case_id: int,
+        uploaded_by: int,
+        file: UploadFile = File(...),
+        db: Session = Depends(get_db)
+):
+    """
+    上传案件附件
+    - 验证案件是否存在
+    - 接收文件并保存到服务器
+    - 创建附件数据库记录
+    """
+    # 验证案件存在性（避免向不存在的案件上传附件）
+    if not get_case_by_id(db, case_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"案件ID {case_id} 不存在"
+        )
+
+    # 构建附件创建参数
+    attachment_in = AttachmentCreate(
+        case_id=case_id,
+        uploaded_by=uploaded_by
+    )
+
+    try:
+        return await create_attachment(
+            db=db,
+            attachment_in=attachment_in,
+            file=file
+        )
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.get("/case/{case_id}", response_model=List[AttachmentOut])
+def get_case_attachments(
+        case_id: int,
+        db: Session = Depends(get_db)
+):
+    """根据案件ID查询所有附件"""
+    # 验证案件存在性
+    if not get_case_by_id(db, case_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"案件ID {case_id} 不存在"
+        )
+
+    return get_attachments_by_case_id(db, case_id)
+
+
+@router.delete("/{attachment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_attachment(
+        attachment_id: int,
+        db: Session = Depends(get_db)
+):
+    """删除附件（同时删除文件和数据库记录）"""
+    try:
+        success = delete_attachment_by_id(db, attachment_id)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"附件ID {attachment_id} 不存在"
+            )
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.get("/{attachment_id}/download")
+def download_attachment(
+        attachment_id: int,
+        db: Session = Depends(get_db)
+):
+    """下载附件文件"""
+
+    # 查询附件信息
+    attachment = db.query(CaseAttachment).filter(
+        CaseAttachment.attachment_id == attachment_id
+    ).first()
+
+    if not attachment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"附件ID {attachment_id} 不存在"
+        )
+
+    # 构建完整文件路径
+    full_path = os.path.join(CASE_ATTACHMENT_ROOT, str(attachment.file_path))
+    if not os.path.exists(full_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="附件文件已丢失"
+        )
+
+    # 返回文件下载响应
+    return FileResponse(
+        path=full_path,
+        filename=str(attachment.file_name),
+        media_type=attachment.file_type or "application/octet-stream"
+    )
+
+@router.get("/{attachment_id}/preview")
+def preview_attachment(
+        attachment_id: int,
+        db: Session = Depends(get_db)
+):
+    """
+    预览图片或PDF附件
+    - 直接返回文件内容，支持浏览器原生预览
+    - 仅支持图片和PDF格式
+    """
+    from fastapi.responses import FileResponse
+
+    # 查询附件信息
+    attachment = db.query(CaseAttachment).filter(
+        CaseAttachment.attachment_id == attachment_id
+    ).first()
+
+    if not attachment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"附件ID {attachment_id} 不存在"
+        )
+
+    # 构建完整文件路径
+    full_path = os.path.join(CASE_ATTACHMENT_ROOT, str(attachment.file_path))
+    if not os.path.exists(full_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="附件文件已丢失"
+        )
+
+    # 验证文件类型是否支持预览
+    supported_types = {
+        # 图片类型
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/bmp",
+        "image/webp",
+        # PDF类型
+        "application/pdf"
+    }
+
+    if attachment.file_type not in supported_types:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"不支持预览该类型文件: {attachment.file_type}\n支持的类型: 图片(JPG/PNG等)和PDF"
+        )
+
+    # 返回文件用于预览（不指定filename，让浏览器直接显示而非下载）
+    return FileResponse(
+        path=full_path,
+        media_type=str(attachment.file_type),
+        # 不设置filename参数，浏览器会尝试直接显示文件
+    )

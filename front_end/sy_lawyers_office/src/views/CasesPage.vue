@@ -78,6 +78,7 @@
       :mode="formMode"
       :current-user-id="currentUserID"
       :current-user-role="currentUserRole"
+      :case-id="formMode === 'edit' ? currentCaseId : null"
       @submit="handleFormSubmit"
     />
 
@@ -193,7 +194,6 @@ const handleAddClick = () => {
 const handleEditClick = async (row) => {
   formMode.value = 'edit'
   currentCaseId.value = row.case_id
-
   try {
     // 调接口获取完整案件详情（CaseOut）
     const res = await axios.get(`http://127.0.0.1:8002/cases/${row.case_id}`)
