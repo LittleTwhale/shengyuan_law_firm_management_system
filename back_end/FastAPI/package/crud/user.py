@@ -93,7 +93,10 @@ def get_ordinary_users(db: Session) -> List[User]:
     """
     获取普通用户列表
     """
-    users = db.query(User).filter(User.role == "user").all()
+    # 筛选条件：角色为 user 或 admin（排除 owner）
+    users = db.query(User).filter(
+        User.role.in_(["user", "admin"])  # 包含普通用户和管理员
+    ).all()
     return cast(List[User], users)
 
 def get_all_lawyers(db: Session):

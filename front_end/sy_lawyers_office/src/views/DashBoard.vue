@@ -4,6 +4,11 @@
     <header class="top-bar">
       <div class="logo-section">
         <img src="@/assets/img/logo.png" alt="湖南生元律师事务所Logo" class="logo-image">
+        <el-button
+          icon="el-icon-menu"
+          class="menu-toggle"
+          @click="isCollapsed = !isCollapsed"
+        ></el-button>
       </div>
       <div class="user-section">
         <span>{{ currentUser }}</span>
@@ -21,6 +26,7 @@
         background-color="#165DFF"
         text-color="#fff"
         active-text-color="#ffd04b"
+        :collapse="isCollapsed"
       >
         <el-menu-item index="/main/cases">
           <i class="el-icon-document"></i>
@@ -38,7 +44,7 @@
           v-if="role === 'owner' || role === 'admin'"
         >
           <i class="el-icon-user"></i>
-          <span>律师管理</span>
+          <span>人员管理</span>
         </el-menu-item>
         <el-menu-item index="/main/cases/bank_cases">
           <i class="el-icon-bank_cases"></i>
@@ -59,7 +65,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 
@@ -77,6 +83,24 @@ const handleLogout = () => {
   router.push('/')
   ElMessage.info('已退出登录')
 }
+
+// 新增折叠状态管理
+const isCollapsed = ref(false)
+
+// 监听窗口大小变化
+onMounted(() => {
+  const handleResize = () => {
+    // 移动端自动折叠
+    isCollapsed.value = window.innerWidth < 768;
+  }
+
+  window.addEventListener('resize', handleResize)
+  handleResize() // 初始化
+
+  onBeforeUnmount(() => {
+    window.removeEventListener('resize', handleResize)
+  })
+})
 </script>
 
 <style scoped>
@@ -113,13 +137,46 @@ const handleLogout = () => {
   overflow:hidden;
 }
 .sidebar {
-  width:200px;
-  min-width:200px;
-  height:100%;
+  width: 200px;
+  min-width: 200px;
+  height: 100%;
+  transition: width 0.3s ease; /* 平滑过渡 */
 }
-.content-area {
-  flex:1;
-  padding:20px;
-  overflow-y:auto;
+
+/* 折叠状态样式 */
+:deep(.el-menu--collapsed) {
+  width: 64px;
+  min-width: 64px;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .sidebar {
+    position: absolute;
+    z-index: 10;
+    height: calc(100vh - 60px);
+  }
+
+  .content-area {
+    margin-left: 0;
+  }
+
+  .menu-toggle {
+    display: block !important;
+    color: white;
+    margin-right: 10px;
+  }
+}
+
+/* 隐藏默认的折叠按钮 */
+:deep(.el-menu__collapse-transition) {
+  display: none;
+}
+
+/* 菜单切换按钮样式 */
+.menu-toggle {
+  display: none;
+  background: transparent;
+  border: none;
 }
 </style>

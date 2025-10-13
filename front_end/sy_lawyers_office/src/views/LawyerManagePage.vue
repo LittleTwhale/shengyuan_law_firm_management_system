@@ -125,7 +125,7 @@ const role = sessionStorage.getItem('role')
 const users = ref([])
 const searchKeyword = ref('')
 const page = ref(1)
-const pageSize = ref(5)
+const pageSize = ref(15)
 
 // 弹窗控制
 const dialogVisible = ref(false)
@@ -155,7 +155,10 @@ const pagedData = computed(() => {
 // --------------------------
 const canEdit = row => {
   if (role === 'owner') return row.role !== 'owner'
-  if (role === 'admin') return row.role === 'user'
+  if (role === 'admin') {
+    // 管理员只能编辑普通用户（user）
+    return row.role === 'user';
+  }
   return false
 }
 const canDelete = row => canEdit(row)
