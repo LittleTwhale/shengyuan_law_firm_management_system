@@ -327,6 +327,20 @@ def export_cases_by_user_role(
 
     return cast(list[Case], query.all())
 
+def export_bank_cases_by_user_role(
+        db: Session,
+        user_id: int,
+        role: str
+) -> List[Case]:
+    """查询符合条件的所有案件（无分页）"""
+    query = db.query(Case).filter(Case.case_category == "银行案件")
+
+    # 权限过滤
+    if role not in ["admin", "owner"]:
+        query = query.filter(Case.main_lawyer_id == user_id,Case.is_deleted == False)
+
+    return cast(list[Case], query.all())
+
 def count_main_cases(db: Session, lawyer_id: int) -> int:
     """统计主办案件数量"""
     return db.query(Case).filter(Case.main_lawyer_id == lawyer_id).count()

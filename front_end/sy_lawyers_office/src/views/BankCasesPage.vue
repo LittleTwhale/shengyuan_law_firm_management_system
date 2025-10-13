@@ -1,19 +1,24 @@
 <template>
   <div class="bank-cases-page">
     <div class="header">
-      <h2>银行案件管理</h2>
-      <!-- 搜索框 -->
-      <el-input
-        v-model="searchKeyword"
-        placeholder="搜索案件号/委托银行"
-        style="width: 300px"
-        clearable
-        @keyup.enter="handleSearch"
-      >
-        <template #append>
-          <el-button @click="handleSearch" icon="Search" />
-        </template>
-      </el-input>
+      <h2>银行案件</h2>
+      <div class="action-buttons">
+        <el-button type="success" @click="handleExportClick">导出表格</el-button>
+      </div>
+    </div>
+
+    <!-- 搜索区 -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <el-input
+          v-model="searchKeyword"
+          placeholder="请输入案件号或委托银行"
+          clearable
+          @clear="handleSearch"
+          @keyup.enter="handleSearch"
+          style="width: 250px; margin-right: 15px"
+        />
+      </div>
     </div>
 
     <!-- 案件表格：委托人列改为委托银行 -->
@@ -180,6 +185,48 @@ const handleFormSubmit = async (submittedData) => {
     ElMessage.error('编辑案件失败')
   }
 }
+
+// -------------------------- 导出Excel表格 --------------------------
+const handleExportClick = async () => {
+  try {
+    // 1️⃣ 发起请求到后端接口
+    const response = await axios.get('http://127.0.0.1:8002/cases/export/bank_cases', {
+      params: {
+        user_id: currentUserID.value,
+        role: currentUserRole.value
+      },
+      responseType: 'blob' // 告诉 axios 返回文件流
+    });
+
+    // 2️⃣ 创建下载链接
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+
+    // 3️⃣ 动态生成文件名（使用当前时间）
+    const timestamp = new Date().toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).replace(/\D/g, '');
+    link.download = `银行案件数据_${timestamp}.xlsx`;
+
+    // 4️⃣ 触发下载
+    link.click();
+    window.URL.revokeObjectURL(downloadUrl);
+
+    ElMessage.success('Excel 文件导出成功 ✅');
+  } catch (error) {
+    console.error('导出Excel失败：', error);
+    ElMessage.error('导出失败，请稍后重试 ❌');
+  }
+};
 
 // 日期格式化（复用现有函数）
 const formatDate = (dateVal) => {
