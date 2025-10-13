@@ -17,6 +17,7 @@
       <el-form-item label="案件类别" prop="case_category">
         <el-select v-model="formData.case_category" placeholder="请选择案件类别">
           <el-option label="民事案件" value="民事案件"/>
+          <el-option label="银行案件" value="银行案件"/>
           <el-option label="刑事案件" value="刑事案件"/>
           <el-option label="行政案件" value="行政案件"/>
           <el-option label="仲裁案件" value="仲裁案件"/>
@@ -42,10 +43,6 @@
       </el-form-item>
 
       <!-- 2. 费用相关 -->
-      <el-form-item label="是否银行案件">
-        <el-switch v-model="formData.is_bank_case"/>
-      </el-form-item>
-
       <el-form-item label="案件来源">
         <el-input v-model="formData.case_source" placeholder="请输入案件来源（如客户介绍、线上咨询等）"/>
       </el-form-item>
@@ -366,7 +363,6 @@ const defaultFormData = {
   client_name: "",
   client_id_number: "",
   client_phone: "",
-  is_bank_case: false,
   case_source: "",
   fee_method: "",
   risk_ratio: "",
@@ -530,7 +526,6 @@ watch(
         'has_paper_file',
         'is_dismissed',
         'has_preservation',
-        'is_bank_case'
       ]
       boolKeys.forEach(key => (formData[key] = false))
 

@@ -13,7 +13,6 @@ class CaseCreate(BaseModel):
     client_id_number: str = Field(None, description="委托人身份证号/单位税号")
     client_phone: Optional[str] = Field(None, description="委托人电话")
     case_category: str = Field(..., description="案件类别")
-    is_bank_case: bool = Field(False, description="是否为银行案件")
     case_source: Optional[str] = Field(None, description="案件来源")
     fee_method: Optional[str] = Field(None, description="收费方式")
     risk_ratio: Optional[str] = Field(None, description="风险比例")
@@ -80,7 +79,6 @@ class CaseUpdate(BaseModel):
     client_id_number: Optional[str] = Field(None, description="委托人身份证号/单位税号 / Client ID / Tax number")
     client_phone: Optional[str] = Field(None, description="委托人电话 / Client phone")
     case_category: Optional[str] = Field(None, description="案件类别 / Case category")
-    is_bank_case: Optional[bool] = Field(None, description="是否为银行案件 / Is bank case")
     case_source: Optional[str] = Field(None, description="案件来源 / Case source")
     fee_method: Optional[str] = Field(None, description="收费方式 / Fee method")
     risk_ratio: Optional[str] = Field(None, description="风险比例 / Risk ratio")
@@ -153,7 +151,6 @@ class CaseOut(BaseModel):
     client_phone: Optional[str] = Field(None, description="电话 / Phone number")
 
     case_category: str = Field(..., description="案件类别 / Case category")
-    is_bank_case: bool = Field(False, description="是否银行案件 / Is bank case")
     case_source: Optional[str] = Field(None, description="案件来源 / Case source")
     fee_method: Optional[str] = Field(None, description="收费方式 / Fee method")
     risk_ratio: Optional[str] = Field(None, description="风险比例 / Risk ratio")

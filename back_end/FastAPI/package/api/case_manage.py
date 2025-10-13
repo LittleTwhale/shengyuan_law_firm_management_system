@@ -109,7 +109,7 @@ def export_cases(
     # 3. 设置表头
     headers = [
         "案件ID", "案件号", "委托日期", "委托人", "委托人身份证号/单位税号", "委托人电话",
-        "案件类别", "是否为银行案件", "案件来源", "收费方式", "风险比例", "案件收入",
+        "案件类别", "案件来源", "收费方式", "风险比例", "案件收入",
         "付款到期日", "案由", "介入阶段", "原告/申请人", "上诉人或第三人信息补充",
         "补上诉人或补告信息补充", "被告", "代理权限", "审理法院", "开庭时间", "立案日",
         "结案时间", "案件地点", "案件详情",
@@ -138,7 +138,6 @@ def export_cases(
             case.client_id_number or "",
             case.client_phone or "",
             case.case_category,
-            "是" if case.is_bank_case else "否",
             case.case_source or "",
             case.fee_method or "",
             case.risk_ratio or "",

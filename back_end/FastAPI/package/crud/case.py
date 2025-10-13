@@ -113,7 +113,7 @@ def list_bank_cases_by_user_role(
         joinedload(Case.assistant_lawyer),
         joinedload(Case.execution_lawyer),
         joinedload(Case.execution_assistant),
-    ).filter(Case.is_deleted == False,Case.is_bank_case == True)
+    ).filter(Case.is_deleted == False,Case.case_category == "银行案件")
 
     # 角色筛选
     if role not in ["admin", "owner"]:
@@ -138,7 +138,7 @@ def count_bank_cases_by_user_role(
     """
     根据用户角色统计案件总数
     """
-    query = db.query(Case).filter(Case.is_deleted == False,Case.is_bank_case == True)
+    query = db.query(Case).filter(Case.is_deleted == False,Case.case_category == "银行案件")
     # 角色筛选
     if role not in ["admin", "owner"]:
         query = query.filter(Case.main_lawyer_id == user_id)
@@ -167,6 +167,7 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
         "行政案件": "行字",
         "非诉案件": "非诉字",
         "法律顾问业务": "法顾字",
+        "银行案件": "银行案件",
     }
 
     case_type = case_in.case_category
@@ -241,6 +242,7 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
             "行政案件": "行字",
             "非诉案件": "非诉字",
             "法律顾问业务": "法顾字",
+            "银行案件": "银行案件",
         }
 
         if new_category not in type_map:

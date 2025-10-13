@@ -15,7 +15,6 @@
         <el-descriptions-item label="委托人">{{ caseData.client_name || '-' }}</el-descriptions-item>
         <el-descriptions-item label="身份证号/单位税号">{{ caseData.client_id_number || '-' }}</el-descriptions-item>
         <el-descriptions-item label="联系电话">{{ caseData.client_phone || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="是否银行案件">{{ caseData.is_bank_case ? '是' : '否' }}</el-descriptions-item>
         <el-descriptions-item label="案件来源">{{ caseData.case_source || '-' }}</el-descriptions-item>
         <el-descriptions-item label="介入阶段">{{ caseData.stage || '-' }}</el-descriptions-item>
         <el-descriptions-item label="案由">{{ caseData.cause || '-' }}</el-descriptions-item>

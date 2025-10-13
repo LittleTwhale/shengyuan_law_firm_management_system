@@ -110,11 +110,12 @@ const selectedCategory = ref('')
 // 案件类别选项
 const caseCategories = ref([
   { label: '民事案件', value: '民事案件' },
+  { label: '银行案件', value: '银行案件' },
   { label: '刑事案件', value: '刑事案件' },
   { label: '行政案件', value: '行政案件' },
   { label: '非诉案件', value: '非诉案件' },
   { label: '仲裁案件', value: '仲裁案件' },
-  { label: '法律顾问业务', value: '法律顾问业务' }
+  { label: '法律顾问业务', value: '法律顾问业务' },
 ])
 
 // -------------------------- 弹窗控制相关 --------------------------
