@@ -148,7 +148,7 @@ const loadLawyers = async () => {
 const loadCases = async () => {
   tableLoading.value = true
   try {
-    const res = await axios.get('http://127.0.0.1:8002/cases', {
+    const res = await axios.get('http://127.0.0.1:8002/cases/', {
       params: {
         user_id: currentUserID.value ,
         role: currentUserRole.value ,

@@ -181,7 +181,6 @@ const loadingAttachments = ref(false)
 const goBack = () => {
   // 从路由状态中获取来源页面路径，默认返回案件管理页面
   const fromPath = route.query.from || '/main/cases'
-  console.log('fromPath:', fromPath)
   router.push(fromPath)
 }
 

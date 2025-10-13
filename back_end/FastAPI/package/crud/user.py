@@ -55,7 +55,7 @@ def change_password(db: Session, user_id: int, old_password: str, new_password: 
         raise HTTPException(status_code=404, detail="用户不存在")
 
     # 验证旧密码
-    if not verify_password(old_password, user.password_hash):
+    if not verify_password(old_password, str(user.password_hash)):
         raise HTTPException(status_code=400, detail="旧密码不正确")
 
     # 更新密码
