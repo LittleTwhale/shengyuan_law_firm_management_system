@@ -106,7 +106,7 @@
 <script setup>
 import { ref, reactive, onMounted} from 'vue'
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import CaseForm from './CaseForm.vue' // 引入抽离的CaseForm组件
 import { useRouter } from 'vue-router'
 
@@ -237,7 +237,37 @@ const handleEditClick = async (row) => {
 const handleFormSubmit = async (submittedData) => {
   try {
     if (formMode.value === 'add') {
-      // 调用 /cases/case_create
+      // 新增案件：先检测利益冲突
+      const conflictRes = await axios.post(
+        'http://127.0.0.1:8002/cases/check_conflict',
+        submittedData,
+        {
+          params: {
+          }
+        }
+      );
+
+      if (conflictRes.data.has_conflict) {
+        try {
+          // 弹出确认框
+          await ElMessageBox.confirm(
+            `检测到利益冲突：该委托人在以下案件中担任${conflictRes.data.details[0].role}，是否继续创建？\n` +
+            conflictRes.data.details.map(c => `案件号：${c.case_number}（主办律师ID：${c.other_lawyer_id}）`).join('\n'),
+            '利益冲突警告',
+            {
+              confirmButtonText: '继续创建',
+              cancelButtonText: '取消',
+              type: 'warning'
+            }
+          )
+        } catch {
+          // 用户点了“取消”，直接返回，不创建案件
+          ElMessage.info('已取消创建')
+          return
+        }
+      }
+
+      // 无冲突或用户确认继续，则提交创建
       await axios.post('http://127.0.0.1:8002/cases/case_create', submittedData)
       ElMessage.success('新增案件成功')
     } else {

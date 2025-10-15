@@ -7,6 +7,8 @@ import CaseReviewPage from '@/views/CaseReviewPage.vue'
 import CaseDetailPage from '@/views/CaseDetailPage.vue'
 import BankCasesPage from '@/views/BankCasesPage.vue'
 import UserProfilePage from '@/views/UserProfilePage.vue'
+import DocumentPage from '@/views/DocumentPage.vue'
+import ElectronicSealPage from '@/views/ElectronicSealPage.vue'
 
 const routes = [
   { path: '/', redirect: '/login' },
@@ -26,7 +28,9 @@ const routes = [
         meta: { title: '案件详情' }
       },
       { path: 'cases/bank_cases', component: BankCasesPage },
-      { path: 'user_profile', component: UserProfilePage }
+      { path: 'user_profile', component: UserProfilePage },
+      { path: 'document_template', component: DocumentPage },
+      { path: 'electronic_seal', component: ElectronicSealPage }
     ]
   },
 ]

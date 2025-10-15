@@ -5,13 +5,14 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from ..database.database import get_db
+from ..models.case import Case
 from ..schemas.user import UserOut
 from ..schemas.case import CaseOut, CasePageOut, CaseSimpleOut, CaseCreate, CaseUpdate
 
 from ..crud.user import get_all_lawyers
 from ..crud.case import list_cases_by_user_role, get_case_by_id, count_cases_by_user_role, create_case, update_case, \
     delete_case, export_cases_by_user_role, list_bank_cases_by_user_role, count_bank_cases_by_user_role, \
-    export_bank_cases_by_user_role
+    export_bank_cases_by_user_role, split_with_separators
 
 from io import BytesIO
 from urllib.parse import quote
@@ -392,3 +393,59 @@ def delete_existing_case(case_id: int, db: Session = Depends(get_db)):
 def list_lawyers(db: Session = Depends(get_db)):
     return get_all_lawyers(db)
 
+# 利益冲突检测
+@router.post("/check_conflict", status_code=status.HTTP_200_OK)
+def check_interest_conflict(
+        case_data: CaseCreate,
+        db: Session = Depends(get_db)
+):
+    """检测新增案件的利益冲突"""
+    # 获取当前委托人
+    client_name = case_data.client_name
+    if not client_name:
+        raise HTTPException(status_code=400, detail="委托人姓名不能为空")
+
+    # 查询冲突案件：其他律师的案件中，委托人是原告或被告
+    conflict_cases = db.query(Case).filter(
+        # 核心：使用like匹配包含关系，兼容多主体分隔
+        (Case.plaintiff.like(f"%{client_name}%")) |  # 原告中包含委托人
+        (Case.defendant.like(f"%{client_name}%")),  # 被告中包含委托人
+        # 排除已删除的案件
+        Case.is_deleted == False
+    ).all()
+
+    # 进一步精确过滤（避免like匹配到类似名称，如"张三四"匹配"张三"）
+    # 定义分隔符（可根据实际数据格式扩展）
+    separators = ["、", ",", "，", " ", "；", ";"]
+    # 拆分原告/被告为列表，检查委托人是否在列表中
+    precise_conflicts = []
+    for case in conflict_cases:
+        # 拆分原告字段为主体列表
+        plaintiffs = [p.strip() for p in split_with_separators(str(case.plaintiff), separators) if p.strip()]
+        # 拆分被告字段为主体列表
+        defendants = [d.strip() for d in split_with_separators(case.defendant or "", separators) if d.strip()]
+
+        # 检查委托人是否在原告或被告列表中
+        if client_name in plaintiffs or client_name in defendants:
+            precise_conflicts.append(case)
+
+    if precise_conflicts:
+        # 提取冲突详情
+        conflict_details = [
+            {
+                "case_number": case.case_number,
+                "other_lawyer_id": case.main_lawyer_id,
+                "other_lawyer_name": case.main_lawyer.real_name,  # 关联用户表获取律师姓名
+                "role": "原告" if client_name in plaintiffs else "被告"
+            }
+            for case in precise_conflicts
+            # 重新计算当前案件的原告/被告列表（避免重复拆分）
+            for plaintiffs in [[p.strip() for p in split_with_separators(str(case.plaintiff), separators) if p.strip()]]
+            for defendants in
+            [[d.strip() for d in split_with_separators(case.defendant or "", separators) if d.strip()]]
+            # 补充判断条件：确保角色判定逻辑正确使用defendants
+            if client_name in plaintiffs or client_name in defendants
+        ]
+        return {"has_conflict": True, "details": conflict_details}
+
+    return {"has_conflict": False}

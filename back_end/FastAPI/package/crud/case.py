@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import List, Optional, cast
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from ..models.case import Case
@@ -40,7 +40,7 @@ def list_cases_by_user_role(
 ) -> List[Case]:
     """
     根据用户角色返回案件列表
-    - 普通用户：只能看到自己为主办律师的案件
+    - 普通用户：只能看到自己为主办律师或协办律师的案件
     - admin/owner：可以看到全部案件
     """
     query = db.query(Case).options(
@@ -52,7 +52,12 @@ def list_cases_by_user_role(
 
     # 角色筛选
     if role not in ["admin", "owner"]:
-        query = query.filter(Case.main_lawyer_id == user_id)
+        query = query.filter(
+            or_(
+                Case.main_lawyer_id == user_id,
+                Case.assistant_lawyer_id == user_id
+            )
+        )
 
     # 类别筛选
     if category:
@@ -86,7 +91,12 @@ def count_cases_by_user_role(
     query = db.query(Case).filter(Case.is_deleted == False)
     # 角色筛选
     if role not in ["admin", "owner"]:
-        query = query.filter(Case.main_lawyer_id == user_id)
+        query = query.filter(
+            or_(
+                Case.main_lawyer_id == user_id,
+                Case.assistant_lawyer_id == user_id
+            )
+        )
     else:
         # 管理员可以筛选特定主办律师
         if main_lawyer_id is not None:
@@ -116,7 +126,7 @@ def list_bank_cases_by_user_role(
 ) -> List[Case]:
     """
     根据用户角色返回银行案件列表
-    - 普通用户：只能看到自己为主办律师的案件
+    - 普通用户：只能看到自己为主办律师或协办的案件
     - admin/owner：可以看到全部案件
     """
     query = db.query(Case).options(
@@ -128,7 +138,12 @@ def list_bank_cases_by_user_role(
 
     # 角色筛选
     if role not in ["admin", "owner"]:
-        query = query.filter(Case.main_lawyer_id == user_id)
+        query = query.filter(
+            or_(
+                Case.main_lawyer_id == user_id,
+                Case.assistant_lawyer_id == user_id
+            )
+        )
     else:
         # 管理员可以筛选特定主办律师
         if main_lawyer_id is not None:
@@ -157,7 +172,12 @@ def count_bank_cases_by_user_role(
     query = db.query(Case).filter(Case.is_deleted == False,Case.case_category == "银行案件")
     # 角色筛选
     if role not in ["admin", "owner"]:
-        query = query.filter(Case.main_lawyer_id == user_id)
+        query = query.filter(
+            or_(
+                Case.main_lawyer_id == user_id,
+                Case.assistant_lawyer_id == user_id
+            )
+        )
     else:
         # 管理员可以筛选特定主办律师
         if main_lawyer_id is not None:
@@ -343,7 +363,10 @@ def export_cases_by_user_role(
 
     # 权限过滤
     if role not in ["admin", "owner"]:
-        query = query.filter(Case.main_lawyer_id == user_id,Case.is_deleted == False)
+        query = query.filter(or_(
+                Case.main_lawyer_id == user_id,
+                Case.assistant_lawyer_id == user_id
+            ),Case.is_deleted == False)
 
     return cast(list[Case], query.all())
 
@@ -357,7 +380,10 @@ def export_bank_cases_by_user_role(
 
     # 权限过滤
     if role not in ["admin", "owner"]:
-        query = query.filter(Case.main_lawyer_id == user_id,Case.is_deleted == False)
+        query = query.filter(or_(
+                Case.main_lawyer_id == user_id,
+                Case.assistant_lawyer_id == user_id
+            ),Case.is_deleted == False)
 
     return cast(list[Case], query.all())
 
@@ -376,3 +402,11 @@ def count_cases_by_category(db: Session, lawyer_id: int) -> dict:
         filter(Case.main_lawyer_id == lawyer_id).\
         group_by(Case.case_category).all()
     return {category: count for category, count in categories}
+
+# 拆分字符串工具
+def split_with_separators(s: str, separators: list) -> list:
+    """按多个分隔符拆分字符串"""
+    import re
+    # 构建正则表达式：匹配任何分隔符
+    separator_pattern = '|'.join(re.escape(sep) for sep in separators)
+    return re.split(separator_pattern, s)

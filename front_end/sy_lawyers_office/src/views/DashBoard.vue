@@ -23,7 +23,7 @@
         active-text-color="#ffd04b"
       >
         <el-menu-item index="/main/cases">
-          <i class="el-icon-document"></i>
+          <i class="el-icon-cases"></i>
           <span>案件管理</span>
         </el-menu-item>
         <el-menu-item index="/main/case_review" v-if="role === 'owner' || role === 'admin'">
@@ -37,6 +37,14 @@
         <el-menu-item index="/main/cases/bank_cases">
           <i class="el-icon-bank_cases"></i>
           <span>银行案件</span>
+        </el-menu-item>
+        <el-menu-item index="/main/document_template">
+          <i class="el-icon-document-template"></i>
+          <span>文书模板</span>
+        </el-menu-item>
+        <el-menu-item index="/main/electronic_seal">
+          <i class="el-icon-electronic-seal"></i>
+          <span>电子用印</span>
         </el-menu-item>
         <el-menu-item index="/main/user_profile">
           <i class="el-icon-user-profile"></i>

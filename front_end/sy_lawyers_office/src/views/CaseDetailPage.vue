@@ -193,8 +193,14 @@ const loadCaseDetail = async () => {
     const role = sessionStorage.getItem('role')
     const currentUserId = sessionStorage.getItem('user_id')
     const mainLawyerId = caseData.value.main_lawyer?.id
+    const assistantLawyerId = caseData.value.assistant_lawyer?.id
 
-    if (role === 'user' && mainLawyerId && String(mainLawyerId) !== String(currentUserId)) {
+
+    if (
+      role === 'user' &&
+      String(mainLawyerId) !== String(currentUserId) &&
+      String(assistantLawyerId) !== String(currentUserId)
+    ) {
       ElMessage.error('您没有权限查看此案件')
       await router.push('/main/cases')
     } else {
