@@ -18,12 +18,29 @@
           @keyup.enter="handleSearch"
           style="width: 250px; margin-right: 15px"
         />
+
+        <!-- 管理员专属：主办律师筛选 -->
+        <el-select
+          v-if="currentUserRole === 'admin' || currentUserRole === 'owner'"
+          v-model="selectedLawyerId"
+          placeholder="主办律师筛选"
+          clearable
+          @change="handleSearch"
+          style="width: 200px"
+        >
+          <el-option
+            v-for="lawyer in lawyers"
+            :key="lawyer.id"
+            :label="lawyer.real_name"
+            :value="lawyer.id"
+          />
+        </el-select>
       </div>
     </div>
 
     <!-- 案件表格：委托人列改为委托银行 -->
     <el-table :data="cases" border style="width: 100%" v-loading="tableLoading">
-      <el-table-column prop="case_number" label="案件号" width="180" align="center"/>
+      <el-table-column prop="case_number" label="案件号" width="220" align="center"/>
       <el-table-column prop="client_name" label="委托银行" align="center"/> <!-- 修改此处label -->
       <el-table-column prop="case_category" label="案件类别" align="center"/>
       <el-table-column prop="main_lawyer.real_name" label="主办律师" align="center"/>
@@ -34,10 +51,11 @@
         align="center"
         :formatter="(row, column, cellValue) => formatDate(cellValue)"
       />
-      <el-table-column label="操作" width="160" align="center">
+      <el-table-column label="操作" width="220" align="center">
         <template #default="scope">
           <el-button size="small" @click="viewCase(scope.row)">查看</el-button>
           <el-button size="small" type="warning" @click="handleEditClick(scope.row)">编辑</el-button>
+          <el-button size="small" type="danger" @click="deleteCase(scope.row.case_id)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -79,11 +97,12 @@ const currentUserRole = ref(sessionStorage.getItem('role'))
 
 // 表格与分页数据
 const page = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(15)
 const total = ref(0)
 const cases = ref([])
 const tableLoading = ref(false)
 const searchKeyword = ref('') // 搜索关键词
+const selectedLawyerId = ref(null) // 选中的主办律师ID
 
 // 弹窗控制
 const showFormDialog = ref(false)
@@ -121,7 +140,10 @@ const loadBankCases = async () => {
         role: currentUserRole.value,
         skip: (page.value - 1) * pageSize.value,
         limit: pageSize.value,
-        keyword: searchKeyword.value // 传递搜索关键词
+        keyword: searchKeyword.value, // 传递搜索关键词
+        ...(currentUserRole.value === 'admin' || currentUserRole.value === 'owner'
+          ? { main_lawyer_id: selectedLawyerId.value }
+          : {})
       }
     })
     cases.value = res.data.items || []
@@ -183,6 +205,20 @@ const handleFormSubmit = async (submittedData) => {
   } catch (err) {
     console.error('编辑案件失败:', err)
     ElMessage.error('编辑案件失败')
+  }
+}
+
+// 删除案件
+const deleteCase = async (caseId) => {
+  if (!confirm('确定要删除该案件吗？')) return
+
+  try {
+    await axios.delete(`http://127.0.0.1:8002/cases/case_delete/${caseId}`)
+    ElMessage.success('删除案件成功')
+    await loadBankCases() // 刷新列表
+  } catch (err) {
+    console.error('删除案件失败:', err)
+    ElMessage.error('删除案件失败，请重试')
   }
 }
 

@@ -25,7 +25,7 @@
           placeholder="案件类别筛选"
           clearable
           @change="handleSearch"
-          style="width: 200px"
+          style="width: 200px; margin-right: 15px"
         >
           <el-option
             v-for="category in caseCategories"
@@ -34,12 +34,29 @@
             :value="category.value"
           />
         </el-select>
+
+        <!-- 管理员专属：主办律师筛选 -->
+        <el-select
+          v-if="currentUserRole === 'admin' || currentUserRole === 'owner'"
+          v-model="selectedLawyerId"
+          placeholder="主办律师筛选"
+          clearable
+          @change="handleSearch"
+          style="width: 200px"
+        >
+          <el-option
+            v-for="lawyer in lawyers"
+            :key="lawyer.id"
+            :label="lawyer.real_name"
+            :value="lawyer.id"
+          />
+        </el-select>
       </div>
     </div>
 
     <!-- 案件表格 -->
     <el-table :data="cases" border style="width: 100%" v-loading="tableLoading">
-      <el-table-column prop="case_number" label="案件号" width="180" align="center"/>
+      <el-table-column prop="case_number" label="案件号" width="220" align="center"/>
       <el-table-column prop="client_name" label="委托人" align="center"/>
       <el-table-column prop="case_category" label="案件类别" align="center"/>
       <el-table-column prop="main_lawyer.real_name" label="主办律师" align="center"/>
@@ -99,7 +116,7 @@ const currentUserRole = ref(sessionStorage.getItem('role'))
 
 // -------------------------- 表格与分页相关 --------------------------
 const page = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(15)
 const total = ref(0)
 const cases = ref([])
 const tableLoading = ref(false) // 表格加载状态
@@ -117,6 +134,7 @@ const caseCategories = ref([
   { label: '仲裁案件', value: '仲裁案件' },
   { label: '法律顾问业务', value: '法律顾问业务' },
 ])
+const selectedLawyerId = ref(null) // 选中的主办律师ID
 
 // -------------------------- 弹窗控制相关 --------------------------
 // 明确指定formMode的类型为'add'或'edit'
@@ -156,7 +174,10 @@ const loadCases = async () => {
         skip: (page.value - 1) * pageSize.value,
         limit: pageSize.value,
         keyword: searchKeyword.value,  // 搜索关键词
-        category: selectedCategory.value  // 类别筛选
+        category: selectedCategory.value,  // 类别筛选
+        ...(currentUserRole.value === 'admin' || currentUserRole.value === 'owner'
+          ? { main_lawyer_id: selectedLawyerId.value }
+          : {})
       }
     })
     cases.value = res.data.items || []
@@ -239,7 +260,7 @@ const viewCase = (row) => {
 
 // -------------------------- 删除案件相关 --------------------------
 const deleteCase = async (caseId) => {
-  if (!confirm('确定要删除该案件吗？删除后不可恢复！')) return
+  if (!confirm('确定要删除该案件吗？')) return
 
   try {
     await axios.delete(`http://127.0.0.1:8002/cases/case_delete/${caseId}`)

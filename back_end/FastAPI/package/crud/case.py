@@ -34,8 +34,9 @@ def list_cases_by_user_role(
     role: str,
     skip: int = 0,
     limit: int = 100,
-    keyword: Optional[str] = None,  # 新增
-    category: Optional[str] = None  # 新增
+    keyword: Optional[str] = None,  # 关键词查询
+    category: Optional[str] = None,  # 案件类型筛选
+    main_lawyer_id: Optional[int] = None    # 主办律师筛选
 ) -> List[Case]:
     """
     根据用户角色返回案件列表
@@ -56,6 +57,10 @@ def list_cases_by_user_role(
     # 类别筛选
     if category:
         query = query.filter(Case.case_category == category)
+    else:
+        # 管理员可以筛选特定主办律师
+        if main_lawyer_id is not None:
+            query = query.filter(Case.main_lawyer_id == main_lawyer_id)
 
     # 关键词搜索（案件号或委托人）
     if keyword:
@@ -71,8 +76,9 @@ def count_cases_by_user_role(
     db: Session,
     user_id: int,
     role: str,
-    keyword: Optional[str] = None,  # 新增
-    category: Optional[str] = None  # 新增
+    keyword: Optional[str] = None,  # 关键词查询
+    category: Optional[str] = None,  # 案件类型筛选
+    main_lawyer_id: Optional[int] = None  # 主办律师筛选
 ) -> int:
     """
     根据用户角色统计案件总数
@@ -81,6 +87,10 @@ def count_cases_by_user_role(
     # 角色筛选
     if role not in ["admin", "owner"]:
         query = query.filter(Case.main_lawyer_id == user_id)
+    else:
+        # 管理员可以筛选特定主办律师
+        if main_lawyer_id is not None:
+            query = query.filter(Case.main_lawyer_id == main_lawyer_id)
 
     # 类别筛选
     if category:
@@ -102,6 +112,7 @@ def list_bank_cases_by_user_role(
     skip: int = 0,
     limit: int = 100,
     keyword: Optional[str] = None,  # 新增
+    main_lawyer_id: Optional[int] = None    # 主办律师筛选
 ) -> List[Case]:
     """
     根据用户角色返回银行案件列表
@@ -118,6 +129,10 @@ def list_bank_cases_by_user_role(
     # 角色筛选
     if role not in ["admin", "owner"]:
         query = query.filter(Case.main_lawyer_id == user_id)
+    else:
+        # 管理员可以筛选特定主办律师
+        if main_lawyer_id is not None:
+            query = query.filter(Case.main_lawyer_id == main_lawyer_id)
 
     # 关键词搜索（案件号或委托人）
     if keyword:
@@ -134,6 +149,7 @@ def count_bank_cases_by_user_role(
     user_id: int,
     role: str,
     keyword: Optional[str] = None,  # 新增
+    main_lawyer_id: Optional[int] = None
 ) -> int:
     """
     根据用户角色统计案件总数
@@ -142,6 +158,10 @@ def count_bank_cases_by_user_role(
     # 角色筛选
     if role not in ["admin", "owner"]:
         query = query.filter(Case.main_lawyer_id == user_id)
+    else:
+        # 管理员可以筛选特定主办律师
+        if main_lawyer_id is not None:
+            query = query.filter(Case.main_lawyer_id == main_lawyer_id)
 
     # 关键词搜索
     if keyword:

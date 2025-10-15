@@ -34,6 +34,7 @@ def get_cases(
     limit: int = 100,
     keyword: Optional[str] = None,  # 新增搜索关键词参数
     category: Optional[str] = None,  # 新增案件类别参数
+    main_lawyer_id: Optional[int] = None,  # 新增主办律师参数
     db: Session = Depends(get_db)
 ):
     """
@@ -46,14 +47,16 @@ def get_cases(
         skip=skip,
         limit=limit,
         keyword=keyword,  # 传递给CRUD函数
-        category=category  # 传递给CRUD函数
+        category=category,  # 传递给CRUD函数
+        main_lawyer_id=main_lawyer_id,
     )
     total = count_cases_by_user_role(
         db=db,
         user_id=user_id,
         role=role,
         keyword=keyword,  # 传递给统计函数
-        category=category  # 传递给统计函数
+        category=category,  # 传递给统计函数
+        main_lawyer_id=main_lawyer_id,
     )
     cases_simple = [CaseSimpleOut.model_validate(c) for c in cases]
     return {"items": cases_simple, "total": total}
@@ -66,6 +69,7 @@ def get_bank_cases(
         skip: int = 0,
         limit: int = 100,
         keyword: Optional[str] = None,  # 新增搜索关键词参数
+        main_lawyer_id: Optional[int] = None,
         db: Session = Depends(get_db)
 ):
     """
@@ -78,12 +82,14 @@ def get_bank_cases(
         skip=skip,
         limit=limit,
         keyword=keyword,
+        main_lawyer_id=main_lawyer_id,
     )
     total = count_bank_cases_by_user_role(
         db=db,
         user_id=user_id,
         role=role,
         keyword=keyword,  # 传递给统计函数
+        main_lawyer_id=main_lawyer_id,
     )
     cases_simple = [CaseSimpleOut.model_validate(c) for c in cases]
     return {"items": cases_simple, "total": total}
