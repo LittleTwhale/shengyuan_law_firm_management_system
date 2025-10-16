@@ -108,3 +108,8 @@ def get_all_lawyers(db: Session):
         .filter(User.role != "owner")  # 排除系统设计者
         .all()
     )
+
+def get_user_id_by_name(db: Session, real_name: str) -> Optional[int]:
+    """通过姓名查询用户ID（假设无重名）"""
+    user = db.query(User).filter(User.real_name == real_name).first()
+    return user.id if user else None

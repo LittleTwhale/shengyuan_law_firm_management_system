@@ -10,7 +10,7 @@ class CaseCreate(BaseModel):
     # 🧾 基本信息
     commission_date: date = Field(..., description="委托日期")
     client_name: str = Field(..., description="委托人")
-    client_id_number: str = Field(None, description="委托人身份证号/单位税号")
+    client_id_number: Optional[str] = Field(None, description="委托人身份证号/单位税号")
     client_phone: Optional[str] = Field(None, description="委托人电话")
     case_category: str = Field(..., description="案件类别")
     case_source: Optional[str] = Field(None, description="案件来源")
@@ -50,6 +50,8 @@ class CaseCreate(BaseModel):
 
     preservation_start: Optional[date] = None
     preservation_end: Optional[date] = None
+
+    location: Optional[str] = None
 
     # 结案与执行
     case_code: Optional[str] = None
@@ -147,7 +149,7 @@ class CaseOut(BaseModel):
     case_number: str = Field(..., description="案件号 / Case number")
     commission_date: date = Field(..., description="委托日期 / Commission date")
     client_name: str = Field(..., description="委托人 / Client name")
-    client_id_number: str = Field(None, description="身份证号/税号 / ID or Tax number")
+    client_id_number: Optional[str] = Field(None, description="身份证号/税号 / ID or Tax number")
     client_phone: Optional[str] = Field(None, description="电话 / Phone number")
 
     case_category: str = Field(..., description="案件类别 / Case category")

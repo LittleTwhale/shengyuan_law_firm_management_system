@@ -6,7 +6,10 @@ from .package.api.case_manage import router as auth_case_router
 from .package.api.case_review import router as auth_case_review_router
 from .package.api.user_profile import router as auth_user_router
 from .package.api.attachment import router as auth_attachment_router
+from .package.api.template import router as auth_template_router
+
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 origins = [
     "http://localhost:5173",
@@ -25,6 +28,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 静态文件挂载
+app.mount("/templates", StaticFiles(directory="FastAPI/static/template"), name="templates")
+
 # 注册登录路由
 app.include_router(auth_login_router)
 
@@ -42,3 +48,6 @@ app.include_router(auth_case_review_router)
 
 # 注册用户信息路由
 app.include_router(auth_user_router)
+
+# 注册模板路由
+app.include_router(auth_template_router)

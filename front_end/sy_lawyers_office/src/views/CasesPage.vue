@@ -5,6 +5,10 @@
       <h2>案件管理</h2>
       <div class="action-buttons">
         <el-button type="primary" @click="handleAddClick">新增案件</el-button>
+        <!-- 新增批量导入按钮 -->
+        <el-button type="warning" @click="showImportDialog = true">
+          <el-icon><Upload /></el-icon>批量导入
+        </el-button>
         <el-button type="success" @click="handleExportClick">导出表格</el-button>
       </div>
     </div>
@@ -99,16 +103,115 @@
       @submit="handleFormSubmit"
     />
 
+    <!-- 批量导入弹窗 -->
+    <el-dialog
+      title="批量导入案件"
+      v-model="showImportDialog"
+      width="600px"
+      :close-on-click-modal="false"
+    >
+      <div class="import-container">
+        <p class="import-tip">支持.xlsx/.xls格式，模板下载：<el-link @click="downloadTemplate">案件导入模板</el-link></p>
 
+        <!-- 上传区域 -->
+        <el-upload
+          class="upload-area"
+          ref="uploadRef"
+          action="#"
+          :auto-upload="false"
+          :on-change="handleFileChange"
+          :file-list="fileList"
+          :accept="'.xlsx,.xls'"
+          :limit="1"
+          :on-exceed="handleExceed"
+        >
+          <el-button type="primary" :loading="isUploading">
+            <el-icon><Upload /></el-icon> 选择Excel文件
+          </el-button>
+          <template #tip>
+            <div class="el-upload__tip text-danger">
+              请确保Excel表头包含：案件号、委托日期、委托人、案件类别、主办律师
+            </div>
+          </template>
+        </el-upload>
+
+        <!-- 进度条 -->
+        <el-progress
+          v-if="showProgress"
+          :percentage="progress"
+          stroke-width="4"
+          style="margin-top: 20px;"
+        ></el-progress>
+      </div>
+
+      <template #footer>
+        <el-button @click="showImportDialog = false" :disabled="isUploading">取消</el-button>
+        <el-button
+          type="primary"
+          @click="handleImport"
+          :disabled="!canUpload || isUploading"
+        >
+          <el-icon v-if="!isUploading"><Check /></el-icon>
+          <el-icon v-if="isUploading"><Loading /></el-icon>
+          {{ isUploading ? '导入中...' : '开始导入' }}
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 导入结果弹窗 -->
+    <el-dialog
+      title="导入结果"
+      v-model="showResultDialog"
+      width="700px"
+      :close-on-click-modal="false"
+    >
+      <div class="result-stats">
+        <div class="stat-item">
+          <span>总条数：</span>
+          <span class="total">{{ result.total_cases || 0 }}</span>
+        </div>
+        <div class="stat-item">
+          <span>成功条数：</span>
+          <span class="success">{{ result.imported_cases || 0 }}</span>
+        </div>
+        <div class="stat-item">
+          <span>失败条数：</span>
+          <span class="failed">{{ result.failed_cases?.length || 0 }}</span>
+        </div>
+      </div>
+
+      <!-- 失败详情表格 -->
+      <el-table
+        v-if="result.failed_cases && result.failed_cases.length"
+        :data="result.failed_cases"
+        border
+        style="width: 100%; margin-top: 15px;"
+      >
+        <el-table-column prop="case_number" label="案件号/行号" width="150"></el-table-column>
+        <el-table-column prop="reason" label="失败原因"></el-table-column>
+      </el-table>
+
+      <template #footer>
+        <el-button @click="showResultDialog = false">关闭</el-button>
+        <el-button
+          type="primary"
+          @click="handleDownloadErrorLog"
+          :disabled="!result.failed_cases || !result.failed_cases.length"
+        >
+          下载错误日志
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted} from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import axios from 'axios'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import CaseForm from './CaseForm.vue' // 引入抽离的CaseForm组件
 import { useRouter } from 'vue-router'
+import { Upload,Check,Loading } from '@element-plus/icons-vue'
 
 // -------------------------- 当前用户数据 ----------------------------
 const currentUserID = ref(sessionStorage.getItem('user_id'))
@@ -251,7 +354,7 @@ const handleFormSubmit = async (submittedData) => {
         try {
           // 弹出确认框
           await ElMessageBox.confirm(
-            `检测到利益冲突：该委托人在以下案件中担任${conflictRes.data.details[0].role}，是否继续创建？\n` +
+            `检测到可能存在利益冲突：该委托人在以下案件中担任${conflictRes.data.details[0].role}，是否继续创建？\n` +
             conflictRes.data.details.map(c => `案件号：${c.case_number}（主办律师ID：${c.other_lawyer_id}）`).join('\n'),
             '利益冲突警告',
             {
@@ -405,7 +508,162 @@ const formatDate = (dateVal) => {
     hour12: false // 24小时制
   });
 };
+// ---------------------------- 批量导入 --------------------------
+// 批量导入相关状态
+const showImportDialog = ref(false)
+const showResultDialog = ref(false)
+const uploadRef = ref(null)
+const fileList = ref([])
+const isUploading = ref(false)
+const progress = ref(0)
+const showProgress = ref(false)
+const result = ref({})
+const canUpload = computed(() => fileList.value.length > 0)
 
+// 文件选择变化
+const handleFileChange = (file, newFileList) => {
+  if (file.size > 10 * 1024 * 1024) {
+    ElMessage.error('文件大小不能超过10MB')
+    newFileList.pop()
+    return
+  }
+
+  // 限制只保留一个文件
+  if (newFileList.length > 1) {
+    newFileList.splice(0, newFileList.length - 1)
+  }
+
+  // ✅ 关键：更新响应式 fileList
+  fileList.value = [...newFileList]
+}
+
+// 超出文件数量限制
+const handleExceed = () => {
+  ElMessage.warning('每次只能上传一个Excel文件')
+}
+
+// 下载导入模板
+const downloadTemplate = async () => {
+  const fileName = 'case_import_template.xlsx'
+  try {
+    // 请求文件流
+    const response = await axios.get(`http://127.0.0.1:8002/template/download`, {
+      params: { filename: fileName },
+      responseType: 'blob', // 告诉 axios 返回二进制流
+    })
+
+    // 创建 Blob 对象
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+
+    // 创建一个临时下载链接
+    const downloadUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = fileName
+    link.click()
+
+    // 清理对象URL
+    window.URL.revokeObjectURL(downloadUrl)
+
+    ElNotification({
+      title: '提示',
+      message: '模板下载成功，请查收',
+      type: 'success',
+    })
+  } catch (error) {
+    console.error('模板下载失败:', error)
+    ElNotification({
+      title: '错误',
+      message: '模板下载失败，请稍后重试',
+      type: 'error',
+    })
+  }
+}
+
+// 开始导入
+const handleImport = async () => {
+  if (!fileList.value.length) return
+
+  const formData = new FormData()
+  formData.append('file', fileList.value[0].raw)
+
+  try {
+    isUploading.value = true
+    showProgress.value = true
+    progress.value = 0
+
+    // ✅ 使用 axios 提供的 onUploadProgress 获取真实进度
+    const response = await axios.post(
+      'http://127.0.0.1:8002/cases/import',
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (event) => {
+          if (event.total > 0) {
+            progress.value = Math.round((event.loaded / event.total) * 100)
+          }
+        }
+      }
+    )
+
+    // ✅ 上传完成（确保100%）
+    progress.value = 100
+
+    // 显示结果
+    result.value = response.data
+    showImportDialog.value = false
+    showResultDialog.value = true
+    await loadCases()
+
+    ElNotification({
+      title: '导入完成',
+      message: `成功导入 ${response.data.imported_cases} 条，失败 ${response.data.failed_cases?.length || 0} 条`,
+      type: response.data.failed_cases?.length ? 'warning' : 'success'
+    })
+  } catch (error) {
+    console.error('导入失败:', error)
+    ElMessage.error({
+      message: error.response?.data?.detail || '导入失败，请检查文件格式后重试',
+      duration: 5000
+    })
+  } finally {
+    isUploading.value = false
+    // 3秒后重置进度条
+    setTimeout(() => {
+      showProgress.value = false
+      progress.value = 0
+      fileList.value = []
+    }, 3000)
+  }
+}
+
+// 下载错误日志
+const handleDownloadErrorLog = () => {
+  if (!result.value.failed_cases?.length) return
+
+  const logContent = [
+    `案件导入错误日志 - ${new Date().toLocaleString()}`,
+    `总条数: ${result.value.total_cases}`,
+    `成功条数: ${result.value.imported_cases}`,
+    `失败条数: ${result.value.failed_cases.length}`,
+    '\n失败详情:',
+    ...result.value.failed_cases.map((item, index) =>
+      `${index + 1}. 案件号/行号: ${item.case_number} - 原因: ${item.reason}`
+    )
+  ].join('\n')
+
+  const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `案件导入错误日志_${new Date().getTime()}.txt`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
 </script>
 
 <style scoped>
@@ -416,5 +674,60 @@ const formatDate = (dateVal) => {
   margin-bottom: 16px;
   padding-bottom: 8px;
   border-bottom: 1px solid #eee;
+}
+/* 批量导入相关样式 */
+.import-container {
+  padding: 10px 0;
+}
+
+.import-tip {
+  margin: 0 0 15px 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.upload-area {
+  border: 2px dashed #ccc;
+  border-radius: 6px;
+  padding: 40px 20px;
+  text-align: center;
+  transition: border-color 0.3s;
+}
+
+.upload-area:hover {
+  border-color: #409eff;
+}
+
+.result-stats {
+  display: flex;
+  gap: 30px;
+  margin-bottom: 15px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stat-item .total {
+  font-weight: bold;
+  color: #333;
+}
+
+.stat-item .success {
+  font-weight: bold;
+  color: #10b981;
+}
+
+.stat-item .failed {
+  font-weight: bold;
+  color: #ef4444;
+}
+
+.text-danger {
+  color: #f56c6c;
 }
 </style>
