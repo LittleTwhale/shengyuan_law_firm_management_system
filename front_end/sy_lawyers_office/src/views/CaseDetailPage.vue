@@ -156,6 +156,33 @@
       </el-descriptions>
 
     </el-card>
+
+    <!-- 通用文件预览弹窗（支持图片和PDF） -->
+    <el-dialog
+      v-model="showFilePreview"
+      :title="previewTitle"
+      width="90%"
+      height="90vh"
+      :close-on-click-modal="false"
+      destroy-on-close
+    >
+      <div class="preview-container">
+        <!-- 图片预览 -->
+        <img
+          v-if="previewType === 'image'"
+          :src="previewUrl"
+          class="image-preview"
+          alt="预览图片"
+        />
+
+        <!-- PDF预览 -->
+        <iframe
+          v-else-if="previewType === 'pdf'"
+          :src="previewUrl"
+          class="pdf-iframe"
+        />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -251,20 +278,38 @@ const downloadAttachment = (attachmentId) => {
   window.open(`http://127.0.0.1:8002/attachments/${attachmentId}/download`, '_blank')
 }
 
+// 新增预览相关变量
+const showFilePreview = ref(false)
+const previewUrl = ref('')
+const previewType = ref('') // 'image' 或 'pdf'
+const previewTitle = ref('文件预览')
+
 // 预览附件
 const previewAttachment = (attachment) => {
   // 根据文件类型决定预览方式
   const fileType = attachment.file_type || '';
+  const previewUrlTemp = `http://127.0.0.1:8002/attachments/${attachment.attachment_id}/preview`;
 
-  // 对于图片类型，可以直接在新窗口打开
+  // 图片类型处理
   if (fileType.startsWith('image/')) {
-    window.open(`http://127.0.0.1:8002/attachments/${attachment.attachment_id}/preview`, '_blank');
+    previewType.value = 'image';
+    previewUrl.value = previewUrlTemp;
+    previewTitle.value = `图片预览：${attachment.file_name}`;
+    showFilePreview.value = true;
     return;
   }
 
-  // 对于PDF文件，可以使用浏览器内置预览
-  if (fileType === 'application/pdf') {
-    window.open(`http://127.0.0.1:8002/attachments/${attachment.attachment_id}/preview`, '_blank');
+  // PDF类型处理
+  const previewableTypes = [
+    'application/pdf',
+    'application/msword', // .doc
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document' // .docx
+  ];
+  if (previewableTypes.includes(fileType)) {
+    previewType.value = 'pdf';
+    previewUrl.value = previewUrlTemp;
+    previewTitle.value = `PDF预览：${attachment.file_name}`;
+    showFilePreview.value = true;
     return;
   }
 
@@ -377,5 +422,28 @@ const formatDateTime = (dateVal) => {
   color: #999;
   padding: 10px;
   text-align: center;
+}
+
+.preview-container {
+  width: 100%;
+  height: calc(90vh - 100px); /* 减去弹窗标题栏高度 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: auto;
+}
+
+.image-preview {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain; /* 保持图片比例，避免拉伸 */
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.pdf-iframe {
+  width: 100%;
+  height: 100%;
+  border: 1px solid #ffffff;
+  border-radius: 4px;
 }
 </style>

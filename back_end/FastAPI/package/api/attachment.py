@@ -6,7 +6,8 @@ from typing import List
 from ..database.database import get_db
 from ..models.attachment import CaseAttachment
 from ..schemas.attachment import AttachmentCreate, AttachmentOut
-from ..crud.attachment import create_attachment, get_attachments_by_case_id, delete_attachment_by_id
+from ..crud.attachment import create_attachment, get_attachments_by_case_id, delete_attachment_by_id, \
+    convert_word_to_pdf
 from ..crud.case import get_case_by_id  # 用于验证案件存在性
 
 from fastapi.responses import FileResponse
@@ -168,6 +169,24 @@ def preview_attachment(
         # PDF类型
         "application/pdf"
     }
+
+    # 新增Word文档处理逻辑
+    if attachment.file_type in ["application/msword",
+                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]:
+        # 转换为PDF后预览
+        full_path = os.path.join(CASE_ATTACHMENT_ROOT, str(attachment.file_path))
+        pdf_path = convert_word_to_pdf(full_path)
+
+        if pdf_path:
+            return FileResponse(
+                path=pdf_path,
+                media_type="application/pdf"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Word文档转换预览格式失败，请下载查看"
+            )
 
     if attachment.file_type not in supported_types:
         raise HTTPException(

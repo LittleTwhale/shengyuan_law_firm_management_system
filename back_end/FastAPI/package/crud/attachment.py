@@ -1,5 +1,6 @@
 # crud/attachment.py
 import os
+import subprocess
 from datetime import datetime
 from typing import List, Optional, cast
 
@@ -161,3 +162,42 @@ def delete_attachment_by_id(db: Session, attachment_id: int) -> bool:
     except Exception as e:
         db.rollback()
         raise RuntimeError(f"删除附件失败: {e}")
+
+
+def convert_word_to_pdf(input_path: str) -> Optional[str]:
+    """
+    使用libreoffice将Word文档转换为PDF
+    需要先安装libreoffice: sudo apt-get install libreoffice (Linux)
+    """
+    if not input_path.lower().endswith(('.doc', '.docx')):
+        return None
+
+    # 输出PDF路径（与原文件同目录）
+    name, _ = os.path.splitext(input_path)
+    output_path = f"{name}.pdf"
+
+    if os.path.exists(output_path):
+        # 检查PDF生成时间是否晚于原文件（避免原文件更新后未重新转换）
+        word_mtime = os.path.getmtime(input_path)  # Word文件最后修改时间
+        pdf_mtime = os.path.getmtime(output_path)  # PDF文件最后修改时间
+        if pdf_mtime >= word_mtime:
+            return output_path  # PDF存在且未过期，直接返回
+
+    # 执行转换命令
+    try:
+        subprocess.run(
+            [
+                r"D:\Down\LibreOffice\program\soffice.exe",
+                "--headless",
+                "--convert-to", "pdf",
+                "--outdir", os.path.dirname(input_path),
+                input_path
+            ],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        return output_path if os.path.exists(output_path) else None
+    except Exception as e:
+        print(f"Word转PDF失败: {e}")
+        return None
