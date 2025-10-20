@@ -160,7 +160,7 @@ const initChart = () => {
   // 使用 ref 获取容器（原代码用 querySelector，改用 ref 更符合 Vue 规范）
   chartInstance.value = echarts.init(chartContainer.value);
 
-  // 1. 处理数据：确保6类案件都显示，无数据则为0
+  // 1. 处理数据：确保案件都显示，无数据则为0
   const caseCategories = [
     "民事案件",
     "银行案件",
@@ -169,6 +169,7 @@ const initChart = () => {
     "行政案件",
     "仲裁案件",
     "法律顾问业务",
+    "法律援助"
   ];
   const chartData = caseCategories.map((category) => {
     return stats.value.category_stats[category] || 0; // 无数据时默认0

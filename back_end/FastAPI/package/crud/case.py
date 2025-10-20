@@ -208,6 +208,7 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
         "非诉案件": "非诉字",
         "法律顾问业务": "法顾字",
         "银行案件": "银行案件",
+        "法律援助": "法律援助"
     }
 
     case_type = case_in.case_category
@@ -283,6 +284,7 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
             "非诉案件": "非诉字",
             "法律顾问业务": "法顾字",
             "银行案件": "银行案件",
+            "法律援助": "法律援助"
         }
 
         if new_category not in type_map:
