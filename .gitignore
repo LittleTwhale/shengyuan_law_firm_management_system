@@ -26,3 +26,6 @@ Thumbs.db
 # 临时文件
 *.tmp
 *.bak
+
+# 忽略整个 database 文件夹
+database/

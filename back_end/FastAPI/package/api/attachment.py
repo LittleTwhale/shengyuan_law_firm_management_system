@@ -19,6 +19,7 @@ router = APIRouter(
     tags=["attachment"]
 )
 
+
 @router.post("/", response_model=AttachmentOut, status_code=status.HTTP_201_CREATED)
 async def upload_attachment(
         case_id: int,
@@ -28,11 +29,12 @@ async def upload_attachment(
 ):
     """
     上传案件附件
-    - 验证案件是否存在
+    - 验证案件存在性
     - 接收文件并保存到服务器
     - 创建附件数据库记录
+    - 对Word文件自动预生成PDF
     """
-    # 验证案件存在性（避免向不存在的案件上传附件）
+    # 验证案件存在性
     if not get_case_by_id(db, case_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -46,11 +48,31 @@ async def upload_attachment(
     )
 
     try:
-        return await create_attachment(
+        # 保存附件并获取数据库记录
+        db_attachment = await create_attachment(
             db=db,
             attachment_in=attachment_in,
             file=file
         )
+
+        # 检查是否为Word文件，若是则触发PDF转换
+        if db_attachment.file_type in [
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ]:
+            # 构建Word文件的完整路径
+            full_path = os.path.join(CASE_ATTACHMENT_ROOT, str(db_attachment.file_path))
+
+            # 异步执行转换（不阻塞当前请求）
+            import threading
+            threading.Thread(
+                target=convert_word_to_pdf,
+                args=(full_path,),
+                daemon=True  # 随主线程退出而终止
+            ).start()
+
+        return db_attachment
+
     except RuntimeError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -170,13 +192,28 @@ def preview_attachment(
         "application/pdf"
     }
 
-    # 新增Word文档处理逻辑
-    if attachment.file_type in ["application/msword",
-                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]:
-        # 转换为PDF后预览
-        full_path = os.path.join(CASE_ATTACHMENT_ROOT, str(attachment.file_path))
-        pdf_path = convert_word_to_pdf(full_path)
+    # Word文档处理：优先使用上传时预生成的PDF
+    if attachment.file_type in [
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ]:
+        # 直接计算预生成的PDF路径（无需调用转换函数即可检查）
+        name, _ = os.path.splitext(full_path)
+        pdf_path = f"{name}.pdf"
 
+        # 检查PDF是否存在且未过期（PDF修改时间晚于原文件）
+        if os.path.exists(pdf_path):
+            word_mtime = os.path.getmtime(full_path)
+            pdf_mtime = os.path.getmtime(pdf_path)
+            if pdf_mtime >= word_mtime:
+                # 预生成的PDF有效，直接返回
+                return FileResponse(
+                    path=pdf_path,
+                    media_type="application/pdf"
+                )
+
+        # 若PDF不存在或过期，再触发转换（兼容未预生成或文件更新的情况）
+        pdf_path = convert_word_to_pdf(full_path)
         if pdf_path:
             return FileResponse(
                 path=pdf_path,

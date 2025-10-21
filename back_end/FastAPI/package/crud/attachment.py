@@ -152,6 +152,13 @@ def delete_attachment_by_id(db: Session, attachment_id: int) -> bool:
     try:
         if os.path.exists(full_path):
             os.remove(full_path)
+
+            # 检查并删除转换生成的PDF（针对Word文件）
+            if full_path.lower().endswith(('.doc', '.docx')):
+                pdf_path = os.path.splitext(full_path)[0] + '.pdf'
+                if os.path.exists(pdf_path):
+                    os.remove(pdf_path)
+
         # 删除文件后检查并删除空目录
         dir_path = os.path.dirname(full_path)
         if os.path.isdir(dir_path) and not os.listdir(dir_path):
