@@ -117,7 +117,6 @@
       <el-form-item label="主办律师" prop="main_lawyer_id">
         <el-select
           v-model="formData.main_lawyer_id"
-          :disabled="props.currentUserRole === 'user'"
           placeholder="请选择主办律师"
         >
           <el-option

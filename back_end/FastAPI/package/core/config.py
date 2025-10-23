@@ -19,3 +19,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60  # token过期时间（分钟）
 
 # 附件根目录
 CASE_ATTACHMENT_ROOT = os.path.join("D:\\", "syls", "database", "attachments")  # 自动处理路径分隔符（兼容Windows/Linux）
+
+# 文书模板根目录
+DOCUMENT_TEMPLATE_ROOT = os.path.join("D:\\", "syls", "database", "templates")
