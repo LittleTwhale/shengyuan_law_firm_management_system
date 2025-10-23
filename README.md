@@ -5,7 +5,7 @@
 This project is a management system for Hunan Shengyuan Law Firm, designed to handle case registration, lawyer management, statistics, document template management, and electronic seals to improve office efficiency.
 
 ## 技术栈 / Tech Stack
-- **前端 / Frontend**: Vite + Vue3 + Pinia + Vue Router + Axios  
+- **前端 / Frontend**: Vite + Vue3 + Pinia + Vue Router + Axios + element-plus
 - **后端 / Backend**: Python + FastAPI + SQLAlchemy + Pydantic  
 - **数据库 / Database**: MySQL  
 - **部署 / Deployment**: Tencent Cloud Server  
