@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, Depends, status, UploadFile, File
+from fastapi import APIRouter, HTTPException, Query, Depends, status, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -40,11 +40,11 @@ async def download_template(filename: str = Query(..., description="要下载的
     )
 
 # 新增：文书模板上传接口
-@router.post("/document", response_model=TemplateCreate, status_code=status.HTTP_201_CREATED)
+@router.post("/document", response_model=TemplateOut, status_code=status.HTTP_201_CREATED)
 async def upload_document_template(
     uploaded_by: int,
     name: str = Query(..., description="模板名称（含扩展名）"),
-    description: Optional[str] = None,
+    description: Optional[str] = Form(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
@@ -56,11 +56,29 @@ async def upload_document_template(
     )
 
     try:
-        return await create_template(
+        db_template = await create_template(
             db=db,
             template_in=template_in,
             file=file
         )
+        # 检查是否为Word文件，若是则触发PDF转换
+        if db_template.file_type in [
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ]:
+            # 构建Word文件的完整路径
+            full_path = os.path.join(DOCUMENT_TEMPLATE_ROOT, str(db_template.file_path))
+
+            # 异步执行转换（不阻塞当前请求）
+            import threading
+            from ..crud.document import convert_word_to_pdf
+            threading.Thread(
+                target=convert_word_to_pdf,
+                args=(full_path,),
+                daemon=True  # 随主线程退出而终止
+            ).start()
+
+        return db_template
     except RuntimeError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

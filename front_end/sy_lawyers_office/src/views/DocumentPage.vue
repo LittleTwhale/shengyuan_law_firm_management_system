@@ -27,7 +27,7 @@
           <!-- 图标根据文件类型显示 -->
           <div class="file-icon">
             <el-icon v-if="isWordFile(template.file_type)"><Document /></el-icon>
-            <el-icon v-else-if="isPdfFile(template.file_type)"><Picture /></el-icon>
+            <el-icon v-else-if="isPdfFile(template.file_type)"><Document class="pdf-icon" /></el-icon>
             <el-icon v-else-if="isImageFile(template.file_type)"><PictureFilled /></el-icon>
             <el-icon v-else><Document /></el-icon>
           </div>
@@ -46,7 +46,7 @@
           <div class="detail-body">
             <p class="description">{{ template.description || '无描述信息' }}</p>
             <div class="detail-meta">
-              <p>上传人: {{ template.uploaded_by_name || '未知' }}</p>
+              <p>上传人: {{ template.uploader.real_name || '未知' }}</p>
               <p>上传时间: {{ formatDateTime(template.created_at) }}</p>
               <p>文件大小: {{ formatFileSize(template.file_size) }}</p>
             </div>
@@ -78,14 +78,10 @@
       </div>
 
       <!-- 空状态 -->
-      <div class="empty-state" v-if="templates.length === 0 && !loading">
+      <div class="empty-state" v-if="templates.length === 0 ">
         <el-empty description="暂无文书模板，请上传"></el-empty>
       </div>
-
-      <!-- 加载状态 -->
-      <div class="loading-state" v-if="loading">
-        <el-loading :fullscreen="false" text="加载中..."></el-loading> </div>
-      </div>
+     </div>
 
     <!-- 上传模板弹窗 -->
     <el-dialog
@@ -156,14 +152,8 @@
       :close-on-click-modal="false"
       destroy-on-close
     >
-      <div class="preview-container">
-        <!-- 加载状态 -->
-        <div v-if="previewLoading" class="preview-loading">
-          <el-loading :fullscreen="false" text="加载预览中..."></el-loading>
-        </div>
-
+      <div class="preview-container" >
         <!-- 预览内容 -->
-        <div v-else-if="previewUrl">
           <!-- 图片预览 -->
           <img
             v-if="previewType === 'image'"
@@ -192,7 +182,6 @@
             </el-button>
           </div>
         </div>
-      </div>
     </el-dialog>
   </div>
 </template>
@@ -201,14 +190,13 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import axios from 'axios'
 import {
-  Document, Picture, PictureFilled, Upload, View, Download,
-  Delete, Check, Loading, QuestionFilled
+  Document, PictureFilled, Upload, View, Download,
+  Delete, Check, Loading, QuestionFilled,
 } from '@element-plus/icons-vue'
-import { ElMessage, ElNotification, ElLoading } from 'element-plus'
+import { ElMessage, ElNotification } from 'element-plus'
 
 // 基础变量
 const templates = ref([])
-const loading = ref(false)
 const isAdmin = computed(() => {
   const role = sessionStorage.getItem('role')
   return role === 'admin' || role === 'owner'
@@ -238,7 +226,6 @@ const showPreviewDialog = ref(false)
 const previewUrl = ref('')
 const previewTitle = ref('')
 const previewType = ref('')
-const previewLoading = ref(false)
 const currentPreviewId = ref(null)
 
 // 页面加载时获取模板列表
@@ -248,15 +235,12 @@ onMounted(() => {
 
 // 获取模板列表
 const fetchTemplates = async () => {
-  loading.value = true
   try {
     const res = await axios.get('http://127.0.0.1:8002/template/document')
     templates.value = res.data
   } catch (err) {
     console.error('获取模板列表失败:', err)
     ElMessage.error('获取模板列表失败，请重试')
-  } finally {
-    loading.value = false
   }
 }
 
@@ -368,35 +352,32 @@ const handleUploadSubmit = async () => {
 // 预览模板
 const handlePreview = async (templateId) => {
   currentPreviewId.value = templateId
-  previewLoading.value = true
   showPreviewDialog.value = true
 
   try {
     // 获取模板信息
     const infoRes = await axios.get(`http://127.0.0.1:8002/template/document/${templateId}`)
     previewTitle.value = infoRes.data.name
+    const fileType = infoRes.data.file_type
 
-    // 获取预览URL
-    const response = await axios.get(`http://127.0.0.1:8002/template/document/${templateId}/preview`, {
-      responseType: 'blob'
-    })
-
-    const blob = new Blob([response.data], { type: response.headers['content-type'] })
-    previewUrl.value = window.URL.createObjectURL(blob)
+    // 直接使用URL而非blob，避免比例问题
+    const previewUrlTemp = `http://127.0.0.1:8002/template/document/${templateId}/preview`
 
     // 判断预览类型
-    if (response.headers['content-type'].startsWith('image/')) {
+    if (fileType.startsWith('image/')) {
       previewType.value = 'image'
-    } else if (response.headers['content-type'] === 'application/pdf') {
+      previewUrl.value = previewUrlTemp
+    } else if (['application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(fileType)) {
       previewType.value = 'pdf'
+      previewUrl.value = previewUrlTemp
     } else {
       previewType.value = 'other'
     }
   } catch (err) {
     console.error('模板预览失败:', err)
     ElMessage.error(err.response?.data?.detail || '模板预览失败')
-  } finally {
-    previewLoading.value = false
   }
 }
 
@@ -511,6 +492,10 @@ const handleDelete = async (templateId) => {
   margin-bottom: 14px;
 }
 
+/* PDF 图标单独配色 */
+.file-icon .pdf-icon {
+  color: #e53e3e;
+}
 .file-info {
   width: 100%;
 }
@@ -632,26 +617,31 @@ const handleDelete = async (templateId) => {
 /* ============ 预览对话框 ============ */
 .preview-container {
   width: 100%;
-  height: calc(90vh - 80px);
-  background-color: #f8f9fb;
+  height: calc(90vh - 100px); /* 增加底部留白，避免内容溢出 */
   display: flex;
-  align-items: center;
   justify-content: center;
-  position: relative;
+  align-items: center;
+  overflow: auto; /* 允许滚动查看大文件 */
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .image-preview {
   max-width: 100%;
   max-height: 100%;
-  object-fit: contain;
+  object-fit: contain; /* 保持原始比例，不拉伸 */
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); /* 增加阴影提升层次感 */
+  background: #fff;
+  padding: 10px;
 }
 
 .pdf-iframe {
   width: 100%;
   height: 100%;
   border: none;
-  border-radius: 8px;
-  background-color: #fff;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
 .unsupported-preview {
@@ -665,12 +655,6 @@ const handleDelete = async (templateId) => {
   color: #ccc;
 }
 
-.pdf-iframe {
-  width: 100%;
-  height: 100%;
-  border: 1px solid #ffffff;
-  border-radius: 4px;
-}
 </style>
 
 
