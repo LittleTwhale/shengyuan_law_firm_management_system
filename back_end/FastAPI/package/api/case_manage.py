@@ -120,8 +120,8 @@ def export_cases(
     headers = [
         "案件ID", "案件号", "委托日期", "委托人", "委托人身份证号/单位税号", "委托人电话",
         "案件类别", "案件来源", "收费方式", "风险比例", "案件收入",
-        "付款到期日", "案由", "介入阶段", "原告/申请人", "上诉人或第三人信息补充",
-        "补上诉人或补告信息补充", "被告", "代理权限", "审理法院", "开庭时间", "立案日",
+        "付款到期日", "案由", "介入阶段", "原告/申请人/侦察机关/检察院", "上诉人或第三人",
+        "被上诉人", "被告(人)", "代理权限", "审理法院", "开庭时间", "立案日",
         "结案时间", "案件地点", "案件详情",
         "主办律师", "助理律师", "执行主办律师", "执行助理律师",
         "案件审核状态", "是否重大", "是否纸质卷宗", "是否解除", "是否笔录", "是否保全",
@@ -243,8 +243,8 @@ def export_cases(
     headers = [
         "案件ID", "案件号", "委托日期", "委托人", "委托人身份证号/单位税号", "委托人电话",
         "案件类别", "案件来源", "收费方式", "风险比例", "案件收入",
-        "付款到期日", "案由", "介入阶段", "原告/申请人", "上诉人或第三人信息补充",
-        "补上诉人或补告信息补充", "被告", "代理权限", "审理法院", "开庭时间", "立案日",
+        "付款到期日", "案由", "介入阶段", "原告/申请人/侦察机关/检察院", "上诉人或第三人",
+        "被上诉人", "被告(人)", "代理权限", "审理法院", "开庭时间", "立案日",
         "结案时间", "案件地点", "案件详情",
         "主办律师", "助理律师", "执行主办律师", "执行助理律师",
         "案件审核状态", "是否重大", "是否纸质卷宗", "是否解除", "是否笔录", "是否保全",
@@ -554,12 +554,12 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
                 payment_due_date=parse_date(row_data.get("付款到期日")),
                 cause=str(row_data.get("案由")).strip() if row_data.get("案由") else None,
                 stage=str(row_data.get("介入阶段")).strip() if row_data.get("介入阶段") else None,
-                plaintiff=str(row_data.get("原告/申请人")).strip() if row_data.get("原告/申请人") else None,
-                appellant_info=str(row_data.get("上诉人或第三人信息补充")).strip() if row_data.get(
-                    "上诉人或第三人信息补充") else None,
-                extra_appellant_info=str(row_data.get("补上诉人或补告信息补充")).strip() if row_data.get(
-                    "补上诉人或补告信息补充") else None,
-                defendant=str(row_data.get("被告")).strip() if row_data.get("被告") else None,
+                plaintiff=str(row_data.get("原告/申请人/侦察机关/检察院")).strip() if row_data.get("原告/申请人") else None,
+                appellant_info=str(row_data.get("上诉人或第三人")).strip() if row_data.get(
+                    "上诉人或第三人") else None,
+                extra_appellant_info=str(row_data.get("被上诉人")).strip() if row_data.get(
+                    "被上诉人") else None,
+                defendant=str(row_data.get("被告(人)")).strip() if row_data.get("被告(人)") else None,
                 agency_power=str(row_data.get("代理权限")).strip() if row_data.get("代理权限") else None,
                 court=str(row_data.get("审理法院")).strip() if row_data.get("审理法院") else None,
                 hearing_date=parse_date(row_data.get("开庭时间")),

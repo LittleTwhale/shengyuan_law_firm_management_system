@@ -12,7 +12,10 @@
         <el-descriptions-item label="案件号">{{ caseData.case_number || '-' }}</el-descriptions-item>
         <el-descriptions-item label="案件类别">{{ caseData.case_category || '-' }}</el-descriptions-item>
         <el-descriptions-item label="委托日期">{{ formatDate(caseData.commission_date) }}</el-descriptions-item>
-        <el-descriptions-item label="委托人">{{ caseData.client_name || '-' }}</el-descriptions-item>
+        <!--  动态显示：委托人 / 委托银行 -->
+        <el-descriptions-item :label="clientLabel">
+          {{ caseData.client_name || '-' }}
+        </el-descriptions-item>
         <el-descriptions-item label="身份证号/单位税号">{{ caseData.client_id_number || '-' }}</el-descriptions-item>
         <el-descriptions-item label="联系电话">{{ caseData.client_phone || '-' }}</el-descriptions-item>
         <el-descriptions-item label="案件来源">{{ caseData.case_source || '-' }}</el-descriptions-item>
@@ -53,10 +56,22 @@
 
       <!-- 诉讼信息 -->
       <el-descriptions title="诉讼信息" :column="2" border>
-        <el-descriptions-item label="原告">{{ caseData.plaintiff || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="被告">{{ caseData.defendant || '-' }}</el-descriptions-item>
+        <!--  动态显示：原告/申请人 或 侦查机关/检察院 -->
+        <el-descriptions-item :label="plaintiffLabel">
+          {{ caseData.plaintiff || '-' }}
+        </el-descriptions-item>
+
+        <!--  动态显示：被告 或 被告人 -->
+        <el-descriptions-item :label="defendantLabel">
+          {{ caseData.defendant || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="上诉人">{{ caseData.appellant_info || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="被上诉人">{{ caseData.extra_appellant_info || '-' }}</el-descriptions-item>
         <el-descriptions-item label="代理权限">{{ caseData.agency_power || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="审理法院">{{ caseData.court || '-' }}</el-descriptions-item>
+        <!-- 动态显示：审理法院 / 仲裁委员会 -->
+        <el-descriptions-item :label="courtLabel">
+          {{ caseData.court || '-' }}
+        </el-descriptions-item>
         <el-descriptions-item label="立案日">{{ formatDate(caseData.filing_date) }}</el-descriptions-item>
         <el-descriptions-item label="开庭时间">{{ formatDate(caseData.hearing_date) }}</el-descriptions-item>
         <el-descriptions-item label="结案时间">{{ formatDate(caseData.closing_date) }}</el-descriptions-item>
@@ -126,7 +141,7 @@
               />
               <el-table-column
                 prop="file_size"
-                label="文件大小(KB)"
+                label="文件大小"
                 :formatter="formatFileSize"
               />
               <el-table-column
@@ -187,7 +202,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted,computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
@@ -243,6 +258,32 @@ const loadCaseDetail = async () => {
   }
 }
 
+// 1️⃣ 当事人标题动态化
+const plaintiffLabel = computed(() => {
+  if (caseData.value.case_category?.includes('刑')) return '侦查机关/检察院'
+  if (caseData.value.case_category?.includes('仲裁')) return '申请人'
+  return '原告/申请人'
+})
+
+const defendantLabel = computed(() => {
+  if (caseData.value.case_category?.includes('刑')) return '被告人'
+  if (caseData.value.case_category?.includes('仲裁')) return '被申请人'
+  return '被告'
+})
+
+// 2️⃣ 委托人标题动态化
+const clientLabel = computed(() => {
+  if (caseData.value.case_category?.includes('银行')) return '委托银行'
+  return '委托人'
+})
+
+// 3️⃣ 审理机构标题动态化
+const courtLabel = computed(() => {
+  if (caseData.value.case_category?.includes('仲裁')) return '仲裁委员会'
+  if (caseData.value.case_category?.includes('刑')) return '审理机构'
+  return '审理法院'
+})
+
 // 加载案件附件
 const loadAttachments = async () => {
   if (!caseId) return
@@ -265,10 +306,13 @@ const loadAttachments = async () => {
   }
 }
 
-// 文件大小转换为MB的方法
+// 文件大小转换方法
 const formatFileSize = (row) => {
-  // 假设file_size单位是字节，转换为MB并保留两位小数
-  if (!row.file_size) return '0 MB';
+  // 假设file_size单位是字节，转换为KB或MB并保留两位小数
+  if (!row.file_size) return '0 KB';
+  if (row.file_size < 1024 * 1024) {
+    return (row.file_size/1024).toFixed(2) + ' KB';
+  }
   const mbSize = row.file_size / (1024 * 1024);
   return mbSize.toFixed(2) + ' MB';
 };

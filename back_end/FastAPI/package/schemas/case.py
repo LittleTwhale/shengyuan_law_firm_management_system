@@ -93,8 +93,8 @@ class CaseUpdate(BaseModel):
     cause: Optional[str] = Field(None, description="案由 / Cause")
     stage: Optional[str] = Field(None, description="介入阶段 / Case stage")
     plaintiff: Optional[str] = Field(None, description="原告 / Plaintiff")
-    appellant_info: Optional[str] = Field(None, description="上诉人/申请人信息 / Appellant info")
-    extra_appellant_info: Optional[str] = Field(None, description="补充上诉人信息 / Extra appellant info")
+    appellant_info: Optional[str] = Field(None, description="上诉人信息 / Appellant info")
+    extra_appellant_info: Optional[str] = Field(None, description="被上诉人信息 / Extra appellant info")
     defendant: Optional[str] = Field(None, description="被告 / Defendant")
     details: Optional[str] = Field(None, description="案件详情 / Case details")
 

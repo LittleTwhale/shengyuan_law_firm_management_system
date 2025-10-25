@@ -73,20 +73,20 @@
         <el-input v-model="formData.stage" placeholder="如一审、二审、执行阶段等"/>
       </el-form-item>
 
-      <el-form-item label="原告/申请人">
-        <el-input v-model="formData.plaintiff" placeholder="请输入原告或申请人信息"/>
+      <el-form-item label="原告/申请人/侦察机关/检察院">
+        <el-input type="textarea" v-model="formData.plaintiff" placeholder="请输入原告/申请人/侦察机关/检察院信息"/>
       </el-form-item>
 
       <el-form-item label="上诉人/第三人信息">
         <el-input type="textarea" v-model="formData.appellant_info" placeholder="请输入上诉人或第三人信息"/>
       </el-form-item>
 
-      <el-form-item label="补充上诉人/补告">
-        <el-input type="textarea" v-model="formData.extra_appellant_info" placeholder="请输入补充上诉人信息"/>
+      <el-form-item label="被上诉人">
+        <el-input type="textarea" v-model="formData.extra_appellant_info" placeholder="请输入被上诉人信息"/>
       </el-form-item>
 
-      <el-form-item label="被告">
-        <el-input v-model="formData.defendant" placeholder="请输入被告信息"/>
+      <el-form-item label="被告（人）/被申请人">
+        <el-input v-model="formData.defendant" placeholder="请输入被告（人）/被申请人信息"/>
       </el-form-item>
 
       <!-- 4. 代理与审理信息 -->
