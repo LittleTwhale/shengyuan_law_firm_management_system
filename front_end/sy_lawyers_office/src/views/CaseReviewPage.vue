@@ -3,7 +3,6 @@
     <!-- 页面头部 -->
     <div class="header">
       <h2>案件审核</h2>
-      <!-- ✅ 新增：批量操作 + 全选按钮 -->
       <div class="bulk-actions">
         <el-button
           type="primary"
@@ -66,7 +65,7 @@
       </el-table-column>
 
       <!-- 操作按钮列 -->
-      <el-table-column  label="操作">
+      <el-table-column label="操作">
         <template #default="scope">
           <el-button type="success" size="small" @click="review(scope.row, '已审核')">通过</el-button>
           <el-button type="danger" size="small" @click="review(scope.row, '已拒绝')">拒绝</el-button>
@@ -102,36 +101,157 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
 const tableLoading = ref(false)
-const caseTableRef = ref(null) // 用于控制表格选择
+const caseTableRef = ref(null)
 
 // 当前用户信息
 const currentUserId = ref(sessionStorage.getItem('user_id'))
 const currentUserRole = ref(sessionStorage.getItem('role'))
 
-// ✅ 多选状态
+// 多选状态
 const selectedCases = ref([])
-const isAllSelected = ref(false) // 记录是否已全选当前页
+const isAllSelected = ref(false)
 
-// ✅ 监听勾选变化
+// 监听勾选变化
 const handleSelectionChange = (val) => {
   selectedCases.value = val
   isAllSelected.value = val.length === casesList.value.length && val.length > 0
 }
 
-// ✅ 切换全选/取消全选
+// 切换全选/取消全选
 const toggleSelectAll = () => {
   if (!caseTableRef.value) return
   if (isAllSelected.value) {
-    caseTableRef.value.clearSelection() // 取消全选
+    caseTableRef.value.clearSelection()
   } else {
     casesList.value.forEach(row => {
-      caseTableRef.value.toggleRowSelection(row, true) // 选中所有行
+      caseTableRef.value.toggleRowSelection(row, true)
     })
   }
   isAllSelected.value = !isAllSelected.value
 }
 
-// ✅ 批量审核
+// 利益冲突确认对话框
+const showConflictDialog = (conflicts, caseId, caseNumber) => {
+  return new Promise((resolve) => {
+    // 构建冲突详情HTML
+    let conflictHtml = `<div style="max-height: 300px; overflow-y: auto;">
+      <p style="color: #e6a23c; margin-bottom: 15px;">
+        <i class="el-icon-warning"></i>
+        案件 <strong>${caseNumber}</strong> 可能存在利益冲突，是否继续审核？
+      </p>
+      <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+        <h4 style="margin: 0 0 10px 0; color: #606266;">冲突详情：</h4>
+        <ul style="margin: 0; padding-left: 20px;">
+          ${conflicts.map(conflict =>
+      `<li style="margin-bottom: 8px;">
+              <div>
+                <strong>冲突案件：</strong>
+                <a href="javascript:void(0)"
+                   onclick="window.open('/main/cases/${conflict.case_id}', '_blank')"
+                   style="color: #409eff; text-decoration: none;">
+                  ${conflict.case_number}
+                </a>
+              </div>
+              <div><strong>对方律师：</strong>${conflict.other_lawyer_name}</div>
+              <div><strong>冲突角色：</strong>委托人在该案中作为${conflict.role}</div>
+              <div><strong>案件类别：</strong>${conflict.conflict_case_category}</div>
+            </li>`
+    ).join('')}
+        </ul>
+      </div>
+    </div>`
+
+    ElMessageBox.confirm(conflictHtml, '利益冲突警告', {
+      dangerouslyUseHTMLString: true,
+      confirmButtonText: '继续通过',
+      cancelButtonText: '取消',
+      type: 'warning',
+      customClass: 'conflict-dialog'
+    }).then(() => {
+      resolve(true) // 用户选择继续
+    }).catch(() => {
+      resolve(false) // 用户选择取消
+    })
+  })
+}
+
+// 审核操作
+const review = async (row, status) => {
+  try {
+    // 如果是审核通过，先检查利益冲突
+    if (status === '已审核') {
+      try {
+        // 直接发送审核请求，后端会返回冲突信息
+        await axios.put(`${API_BASE}/case_review/${row.case_id}/review`,
+          {},
+          {
+            params: {
+              reviewer_id: currentUserId.value,
+              role: currentUserRole.value,
+              review_status: status
+            }
+          }
+        )
+      } catch (err) {
+        // 如果是冲突错误（409），显示冲突对话框
+        if (err.response?.status === 409 && err.response?.data?.detail?.conflicts) {
+          const conflictData = err.response.data.detail
+          const userContinue = await showConflictDialog(
+            conflictData.conflicts,
+            row.case_id,
+            row.case_number
+          )
+
+          if (userContinue) {
+            // 用户确认继续，强制通过审核（忽略冲突）
+            await forceReview(row.case_id, status)
+          } else {
+            return // 用户取消，不执行任何操作
+          }
+        } else {
+          // 其他错误正常抛出
+          throw err
+        }
+      }
+    } else {
+      // 拒绝审核不需要检查冲突
+      await axios.put(`${API_BASE}/case_review/${row.case_id}/review`,
+        {},
+        {
+          params: {
+            reviewer_id: currentUserId.value,
+            role: currentUserRole.value,
+            review_status: status
+          }
+        }
+      )
+    }
+
+    ElMessage.success(`案件已${status === '已审核' ? '通过' : '拒绝'}`)
+    await fetchPendingCases()
+  } catch (err) {
+    if (err.response?.status !== 409) { // 排除冲突错误，因为已经处理过了
+      console.error('审核操作失败:', err)
+      ElMessage.error(err.response?.data?.detail?.message || err.response?.data?.detail || '审核操作失败')
+    }
+  }
+}
+
+// 强制通过审核（忽略冲突）
+const forceReview = async (caseId, status) => {
+  await axios.put(`${API_BASE}/case_review/${caseId}/force_review`,
+    {},
+    {
+      params: {
+        reviewer_id: currentUserId.value,
+        role: currentUserRole.value,
+        review_status: status,
+      }
+    }
+  )
+}
+
+// 批量审核
 const batchReview = async (status) => {
   if (!selectedCases.value.length) return
 
@@ -189,34 +309,12 @@ const fetchPendingCases = async () => {
   }
 }
 
-// 审核操作
-const review = async (row, status) => {
-  try {
-    await axios.put(`${API_BASE}/case_review/${row.case_id}/review`,
-      {},
-      {
-        params: {
-          reviewer_id: currentUserId.value,
-          role: currentUserRole.value,
-          review_status: status
-        }
-      }
-    )
-    ElMessage.success(`案件已${status === '已审核' ? '通过' : '拒绝'}`)
-    await fetchPendingCases() // 刷新列表
-  } catch (err) {
-    console.error('审核操作失败:', err)
-    ElMessage.error(err.response?.data?.detail || '审核操作失败')
-  }
-}
-
 // 跳转到详情页
 const navigateToDetail = (caseId) => {
   router.push({
     path: `/main/cases/${caseId}`,
-    // 主动添加 meta 信息，记录来源页面
     query: {
-      from: '/main/case_review' // 来源是审核页面
+      from: '/main/case_review'
     }
   })
 }
@@ -227,33 +325,23 @@ const handlePageChange = (p) => {
   fetchPendingCases()
 }
 
-// 日期格式化（将时间戳/ISO字符串转为本地日期）
+// 日期格式化
 const formatDate = (dateVal) => {
   if (!dateVal) return '';
 
   let timestamp;
-
-  // 处理时间戳（数字类型）
   if (typeof dateVal === 'number') {
-    // 处理秒级时间戳（如果是10位数字）
     if (dateVal.toString().length === 10) {
       dateVal *= 1000;
     }
     timestamp = dateVal;
-  }
-  // 处理字符串类型
-  else if (typeof dateVal === 'string') {
-    // 尝试多种常见格式转换
+  } else if (typeof dateVal === 'string') {
     const formats = [
-      // 尝试不添加Z的情况（本地时间）
       dateVal.replace(' ', 'T'),
-      // 尝试添加Z的情况（UTC时间）
       dateVal.replace(' ', 'T') + 'Z',
-      // 尝试直接解析原始字符串
       dateVal
     ];
 
-    // 尝试各种格式，找到能正确解析的
     for (const fmt of formats) {
       const tempDate = new Date(fmt);
       if (!isNaN(tempDate.getTime())) {
@@ -261,22 +349,16 @@ const formatDate = (dateVal) => {
         break;
       }
     }
-  }
-  // 处理Date对象
-  else if (dateVal instanceof Date) {
+  } else if (dateVal instanceof Date) {
     timestamp = dateVal.getTime();
   }
 
-  // 验证时间戳是否有效
   if (timestamp === undefined || isNaN(timestamp)) {
     console.warn('无法解析的日期格式:', dateVal);
     return '无效日期';
   }
 
   const date = new Date(timestamp);
-
-  // 使用toLocaleString()同时显示日期和时间
-  // 可以通过参数自定义格式，例如：
   return date.toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
@@ -284,13 +366,12 @@ const formatDate = (dateVal) => {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: false // 24小时制
+    hour12: false
   });
 };
 
 // 页面加载时初始化
 onMounted(() => {
-  // 检查是否为管理员
   if (!['admin', 'owner'].includes(currentUserRole.value)) {
     ElMessage.error('无权限访问审核页面')
     return
@@ -313,5 +394,14 @@ onMounted(() => {
   color: #409eff;
   cursor: pointer;
   text-decoration: underline;
+}
+
+/* 冲突对话框样式 */
+:deep(.conflict-dialog) {
+  max-width: 600px;
+}
+:deep(.conflict-dialog .el-message-box__content) {
+  max-height: 400px;
+  overflow-y: auto;
 }
 </style>

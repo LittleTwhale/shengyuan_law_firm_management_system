@@ -5,7 +5,8 @@ from typing import Optional
 
 from ..database.database import get_db
 from ..schemas.case import CasePageOut, CaseSimpleOut, CaseOut
-from ..crud.case_review import list_pending_cases, count_pending_cases, update_review_status
+from ..crud.case_review import list_pending_cases, count_pending_cases, update_review_status, \
+    check_interest_conflict_for_case
 
 router = APIRouter(
     prefix="/case_review",
@@ -46,6 +47,56 @@ def review_case(
 ):
     """
     审核案件（通过/拒绝，仅管理员可操作）
+    """
+    # 验证管理员权限
+    if not role or role not in ["admin", "owner"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无审核案件权限"
+        )
+
+    try:
+        # 如果是审核通过，先检查利益冲突
+        if review_status == "已审核":
+            conflict_result = check_interest_conflict_for_case(db, case_id)
+            if conflict_result["has_conflict"]:
+                # 返回冲突信息，让前端决定是否继续
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "message": "存在利益冲突，是否继续审核？",
+                        "conflicts": conflict_result["details"]
+                    }
+                )
+
+        updated_case = update_review_status(
+            db=db,
+            case_id=case_id,
+            review_status=review_status,
+            reviewer_id=reviewer_id
+        )
+        if not updated_case:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="案件不存在或已被删除"
+            )
+        return updated_case
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+@router.put("/{case_id}/force_review", response_model=CaseOut)
+def review_case(
+        case_id: int,
+        reviewer_id: int,
+        review_status: str,  # 接收"已审核"或"已拒绝"
+        role: Optional[str] = None,
+        db: Session = Depends(get_db)
+):
+    """
+    案件强制通过（不检测案件冲突）
     """
     # 验证管理员权限
     if not role or role not in ["admin", "owner"]:

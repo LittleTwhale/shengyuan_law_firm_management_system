@@ -308,8 +308,9 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
         case.case_category = new_category
         case.case_number = f"湘生律({year}){type_map[new_category]}第{next_number}号"
 
-    # 最后统一设置为待审核
+    # 最后统一设置为待审核,并将审核人设为空
     case.review_status = "待审核"
+    case.reviewer_id = None
 
     db.commit()
     db.refresh(case)
