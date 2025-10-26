@@ -169,7 +169,8 @@ const initChart = () => {
     "行政案件",
     "仲裁案件",
     "法律顾问业务",
-    "法律援助"
+    "法律援助(民事)",
+    "法律援助(刑事)"
   ];
   const chartData = caseCategories.map((category) => {
     return stats.value.category_stats[category] || 0; // 无数据时默认0

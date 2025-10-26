@@ -23,7 +23,8 @@
           <el-option label="仲裁案件" value="仲裁案件"/>
           <el-option label="非诉案件" value="非诉案件"/>
           <el-option label="法律顾问业务" value="法律顾问业务"/>
-          <el-option label="法律援助" value="法律援助"/>
+          <el-option label="法律援助(民事)" value="法律援助(民事)"/>
+          <el-option label="法律援助(刑事)" value="法律援助(刑事)"/>
         </el-select>
       </el-form-item>
 

@@ -236,7 +236,8 @@ const caseCategories = ref([
   { label: '非诉案件', value: '非诉案件' },
   { label: '仲裁案件', value: '仲裁案件' },
   { label: '法律顾问业务', value: '法律顾问业务' },
-  { label: '法律援助', value: '法律援助' },
+  { label: '法律援助(民事)', value: '法律援助(民事)' },
+  { label: '法律援助(刑事)', value: '法律援助(刑事)' },
 ])
 const selectedLawyerId = ref(null) // 选中的主办律师ID
 
