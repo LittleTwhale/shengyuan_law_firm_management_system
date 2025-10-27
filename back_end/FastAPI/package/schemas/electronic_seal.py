@@ -54,6 +54,7 @@ class SealApplicationCreate(BaseModel):
 class SealApplicationReview(BaseModel):
     status: str = Field(..., description="审核结果（已通过/已拒绝）")
     review_remark: Optional[str] = Field(None, description="审核备注（可选）")
+    reviewer_id: int = Field(..., description="审核人ID")
 
     class Config:
         from_attributes = True

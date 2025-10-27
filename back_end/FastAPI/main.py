@@ -7,6 +7,7 @@ from .package.api.case_review import router as auth_case_review_router
 from .package.api.user_profile import router as auth_user_router
 from .package.api.attachment import router as auth_attachment_router
 from .package.api.template import router as auth_template_router
+from .package.api.electronic_seal import router as auth_seal_router
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -51,3 +52,6 @@ app.include_router(auth_user_router)
 
 # 注册模板路由
 app.include_router(auth_template_router)
+
+# 注册电子印章路由
+app.include_router(auth_seal_router)
