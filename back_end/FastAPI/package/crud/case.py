@@ -195,7 +195,7 @@ def count_bank_cases_by_user_role(
 
 def create_case(db: Session, case_in: CaseCreate) -> Case:
     """
-    创建新案件（系统自动生成案件号）
+    创建新案件（复用已删除案件的原始编号，但创建新记录）
     """
     year = datetime.now().year
 
@@ -216,32 +216,83 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
     if case_type not in type_map:
         raise ValueError("未知的案件类型")
 
-    # 查询该类型的最新案件号
-    latest_case = db.query(Case).filter(
-        Case.case_category == case_type,
-        Case.case_number.like(f"湘生律({year})%")
-    ).order_by(Case.case_id.desc()).first()
+    # 第一步：查找可复用的已删除案件编号
+    available_case_number = _find_reusable_case_number(db, case_type, year)
 
-    next_number = 1
-    if latest_case:
-        last_number = int(latest_case.case_number.split("第")[-1].replace("号", ""))
-        next_number = last_number + 1
-
-    case_number = f"湘生律({year}){type_map[case_type]}第{next_number}号"
-
-    # 将输入数据转换为字典
+    # 创建全新的案件记录，但使用复用的编号
     case_data = case_in.model_dump()
-
-    # 强制设置默认值
     case_data["review_status"] = "待审核"
     case_data["is_deleted"] = False
 
-    # 创建案件实例
-    new_case = Case(**case_data, case_number=case_number)
+    new_case = Case(**case_data, case_number=available_case_number)
     db.add(new_case)
     db.commit()
     db.refresh(new_case)
     return new_case
+
+
+def _find_reusable_case_number(db: Session, case_type: str, year: int) -> str:
+    """
+    查找可复用的案件编号
+    """
+    type_map = {
+        "民事案件": "民字",
+        "刑事案件": "刑字",
+        "仲裁案件": "仲字",
+        "行政案件": "行字",
+        "非诉案件": "非诉字",
+        "法律顾问业务": "法顾字",
+        "银行案件": "银行案件",
+        "法律援助(民事)": "法律援助(民)",
+        "法律援助(刑事)": "法律援助(刑)"
+    }
+
+    # 查找已删除的案件，按案件号排序（找到最小的可用编号）
+    deleted_cases = db.query(Case).filter(
+        Case.case_category == case_type,
+        Case.is_deleted == True,
+        Case.case_number.like(f"[已删除]湘生律({year})%")
+    ).order_by(Case.case_number).all()
+
+    # 优先复用已删除案件的原始编号
+    for deleted_case in deleted_cases:
+        original_number = deleted_case.case_number.replace("[已删除]", "").split("-ID")[0]
+
+        # 检查这个原始编号是否已被其他活跃案件使用
+        existing_active_case = db.query(Case).filter(
+            Case.case_number == original_number,
+            Case.is_deleted == False
+        ).first()
+
+        if not existing_active_case:
+            # 这个编号可用，直接返回
+            return original_number
+
+    # 如果没有可复用的编号，创建新编号
+    return _create_new_case_number(db, case_type, year, type_map)
+
+
+def _create_new_case_number(db: Session, case_type: str, year: int, type_map: dict) -> str:
+    """
+    创建新案件编号
+    """
+    # 查询该类型的最新案件号（未删除的）
+    latest_case = db.query(Case).filter(
+        Case.case_category == case_type,
+        Case.case_number.like(f"湘生律({year})%"),
+        Case.is_deleted == False
+    ).order_by(Case.case_id.desc()).first()
+
+    next_number = 1
+    if latest_case:
+        try:
+            # 从正常案件号中提取数字
+            last_number = int(latest_case.case_number.split("第")[-1].replace("号", ""))
+            next_number = last_number + 1
+        except (ValueError, IndexError):
+            next_number = 1
+
+    return f"湘生律({year}){type_map[case_type]}第{next_number}号"
 
 
 def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case]:
@@ -327,6 +378,10 @@ def delete_case(db: Session, case_id: int) -> bool:
     if not case:
         return False
 
+    # 在案件号前添加删除标记和唯一ID
+    if not case.case_number.startswith("[已删除]"):
+        case.case_number = f"[已删除]{case.case_number}-ID{case_id}"
+
     case.is_deleted = True
     db.commit()
     return True
@@ -394,17 +449,17 @@ def export_bank_cases_by_user_role(
 
 def count_main_cases(db: Session, lawyer_id: int) -> int:
     """统计主办案件数量"""
-    return db.query(Case).filter(Case.main_lawyer_id == lawyer_id).count()
+    return db.query(Case).filter(Case.main_lawyer_id == lawyer_id, Case.is_deleted == False).count()
 
 def sum_main_case_income(db: Session, lawyer_id: int) -> float:
     """统计主办案件总收费"""
-    result = db.query(func.sum(Case.case_income)).filter(Case.main_lawyer_id == lawyer_id).first()
+    result = db.query(func.sum(Case.case_income)).filter(Case.main_lawyer_id == lawyer_id, Case.is_deleted == False).first()
     return result[0] or 0
 
 def count_cases_by_category(db: Session, lawyer_id: int) -> dict:
     """按案件类型统计数量"""
     categories = db.query(Case.case_category, func.count(Case.case_id)).\
-        filter(Case.main_lawyer_id == lawyer_id).\
+        filter(Case.main_lawyer_id == lawyer_id, Case.is_deleted == False).\
         group_by(Case.case_category).all()
     return {category: count for category, count in categories}
 

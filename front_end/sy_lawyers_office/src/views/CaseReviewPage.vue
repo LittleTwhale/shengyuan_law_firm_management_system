@@ -143,7 +143,7 @@ const showConflictDialog = (conflicts, caseId, caseNumber) => {
         <h4 style="margin: 0 0 10px 0; color: #606266;">冲突详情：</h4>
         <ul style="margin: 0; padding-left: 20px;">
           ${conflicts.map(conflict =>
-      `<li style="margin-bottom: 8px;">
+          `<li style="margin-bottom: 8px;">
               <div>
                 <strong>冲突案件：</strong>
                 <a href="javascript:void(0)"
@@ -153,10 +153,14 @@ const showConflictDialog = (conflicts, caseId, caseNumber) => {
                 </a>
               </div>
               <div><strong>对方律师：</strong>${conflict.other_lawyer_name}</div>
-              <div><strong>冲突角色：</strong>委托人在该案中作为${conflict.role}</div>
+              <div><strong>冲突角色：</strong>
+                ${conflict.conflict_type === '常规利益冲突'
+            ? `委托人在${conflict.case_number}中担任${conflict.role}`
+            : '该案件被告为法律顾问单位'}
+              </div>
               <div><strong>案件类别：</strong>${conflict.conflict_case_category}</div>
             </li>`
-    ).join('')}
+        ).join('')}
         </ul>
       </div>
     </div>`

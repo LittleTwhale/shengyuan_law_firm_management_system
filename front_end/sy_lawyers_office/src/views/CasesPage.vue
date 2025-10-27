@@ -354,10 +354,29 @@ const handleFormSubmit = async (submittedData) => {
 
       if (conflictRes.data.has_conflict) {
         try {
+          // 构建冲突提示文本
+          let message = '';
+          // 检查是否有顾问单位类型的冲突
+          const hasConsultantConflict = conflictRes.data.details.some(c =>
+            c.conflict_type === '顾问单位作为被告'
+          );
+
+          if (hasConsultantConflict) {
+            // 顾问单位冲突提示
+            message = `检测到可能存在利益冲突：该案件的被告为法律顾问单位，是否继续创建？\n`;
+          } else {
+            // 常规利益冲突提示（使用第一个冲突的角色）
+            message = `检测到可能存在利益冲突：该委托人在以下案件中担任${conflictRes.data.details[0].role}，是否继续创建？\n`;
+          }
+
+          // 拼接所有冲突案件信息
+          message += conflictRes.data.details.map(c =>
+            `案件号：${c.case_number}（主办律师：${c.other_lawyer_name || c.other_lawyer_id}）`
+          ).join('\n');
+
           // 弹出确认框
           await ElMessageBox.confirm(
-            `检测到可能存在利益冲突：该委托人在以下案件中担任${conflictRes.data.details[0].role}，是否继续创建？\n` +
-            conflictRes.data.details.map(c => `案件号：${c.case_number}（主办律师ID：${c.other_lawyer_id}）`).join('\n'),
+            message,
             '利益冲突警告',
             {
               confirmButtonText: '继续创建',

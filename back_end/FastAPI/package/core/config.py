@@ -22,3 +22,9 @@ CASE_ATTACHMENT_ROOT = os.path.join("D:\\", "syls", "database", "attachments")  
 
 # 文书模板根目录
 DOCUMENT_TEMPLATE_ROOT = os.path.join("D:\\", "syls", "database", "templates")
+
+# 印章存储根目录
+ELECTRONIC_SEAL_ROOT = os.path.join("D:\\", "syls", "database", "seals")
+
+# 用印申请文件存储根目录
+SEAL_APPLICATION_ROOT = os.path.join("D:\\", "syls", "database", "seal_applications")

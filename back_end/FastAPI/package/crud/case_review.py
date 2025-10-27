@@ -1,5 +1,7 @@
 # crud/case_review.py
 from typing import List, Optional, cast
+
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from .case import get_case_by_id, split_with_separators
@@ -70,48 +72,95 @@ def check_interest_conflict_for_case(db: Session, case_id: int):
     if not client_name:
         return {"has_conflict": False}
 
-    # 查询冲突案件：其他律师的案件中，委托人是原告或被告
-    conflict_cases = db.query(Case).filter(
-        # 核心：使用like匹配包含关系，兼容多主体分隔
-        (Case.plaintiff.like(f"%{client_name}%")) |  # 原告中包含委托人
-        (Case.defendant.like(f"%{client_name}%")),  # 被告中包含委托人
-        # 排除已删除的案件和当前案件
+    # 1. 获取所有顾问单位（法律顾问业务的委托人）
+    consultant_units = db.query(Case.client_name).filter(
+        Case.case_category == "法律顾问业务",
         Case.is_deleted == False,
-        Case.case_id != case_id
+        Case.case_id != case_id  # 排除当前案件
+    ).distinct().all()
+    consultant_units = [unit[0] for unit in consultant_units]  # 提取委托人名称列表
+
+    # 定义分隔符
+    separators = ["、", ",", "，", " ", "；", ";"]
+
+    # 拆分当前案件的被告
+    current_defendants = [d.strip() for d in split_with_separators(case.defendant or "", separators) if d.strip()]
+
+    precise_conflicts = []
+
+    # 2. 检测1：常规利益冲突 - 当前委托人在其他案件中作为原告/被告
+    conflict_cases = db.query(Case).filter(
+        or_(
+            Case.plaintiff.like(f"%{client_name}%"),
+            Case.defendant.like(f"%{client_name}%")
+        ),
+        Case.is_deleted == False,
+        Case.case_id != case_id  # 排除当前案件
     ).all()
 
-    # 进一步精确过滤
-    separators = ["、", ",", "，", " ", "；", ";"]
-    precise_conflicts = []
     for conflict_case in conflict_cases:
-        # 拆分原告字段为主体列表
+        # 拆分原告/被告为列表
         plaintiffs = [p.strip() for p in split_with_separators(str(conflict_case.plaintiff), separators) if p.strip()]
-        # 拆分被告字段为主体列表
         defendants = [d.strip() for d in split_with_separators(conflict_case.defendant or "", separators) if d.strip()]
 
-        # 检查委托人是否在原告或被告列表中
-        if client_name in plaintiffs or client_name in defendants:
-            precise_conflicts.append(conflict_case)
+        # 常规冲突判断
+        normal_conflict = client_name in plaintiffs or client_name in defendants
+
+        if normal_conflict:
+            conflict_info = {
+                "case": conflict_case,
+                "conflict_type": "常规利益冲突",
+                "role": "原告" if client_name in plaintiffs else "被告",
+                "conflict_reason": f"当前委托人在案件 {conflict_case.case_number} 中作为{('原告' if client_name in plaintiffs else '被告')}"
+            }
+            precise_conflicts.append(conflict_info)
+
+    # 3. 检测2：顾问单位冲突 - 当前案件的被告包含顾问单位
+    # 这部分独立执行，不依赖于conflict_cases
+    consultant_conflict_units = []
+    for unit in consultant_units:
+        if unit in current_defendants:
+            consultant_conflict_units.append(unit)
+
+    if consultant_conflict_units:
+        # 为每个冲突的顾问单位创建一个冲突记录
+        for unit in consultant_conflict_units:
+            # 查找该顾问单位对应的法律顾问业务案件
+            consultant_case = db.query(Case).filter(
+                Case.client_name == unit,
+                Case.case_category == "法律顾问业务",
+                Case.is_deleted == False
+            ).first()
+
+            if consultant_case:
+                conflict_info = {
+                    "case": consultant_case,  # 使用法律顾问业务案件信息
+                    "conflict_type": "顾问单位作为被告",
+                    "role": "被告（顾问单位）",
+                    "conflict_reason": f"当前案件的被告 '{unit}' 是本所法律顾问单位",
+                    "consultant_unit": unit
+                }
+                precise_conflicts.append(conflict_info)
 
     if precise_conflicts:
         # 提取冲突详情
         conflict_details = []
-        for conflict_case in precise_conflicts:
-            # 重新计算当前冲突案件的原告/被告列表
-            plaintiffs = [p.strip() for p in split_with_separators(str(conflict_case.plaintiff), separators) if
-                          p.strip()]
-            defendants = [d.strip() for d in split_with_separators(conflict_case.defendant or "", separators) if
-                          d.strip()]
-
-            role = "原告" if client_name in plaintiffs else "被告"
-            conflict_details.append({
+        for item in precise_conflicts:
+            conflict_case = item["case"]
+            detail = {
                 "case_id": conflict_case.case_id,
                 "case_number": conflict_case.case_number,
                 "other_lawyer_id": conflict_case.main_lawyer_id,
                 "other_lawyer_name": conflict_case.main_lawyer.real_name if conflict_case.main_lawyer else "未知",
-                "role": role,
-                "conflict_case_category": conflict_case.case_category
-            })
+                "role": item["role"],
+                "conflict_case_category": conflict_case.case_category,
+                "conflict_type": item["conflict_type"],
+                "message": item["conflict_reason"]
+            }
+            if "consultant_unit" in item:
+                detail["consultant_unit"] = item["consultant_unit"]
+
+            conflict_details.append(detail)
 
         return {"has_conflict": True, "details": conflict_details}
 
