@@ -43,7 +43,7 @@ async def download_template(filename: str = Query(..., description="要下载的
 @router.post("/document", response_model=TemplateOut, status_code=status.HTTP_201_CREATED)
 async def upload_document_template(
     uploaded_by: int,
-    name: str = Query(..., description="模板名称（含扩展名）"),
+    name: str = Query(..., description="模板名称"),
     description: Optional[str] = Form(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db)

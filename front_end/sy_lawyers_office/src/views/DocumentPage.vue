@@ -81,7 +81,7 @@
       <div class="empty-state" v-if="templates.length === 0 ">
         <el-empty description="暂无文书模板，请上传"></el-empty>
       </div>
-     </div>
+    </div>
 
     <!-- 上传模板弹窗 -->
     <el-dialog
@@ -154,34 +154,34 @@
     >
       <div class="preview-container" >
         <!-- 预览内容 -->
-          <!-- 图片预览 -->
-          <img
-            v-if="previewType === 'image'"
-            :src="previewUrl"
-            class="image-preview"
-            alt="模板预览"
-          />
+        <!-- 图片预览 -->
+        <img
+          v-if="previewType === 'image'"
+          :src="previewUrl"
+          class="image-preview"
+          alt="模板预览"
+        />
 
-          <!-- PDF预览 -->
-          <iframe
-            v-else-if="previewType === 'pdf'"
-            :src="previewUrl"
-            class="pdf-iframe"
-          />
+        <!-- PDF预览 -->
+        <iframe
+          v-else-if="previewType === 'pdf'"
+          :src="previewUrl"
+          class="pdf-iframe"
+        />
 
-          <!-- 不支持的类型 -->
-          <div v-else class="unsupported-preview">
-            <el-icon class="unsupported-icon"><QuestionFilled /></el-icon>
-            <p>不支持在线预览该类型文件，请下载查看</p>
-            <el-button
-              type="primary"
-              @click="handleDownload(currentPreviewId, previewTitle)"
-              style="margin-top: 10px;"
-            >
-              <el-icon><Download /></el-icon>下载文件
-            </el-button>
-          </div>
+        <!-- 不支持的类型 -->
+        <div v-else class="unsupported-preview">
+          <el-icon class="unsupported-icon"><QuestionFilled /></el-icon>
+          <p>不支持在线预览该类型文件，请下载查看</p>
+          <el-button
+            type="primary"
+            @click="handleDownload(currentPreviewId, previewTitle)"
+            style="margin-top: 10px;"
+          >
+            <el-icon><Download /></el-icon>下载文件
+          </el-button>
         </div>
+      </div>
     </el-dialog>
   </div>
 </template>
@@ -656,6 +656,3 @@ const handleDelete = async (templateId) => {
 }
 
 </style>
-
-
-
