@@ -1,11 +1,9 @@
 <template>
   <div class="cases-page">
-    <!-- 页面头部 -->
     <div class="header">
       <h2>案件管理</h2>
       <div class="action-buttons">
         <el-button type="primary" @click="handleAddClick">新增案件</el-button>
-        <!-- 新增批量导入按钮 -->
         <el-button type="warning" @click="showImportDialog = true">
           <el-icon><Upload /></el-icon>批量导入
         </el-button>
@@ -13,7 +11,6 @@
       </div>
     </div>
 
-    <!-- 搜索与筛选区 -->
     <div class="toolbar">
       <div class="toolbar-left">
         <el-input
@@ -39,7 +36,6 @@
           />
         </el-select>
 
-        <!-- 管理员专属：主办律师筛选 -->
         <el-select
           v-if="currentUserRole === 'admin' || currentUserRole === 'owner'"
           v-model="selectedLawyerId"
@@ -58,7 +54,6 @@
       </div>
     </div>
 
-    <!-- 案件表格 -->
     <el-table :data="cases" border style="width: 100%" v-loading="tableLoading">
       <el-table-column prop="case_number" label="案件号" width="220" align="center"/>
       <el-table-column prop="client_name" label="委托人" align="center"/>
@@ -80,7 +75,6 @@
       </el-table-column>
     </el-table>
 
-    <!-- 分页组件 -->
     <el-pagination
       background
       layout="prev, pager, next, jumper, ->, total"
@@ -91,7 +85,6 @@
       style="margin-top: 16px; text-align: right"
     />
 
-    <!-- 1. 新增/编辑案件：复用 CaseForm 组件 -->
     <CaseForm
       v-model:visible="showFormDialog"
       :lawyers="lawyers"
@@ -103,7 +96,6 @@
       @submit="handleFormSubmit"
     />
 
-    <!-- 批量导入弹窗 -->
     <el-dialog
       title="批量导入案件"
       v-model="showImportDialog"
@@ -113,7 +105,6 @@
       <div class="import-container">
         <p class="import-tip">支持.xlsx/.xls格式，模板下载：<el-link @click="downloadTemplate">案件导入模板</el-link></p>
 
-        <!-- 上传区域 -->
         <el-upload
           class="upload-area"
           ref="uploadRef"
@@ -135,7 +126,6 @@
           </template>
         </el-upload>
 
-        <!-- 进度条 -->
         <el-progress
           v-if="showProgress"
           :percentage="progress"
@@ -158,7 +148,6 @@
       </template>
     </el-dialog>
 
-    <!-- 导入结果弹窗 -->
     <el-dialog
       title="导入结果"
       v-model="showResultDialog"
@@ -180,7 +169,6 @@
         </div>
       </div>
 
-      <!-- 失败详情表格 -->
       <el-table
         v-if="result.failed_cases && result.failed_cases.length"
         :data="result.failed_cases"
@@ -340,9 +328,16 @@ const handleEditClick = async (row) => {
 // -------------------------- CaseForm 组件事件回调 --------------------------
 // 表单提交（新增/编辑通用）
 const handleFormSubmit = async (submittedData) => {
+  // 提取文件列表并从提交数据中移除
+  const filesToUpload = submittedData.filesToUpload || []
+  delete submittedData.filesToUpload
+
+  // 在 try/catch 外部声明 newCaseId
+  let newCaseId = null
+
   try {
     if (formMode.value === 'add') {
-      // 新增案件：先检测利益冲突
+      // 1.1 新增案件：先检测利益冲突
       const conflictRes = await axios.post(
         'http://127.0.0.1:8002/cases/check_conflict',
         submittedData,
@@ -392,17 +387,64 @@ const handleFormSubmit = async (submittedData) => {
       }
 
       // 无冲突或用户确认继续，则提交创建
-      await axios.post('http://127.0.0.1:8002/cases/case_create', submittedData)
+      // 捕获响应，获取新生成的 case_id
+      const createRes = await axios.post('http://127.0.0.1:8002/cases/case_create', submittedData)
+      newCaseId = createRes.data.case_id // 获取新案件 ID
       ElMessage.success('新增案件成功')
+
+      // 批量上传附件
+      if (filesToUpload.length > 0) {
+        ElMessage.info(`正在上传 ${filesToUpload.length} 个附件...`)
+        const uploadPromises = filesToUpload.map(file => {
+          const fileFormData = new FormData()
+          fileFormData.append('file', file)
+          fileFormData.append('case_id', newCaseId)
+          fileFormData.append('uploaded_by', currentUserID.value) // 使用当前用户ID
+
+          // 直接调用附件上传接口
+          return axios.post('http://127.0.0.1:8002/attachments/', fileFormData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          })
+        })
+
+        // 等待所有上传完成
+        const uploadResults = await Promise.allSettled(uploadPromises)
+
+        // 检查失败情况并通知用户
+        const failedUploads = uploadResults.filter(r => r.status === 'rejected')
+        if (failedUploads.length > 0) {
+          console.error('部分附件上传失败:', failedUploads)
+          ElNotification.warning({
+            title: '案件创建成功，但附件上传有误',
+            message: `共 ${filesToUpload.length} 个附件，其中 ${failedUploads.length} 个上传失败。您可以在案件详情页重新上传。`,
+            duration: 8000
+          })
+        } else {
+          ElMessage.success('所有附件上传完成')
+        }
+      }
+
     } else {
-      // 调用 /cases/case_update/{case_id}
+      // 编辑案件：调用 /cases/case_update/{case_id}
       await axios.put(`http://127.0.0.1:8002/cases/case_update/${currentCaseId.value}`, submittedData)
       ElMessage.success('编辑案件成功')
     }
     await loadCases()
   } catch (err) {
     console.error(`${formMode.value === 'add' ? '新增' : '编辑'}案件失败:`, err)
-    ElMessage.error(`${formMode.value === 'add' ? '新增' : '编辑'}案件失败，请重试`)
+
+    // 提取通用错误信息
+    const errorMessage =
+      err.response?.data?.detail?.message ||
+      err.response?.data?.detail ||
+      `${formMode.value === 'add' ? '新增' : '编辑'}案件失败，请重试`
+
+    // 针对新增模式：如果创建成功但附件上传失败，给出不同的提示
+    if (formMode.value === 'add' && newCaseId) { // newCaseId 现在可以在 catch 块中访问
+      ElMessage.warning(`案件创建成功 (ID: ${newCaseId})，但附件上传失败，请在案件详情页重新上传。`);
+    } else {
+      ElMessage.error(errorMessage)
+    }
   }
 }
 

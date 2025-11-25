@@ -187,7 +187,8 @@ def preview_document_template(template_id: int, db: Session = Depends(get_db)):
         if pdf_path:
             return FileResponse(
                 path=pdf_path,
-                media_type="application/pdf"
+                media_type="application/pdf",
+                headers={"Content-Disposition": "inline"}  # 设置为内联显示
             )
         else:
             raise HTTPException(
@@ -203,5 +204,6 @@ def preview_document_template(template_id: int, db: Session = Depends(get_db)):
 
     return FileResponse(
         path=full_path,
-        media_type=template.file_type
+        media_type=template.file_type,
+        headers={"Content-Disposition": "inline"}  # 设置为内联显示
     )

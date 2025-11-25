@@ -1,5 +1,5 @@
 # api/attachment.py
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -22,8 +22,8 @@ router = APIRouter(
 
 @router.post("/", response_model=AttachmentOut, status_code=status.HTTP_201_CREATED)
 async def upload_attachment(
-        case_id: int,
-        uploaded_by: int,
+        case_id: int = Form(..., description="关联的案件ID"),
+        uploaded_by: int = Form(..., description="上传人ID"),
         file: UploadFile = File(...),
         db: Session = Depends(get_db)
 ):

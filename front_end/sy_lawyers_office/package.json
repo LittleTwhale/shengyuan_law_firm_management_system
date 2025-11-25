@@ -18,7 +18,9 @@
     "axios": "^1.12.2",
     "echarts": "^5.5.0",
     "echarts-gl": "^2.0.9",
-    "element-plus": "^2.11.2",
+    "element-plus": "2.11.3",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^5.4.394",
     "vue": "^3.5.18",
     "vue-router": "^4.5.1"
   },

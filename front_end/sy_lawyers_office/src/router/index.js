@@ -9,6 +9,7 @@ import BankCasesPage from '@/views/BankCasesPage.vue'
 import UserProfilePage from '@/views/UserProfilePage.vue'
 import DocumentPage from '@/views/DocumentPage.vue'
 import ElectronicSealPage from '@/views/ElectronicSealPage.vue'
+import EventReminderPage from '@/views/EventReminderPage.vue'
 
 const routes = [
   { path: '/', redirect: '/login' },
@@ -30,7 +31,8 @@ const routes = [
       { path: 'cases/bank_cases', component: BankCasesPage },
       { path: 'user_profile', component: UserProfilePage },
       { path: 'document_template', component: DocumentPage },
-      { path: 'electronic_seal', component: ElectronicSealPage }
+      { path: 'electronic_seal', component: ElectronicSealPage },
+      { path: 'reminders', component: EventReminderPage }
     ]
   },
 ]

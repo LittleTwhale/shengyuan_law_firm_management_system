@@ -36,7 +36,9 @@ def list_cases_by_user_role(
     limit: int = 100,
     keyword: Optional[str] = None,  # 关键词查询
     category: Optional[str] = None,  # 案件类型筛选
-    main_lawyer_id: Optional[int] = None    # 主办律师筛选
+    main_lawyer_id: Optional[int] = None,    # 主办律师筛选
+    sort_field: str = "created_at",  # 排序字段，默认按创建时间
+    sort_dir: str = "desc"  # 排序方向，默认降序（最新在前）
 ) -> List[Case]:
     """
     根据用户角色返回案件列表
@@ -73,6 +75,21 @@ def list_cases_by_user_role(
             (Case.case_number.like(f"%{keyword}%")) |
             (Case.client_name.like(f"%{keyword}%"))
         )
+
+    # 排序逻辑
+    if sort_field == "created_at":
+        order_column = Case.created_at
+    elif sort_field == "updated_at":
+        order_column = Case.updated_at
+    elif sort_field == "commission_date":  # 委托日期
+        order_column = Case.commission_date
+    else:
+        order_column = Case.created_at  # 默认字段
+
+    if sort_dir == "desc":
+        query = query.order_by(order_column.desc())
+    else:
+        query = query.order_by(order_column.asc())
 
     cases = query.offset(skip).limit(limit).all()
     return cast(list[Case], cases)
@@ -122,7 +139,9 @@ def list_bank_cases_by_user_role(
     skip: int = 0,
     limit: int = 100,
     keyword: Optional[str] = None,  # 新增
-    main_lawyer_id: Optional[int] = None    # 主办律师筛选
+    main_lawyer_id: Optional[int] = None,    # 主办律师筛选
+    sort_field: str = "created_at",  # 排序字段，默认按创建时间
+    sort_dir: str = "desc"  # 排序方向，默认降序（最新在前）
 ) -> List[Case]:
     """
     根据用户角色返回银行案件列表
@@ -155,6 +174,21 @@ def list_bank_cases_by_user_role(
             (Case.case_number.like(f"%{keyword}%")) |
             (Case.client_name.like(f"%{keyword}%"))
         )
+
+    # 排序逻辑
+    if sort_field == "created_at":
+        order_column = Case.created_at
+    elif sort_field == "updated_at":
+        order_column = Case.updated_at
+    elif sort_field == "commission_date":  # 委托日期
+        order_column = Case.commission_date
+    else:
+        order_column = Case.created_at  # 默认字段
+
+    if sort_dir == "desc":
+        query = query.order_by(order_column.desc())
+    else:
+        query = query.order_by(order_column.asc())
 
     cases = query.offset(skip).limit(limit).all()
     return cast(list[Case], cases)
@@ -470,3 +504,55 @@ def split_with_separators(s: str, separators: list) -> list:
     # 构建正则表达式：匹配任何分隔符
     separator_pattern = '|'.join(re.escape(sep) for sep in separators)
     return re.split(separator_pattern, s)
+
+
+# 事件提醒功能
+def get_upcoming_events(db: Session, user_id: int, days: int = 30) -> List[dict]:
+    """
+    查询用户（主办或助理）未来 X 天内的关键事项
+    """
+    from datetime import date, timedelta
+
+    today = date.today()
+    target_date = today + timedelta(days=days)
+
+    # 1. 查询该律师相关的所有未删除、未归档(可选)的案件
+    # 这里假设 '已结案' 的案件不需要提醒，或者根据实际需求调整
+    cases = db.query(Case).filter(
+        Case.is_deleted == False,
+        or_(
+            Case.main_lawyer_id == user_id,
+            Case.assistant_lawyer_id == user_id
+        )
+    ).all()
+
+    events = []
+
+    for case in cases:
+        # 定义需要检查的字段映射
+        check_points = [
+            ("开庭", case.hearing_date),
+            ("保全到期", case.preservation_end),
+            ("调解到期", case.mediation_due_date),
+            ("执行到期", case.execution_due_date),
+            ("付款到期", case.payment_due_date)
+        ]
+
+        for event_type, event_date in check_points:
+            if event_date:
+                # 检查日期是否在 [今天, 目标日期] 范围内
+                # 注意：如果是保全到期，通常建议包含今天之前已过期的（作为警告），这里仅演示未来提醒
+                if today <= event_date <= target_date:
+                    days_remaining = (event_date - today).days
+                    events.append({
+                        "case_id": case.case_id,
+                        "case_number": case.case_number,
+                        "client_name": case.client_name,
+                        "event_type": event_type,
+                        "event_date": event_date,
+                        "days_remaining": days_remaining
+                    })
+
+    # 按剩余天数排序，紧迫的在前
+    events.sort(key=lambda x: x['days_remaining'])
+    return events

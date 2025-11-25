@@ -1,11 +1,14 @@
 # api/user_profile.py
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..crud import user as user_crud
 from ..crud import case as case_crud
+from ..crud.case import get_upcoming_events
 from ..crud.case_review import count_reviewed_cases
 from ..database.database import get_db
-from ..schemas.case import CaseStatistics
+from ..schemas.case import CaseStatistics, EventReminderOut
 from ..schemas.user import UserOut, ChangePasswordRequest
 
 router = APIRouter(prefix="/user/profile", tags=["user_profile"])
@@ -54,3 +57,16 @@ def change_password(data: ChangePasswordRequest, db: Session = Depends(get_db)):
     old_password = data.old_password
     new_password = data.new_password
     return user_crud.change_password(db, user_id, old_password, new_password)
+
+
+@router.get("/reminders", response_model=List[EventReminderOut])
+def get_user_reminders(
+        days: int = 7,  # 默认查询7天
+        user_id: int = None,
+        db: Session = Depends(get_db)
+):
+    """获取用户的待办事项提醒"""
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID is required")
+
+    return get_upcoming_events(db, user_id, days)

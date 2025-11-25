@@ -240,3 +240,16 @@ class CaseStatistics(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# 事件提醒
+class EventReminderOut(BaseModel):
+    case_id: int
+    case_number: str
+    client_name: str
+    event_type: str = Field(..., description="事件类型：开庭/保全/调解/执行")
+    event_date: date = Field(..., description="事件日期")
+    days_remaining: int = Field(..., description="剩余天数")
+
+    class Config:
+        from_attributes = True

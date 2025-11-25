@@ -39,6 +39,8 @@ def get_cases(
     keyword: Optional[str] = None,  # 新增搜索关键词参数
     category: Optional[str] = None,  # 新增案件类别参数
     main_lawyer_id: Optional[int] = None,  # 新增主办律师参数
+    sort_field: Optional[str] = "created_at",  # 排序参数
+    sort_dir: Optional[str] = "desc",  # 排序方式
     db: Session = Depends(get_db)
 ):
     """
@@ -53,6 +55,8 @@ def get_cases(
         keyword=keyword,  # 传递给CRUD函数
         category=category,  # 传递给CRUD函数
         main_lawyer_id=main_lawyer_id,
+        sort_field=sort_field,
+        sort_dir=sort_dir,
     )
     total = count_cases_by_user_role(
         db=db,
@@ -68,13 +72,15 @@ def get_cases(
 # 2️⃣ 获取银行案件列表
 @router.get("/bank_cases", response_model=CasePageOut)
 def get_bank_cases(
-        user_id: int,
-        role: str,
-        skip: int = 0,
-        limit: int = 100,
-        keyword: Optional[str] = None,  # 新增搜索关键词参数
-        main_lawyer_id: Optional[int] = None,
-        db: Session = Depends(get_db)
+    user_id: int,
+    role: str,
+    skip: int = 0,
+    limit: int = 100,
+    keyword: Optional[str] = None,  # 新增搜索关键词参数
+    main_lawyer_id: Optional[int] = None,
+    sort_field: Optional[str] = "created_at",  # 排序参数
+    sort_dir: Optional[str] = "desc",  # 排序方式
+    db: Session = Depends(get_db)
 ):
     """
     获取银行案件列表
@@ -87,6 +93,8 @@ def get_bank_cases(
         limit=limit,
         keyword=keyword,
         main_lawyer_id=main_lawyer_id,
+        sort_field=sort_field,
+        sort_dir=sort_dir,
     )
     total = count_bank_cases_by_user_role(
         db=db,

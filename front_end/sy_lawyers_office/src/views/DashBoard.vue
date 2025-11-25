@@ -50,6 +50,9 @@
           <i class="el-icon-user-profile"></i>
           <span>个人信息</span>
         </el-menu-item>
+        <el-menu-item index="/main/reminders">
+          <el-icon><Bell /></el-icon> <span>事项提醒</span>
+        </el-menu-item>
       </el-menu>
 
       <!-- 右侧操作区（路由出口） -->
@@ -61,9 +64,11 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, onMounted } from 'vue'
+import { ElMessage, ElNotification } from 'element-plus'
 import { useRouter } from 'vue-router'
+import axios from 'axios' // 引入axios
+import { Bell } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const currentUser = ref(sessionStorage.getItem('username'))
@@ -79,7 +84,82 @@ const handleLogout = () => {
   router.push('/')
   ElMessage.info('已退出登录')
 }
+
+// 新增：检查紧急提醒
+const checkUrgentReminders = async () => {
+  const userId = sessionStorage.getItem('user_id')
+  if (!userId) return
+
+  try {
+    // 查询未来3天内的事件
+    const res = await axios.get('http://127.0.0.1:8002/user/profile/reminders', {
+      params: { user_id: userId, days: 3 }
+    })
+
+    const urgentEvents = res.data
+
+    if (urgentEvents.length > 0) {
+      // 构建弹窗内容 HTML
+      const messageHtml = urgentEvents.map(e =>
+        `<div style="margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px dashed #eee;">
+           <span style="color: #f56c6c; font-weight: bold;">[${e.event_type}]</span>
+           <span style="margin-left: 5px;">${e.event_date}</span>
+           <div style="font-size: 12px; color: #666; margin-top: 4px;">
+             ${e.case_number} (${e.client_name})
+           </div>
+           <div style="font-size: 12px; color: #e6a23c;">
+             剩余 ${e.days_remaining} 天
+           </div>
+         </div>`
+      ).join('')
+
+      ElNotification({
+        title: `有 ${urgentEvents.length} 个紧急事项即将到期`,
+        dangerouslyUseHTMLString: true,
+        message: `<div style="max-height: 300px; overflow-y: auto;">${messageHtml}</div>`,
+        duration: 0, // 设置为 0 则不会自动关闭
+        type: 'warning',
+        customClass: 'center-notification',
+        onClick: () => {
+          router.push('/main/reminders') // 点击跳转到详情页
+        }
+      })
+    }
+  } catch (error) {
+    console.error('检查提醒失败', error)
+  }
+}
+
+onMounted(() => {
+  checkUrgentReminders()
+})
 </script>
+
+<style>
+/* 非作用域样式：用于强制 ElNotification 居中和突出显示 */
+.center-notification {
+  /* 居中定位  */
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%);
+  margin: 0 !important;
+  z-index: 3000 !important;
+
+  /* 自定义背景和边框，使其更醒目 */
+  background-color: #e1f4fa !important; /* 浅蓝色背景 */
+  border-left: 8px solid #ff0008 !important; /* 强烈红色左侧边框 */
+  box-shadow: 0 6px 16px rgba(17, 220, 255, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.1) !important; /* 加重阴影和轻微描边 */
+  max-width: 450px;
+  border-radius: 8px !important;
+}
+
+/* 确保通知体内的文字颜色正常 */
+.center-notification .el-notification__title,
+.center-notification .el-notification__content {
+  color: #333;
+}
+</style>
 
 <style scoped>
 .dashboard-container {

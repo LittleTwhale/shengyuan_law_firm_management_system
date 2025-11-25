@@ -1,11 +1,10 @@
-<!-- CaseForm.vue -->
 <template>
   <el-dialog
     :title="dialogTitle"
     v-model="dialogVisible"
     width="900px"
     destroy-on-close
-    @close="emit('update:visible', false)"
+    @close="handleCancel"
   >
     <el-form
       :model="formData"
@@ -13,7 +12,6 @@
       ref="formRef"
       label-width="150px"
     >
-      <!-- 1. 案件基础信息 -->
       <el-form-item label="案件类别" prop="case_category">
         <el-select v-model="formData.case_category" placeholder="请选择案件类别">
           <el-option label="民事案件" value="民事案件"/>
@@ -44,7 +42,6 @@
         <el-input v-model="formData.client_phone" placeholder="请输入联系电话"/>
       </el-form-item>
 
-      <!-- 2. 费用相关 -->
       <el-form-item label="案件来源">
         <el-input v-model="formData.case_source" placeholder="请输入案件来源（如客户介绍、线上咨询等）"/>
       </el-form-item>
@@ -65,7 +62,6 @@
         <el-date-picker v-model="formData.payment_due_date" type="date" value-format="YYYY-MM-DD"/>
       </el-form-item>
 
-      <!-- 3. 案件主体信息 -->
       <el-form-item label="案由" prop="cause">
         <el-input type="textarea" v-model="formData.cause" placeholder="请输入案由"/>
       </el-form-item>
@@ -90,7 +86,6 @@
         <el-input v-model="formData.defendant" placeholder="请输入被告（人）/被申请人信息"/>
       </el-form-item>
 
-      <!-- 4. 代理与审理信息 -->
       <el-form-item label="代理权限" prop="agency_power">
         <el-select v-model="formData.agency_power" placeholder="请选择">
           <el-option label="特别代理" value="特别代理"/>
@@ -114,7 +109,6 @@
         <el-date-picker v-model="formData.closing_date" type="date" value-format="YYYY-MM-DD"/>
       </el-form-item>
 
-      <!-- 5. 律师分配 -->
       <el-form-item label="主办律师" prop="main_lawyer_id">
         <el-select
           v-model="formData.main_lawyer_id"
@@ -147,7 +141,6 @@
         </el-select>
       </el-form-item>
 
-      <!-- 6. 其他配置 -->
       <el-form-item label="是否重大">
         <el-switch v-model="formData.is_major"/>
       </el-form-item>
@@ -164,7 +157,6 @@
         <el-switch v-model="formData.has_record"/>
       </el-form-item>
 
-      <!-- 7. 保全相关 -->
       <el-form-item label="是否保全">
         <el-switch v-model="formData.has_preservation" @change="handlePreservationChange"/>
       </el-form-item>
@@ -183,7 +175,6 @@
         <el-date-picker v-model="formData.preservation_end" type="date" value-format="YYYY-MM-DD"/>
       </el-form-item>
 
-      <!-- 8. 结案与执行 -->
       <el-form-item label="案号">
         <el-input v-model="formData.case_code" placeholder="请输入法院案号"/>
       </el-form-item>
@@ -196,7 +187,6 @@
         <el-input v-model="formData.closing_method" placeholder="如判决、调解、撤诉等"/>
       </el-form-item>
 
-      <!-- 9. 诉讼费相关 -->
       <el-form-item label="诉讼费缴费时间">
         <el-date-picker v-model="formData.litigation_fee_payment_date" type="date" value-format="YYYY-MM-DD"/>
       </el-form-item>
@@ -213,7 +203,6 @@
         <el-input v-model.number="formData.litigation_fee_refund_amount" type="number"/>
       </el-form-item>
 
-      <!-- 10. 执行相关 -->
       <el-form-item label="申请执行日">
         <el-date-picker v-model="formData.execution_application_date" type="date" value-format="YYYY-MM-DD"/>
       </el-form-item>
@@ -230,11 +219,29 @@
         <el-input type="textarea" v-model="formData.details" placeholder="请输入案件详细描述"/>
       </el-form-item>
 
-      <!-- 11. 附件上传区域 -->
       <el-form-item label="案件附件">
         <template v-if="props.mode === 'add'">
-          <div class="upload-tip">请先新增案件再去编辑界面上传附件</div>
+          <el-upload
+            class="upload-demo"
+            ref="uploadRef"
+            action="#"
+            :auto-upload="false"
+            :on-change="handleRawFileChange"
+            :on-remove="handleRawFileRemove"
+            :file-list="formData.attachments"
+            :multiple="true"
+          >
+            <el-button size="small" type="primary">
+              <el-icon><Upload /></el-icon> 选择附件
+            </el-button>
+            <template #tip>
+              <div class="el-upload__tip">
+                选择文件后，案件创建成功后将自动上传附件
+              </div>
+            </template>
+          </el-upload>
         </template>
+
         <template v-else>
           <el-upload
             class="upload-demo"
@@ -283,7 +290,6 @@
       </el-form-item>
     </el-form>
 
-    <!-- 底部按钮（通过slot让父组件控制，保持弹窗按钮一致性） -->
     <template #footer>
       <el-button @click="handleCancel">取消</el-button>
       <el-button type="primary" @click="handleSubmit">提交</el-button>
@@ -449,8 +455,35 @@ const formRules = reactive({
 
 // 4. 附件相关变量和方法
 const formMode = ref(props.mode) // 表单模式
+// 新增状态：在新增模式下存储用户选择的原始文件对象
+const rawFiles = ref([])
 
-// 处理附件上传成功
+// 处理文件选择变化（用于新增模式，只收集文件）
+const handleRawFileChange = (file, fileList) => {
+  // 收集原始文件对象
+  rawFiles.value = fileList.map(item => item.raw)
+  // 更新 attachments 数组用于前端立即显示（uid使用临时标识）
+  formData.attachments = fileList.map((item, index) => ({
+    name: item.name,
+    uid: item.uid || `new-${index}`,
+    status: 'success',
+    url: ''
+  }))
+}
+
+// 处理文件移除
+const handleRawFileRemove = (file, fileList) => {
+  rawFiles.value = fileList.map(item => item.raw)
+  formData.attachments = fileList.map((item, index) => ({
+    name: item.name,
+    uid: item.uid || `new-${index}`,
+    status: 'success',
+    url: ''
+  }))
+}
+
+
+// 处理附件上传成功 (编辑模式)
 const handleAttachmentUpload = async (response) => {
   ElMessage.success('附件上传成功')
 
@@ -462,7 +495,7 @@ const handleAttachmentUpload = async (response) => {
   })
 }
 
-// 处理附件上传失败
+// 处理附件上传失败 (编辑模式)
 const handleAttachmentError = (err) => {
   console.error('附件上传失败:', err)
   ElMessage.error('附件上传失败')
@@ -535,6 +568,7 @@ watch(
       formData.litigation_fee_refund_amount = 0
       formData.commission_date = getCurrentDate()
       formData.attachments = [] // 清空附件列表
+      rawFiles.value = [] // 清空 rawFiles
 
       // 主办律师默认为当前用户
       if (props.currentUserRole === 'user' || props.currentUserRole === 'admin') {
@@ -589,6 +623,7 @@ const handleCancel = () => {
   emit('update:visible', false)
   // 重置表单（避免下次打开有残留数据）
   formRef.value?.resetFields()
+  rawFiles.value = [] // 清除 rawFiles
 }
 
 // 提交操作：先验证，再通知父组件
@@ -602,8 +637,16 @@ const handleSubmit = async () => {
     // 移除附件信息，因为附件是通过单独API上传的
     delete submitData.attachments;
 
+    // 如果是新增模式，附加文件列表到提交数据中
+    if (props.mode === 'add') {
+      submitData.filesToUpload = rawFiles.value; // 将原始文件对象传递给父组件
+    }
+
     emit('submit', submitData);
-    emit('update:visible', false); // 提交成功后关闭弹窗
+    // 提交成功后关闭弹窗
+    emit('update:visible', false);
+    // 清除 rawFiles 状态
+    rawFiles.value = []
   }
 }
 
