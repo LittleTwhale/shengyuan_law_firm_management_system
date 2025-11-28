@@ -29,6 +29,17 @@ def check_admin_permission(role: Optional[str]):
     if not role or role not in ["admin", "owner"]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限操作")
 
+# 授权用印审核人ID 列表
+AUTHORIZED_REVIEWER_IDS = [1, 2]
+
+def check_reviewer_permission(reviewer_id: int):
+    """检查用户ID是否为授权的用印审核人 """
+    if reviewer_id not in AUTHORIZED_REVIEWER_IDS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无权限进行用印审核操作，只有授权的管理员可以操作。"
+        )
+
 
 # ------------------------------
 # 电子印章管理 (Admin)
@@ -238,6 +249,7 @@ def review_seal_application(
 ):
     """【管理员】审核用印申请（通过/拒绝）"""
     check_admin_permission(role)
+    check_reviewer_permission(reviewer_id)
     try:
         reviewed = seal_crud.review_seal_application(
             db, application_id, review_in, reviewer_id
@@ -260,7 +272,7 @@ async def confirm_stamping_and_log(
 ):
     """【管理员】确认盖章完成，保存最终文件并记录坐标"""
     check_admin_permission(role)
-
+    check_reviewer_permission(reviewer_id)
     try:
         # 1. 解析 JSON 字符串为 Pydantic 模型列表
         log_list_data = json.loads(log_data_json)
@@ -284,7 +296,7 @@ async def confirm_stamping_and_log(
 
 @router.get("/applications/{application_id}/download_stamped")
 async def download_sealed_file(application_id: int, db: Session = Depends(get_db)):
-    """【用户/管理员】下载盖章后的文件"""
+    """下载盖章后的文件"""
     application = seal_crud.get_seal_application_by_id(db, application_id)
     if not application or not application.stamped_file_path:
         raise HTTPException(status_code=404, detail="盖章后的文件不存在")

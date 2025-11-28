@@ -88,7 +88,7 @@
         </el-table>
       </el-tab-pane>
 
-      <el-tab-pane label="待审核申请" name="pending" v-if="isAdmin">
+      <el-tab-pane label="待审核申请" name="pending" v-if="canReview">
         <el-table :data="pendingApplications" border v-loading="loading.pending">
           <el-table-column prop="id" label="ID" width="60" />
           <el-table-column prop="applicant.real_name" label="申请人" width="100" />
@@ -267,6 +267,13 @@ const API_BASE = 'http://127.0.0.1:8002/electronic_seal'
 const currentUserId = parseInt(sessionStorage.getItem('user_id'))
 const currentUserRole = sessionStorage.getItem('role')
 const isAdmin = computed(() => ['admin', 'owner'].includes(currentUserRole))
+// 授权审核人ID 列表
+const AUTHORIZED_REVIEWER_IDS = [1, 2]
+
+// 判断用户是否为授权审核人的计算属性
+const canReview = computed(() => {
+  return currentUserId && AUTHORIZED_REVIEWER_IDS.includes(currentUserId)
+})
 
 const activeTab = ref(isAdmin.value ? 'seals' : 'my_applications')
 const loading = reactive({
