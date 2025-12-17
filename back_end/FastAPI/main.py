@@ -8,9 +8,11 @@ from .package.api.user_profile import router as auth_user_router
 from .package.api.attachment import router as auth_attachment_router
 from .package.api.template import router as auth_template_router
 from .package.api.electronic_seal import router as auth_seal_router
+from .package.core.logger import logger
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from contextlib import asynccontextmanager
 
 origins = [
     "http://localhost:5173",
@@ -20,8 +22,18 @@ origins = [
 ]
 
 
+#  定义 lifespan 上下文管理器（包含 startup 逻辑）
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 启动时执行的代码
+    logger.info("==================================================")
+    logger.info("日志系统已加载，当前日志模式：每日独立存储")
+    logger.info("==================================================")
+
+    yield  # 用于分隔启动和关闭逻辑
+
 # 注册路由
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,

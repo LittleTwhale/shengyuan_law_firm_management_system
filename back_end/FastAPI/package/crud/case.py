@@ -308,25 +308,37 @@ def _find_reusable_case_number(db: Session, case_type: str, year: int) -> str:
 
 def _create_new_case_number(db: Session, case_type: str, year: int, type_map: dict) -> str:
     """
-    创建新案件编号
+    创建新案件编号（修复版：解决ID顺序与案号顺序不一致导致的冲突）
     """
-    # 查询该类型的最新案件号（未删除的）
+    # 尝试基于最新ID的案件推算（但这不一定是最大案号）
     latest_case = db.query(Case).filter(
         Case.case_category == case_type,
-        Case.case_number.like(f"湘生律({year})%"),
-        Case.is_deleted == False
+        Case.case_number.like(f"湘生律({year})%")
+        # 去掉 is_deleted 限制，确保基于所有历史数据递增
     ).order_by(Case.case_id.desc()).first()
 
     next_number = 1
     if latest_case:
         try:
-            # 从正常案件号中提取数字
-            last_number = int(latest_case.case_number.split("第")[-1].replace("号", ""))
-            next_number = last_number + 1
+            # 提取数字
+            if "第" in latest_case.case_number and "号" in latest_case.case_number:
+                last_number = int(latest_case.case_number.split("第")[-1].replace("号", ""))
+                next_number = last_number + 1
         except (ValueError, IndexError):
             next_number = 1
 
-    return f"湘生律({year}){type_map[case_type]}第{next_number}号"
+    # 循环检测，直到找到一个真正空闲的号码
+    while True:
+        candidate = f"湘生律({year}){type_map[case_type]}第{next_number}号"
+
+        # 检查候选号码是否已存在（包含已删除但未改名的）
+        exists = db.query(Case).filter(Case.case_number == candidate).first()
+
+        if not exists:
+            return candidate
+
+        # 如果存在，递增序号并重试
+        next_number += 1
 
 
 def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case]:
@@ -395,9 +407,9 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
         case.case_category = new_category
         case.case_number = f"湘生律({year}){type_map[new_category]}第{next_number}号"
 
-    # 最后统一设置为待审核,并将审核人设为空
-    case.review_status = "待审核"
-    case.reviewer_id = None
+        # 如果案件类型发生变更，统一设置为待审核,并将审核人设为空
+        case.review_status = "待审核"
+        case.reviewer_id = None
 
     db.commit()
     db.refresh(case)

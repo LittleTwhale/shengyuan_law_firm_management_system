@@ -245,11 +245,13 @@
         <template v-else>
           <el-upload
             class="upload-demo"
-            :action="`http://127.0.0.1:8002/attachments/?case_id=${props.caseId}&uploaded_by=${props.currentUserId}`"
+            action="http://127.0.0.1:8002/attachments/"
+            :data="{ case_id: props.caseId, uploaded_by: props.currentUserId }"
             :on-success="handleAttachmentUpload"
             :on-error="handleAttachmentError"
             :file-list="formData.attachments || []"
             :auto-upload="true"
+            name="file"
           >
             <el-button size="small" type="primary">
               <el-icon><Upload /></el-icon> 上传附件

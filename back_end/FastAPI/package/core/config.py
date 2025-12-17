@@ -28,3 +28,9 @@ ELECTRONIC_SEAL_ROOT = os.path.join("D:\\", "syls", "database", "seals")
 
 # 用印申请文件存储根目录
 SEAL_APPLICATION_ROOT = os.path.join("D:\\", "syls", "database", "seal_applications")
+
+# 模板路径
+TEMPLATE_DIR = os.path.join("FastAPI", "static", "template")
+
+# 日志存储根目录
+LOG_ROOT = os.path.join("D:\\", "syls", "database", "logs")

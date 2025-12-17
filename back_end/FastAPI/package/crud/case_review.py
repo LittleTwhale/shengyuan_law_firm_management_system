@@ -165,3 +165,41 @@ def check_interest_conflict_for_case(db: Session, case_id: int):
         return {"has_conflict": True, "details": conflict_details}
 
     return {"has_conflict": False}
+
+
+def replace_text_in_paragraph(paragraph, context):
+    """
+    辅助函数：替换段落中的占位符
+    注意：python-docx 的 runs 可能会把 {{key}} 切割开，这里使用简单的全文本替换。
+    如果格式保留要求极高，可能需要更复杂的 run 遍历逻辑。
+    """
+    if not paragraph.text:
+        return
+
+    # 简单检查是否有任何占位符在段落文本中
+    has_placeholder = False
+    for key in context.keys():
+        if key in paragraph.text:
+            has_placeholder = True
+            break
+
+    if not has_placeholder:
+        return
+
+    # 简单替换策略：直接替换 paragraph.text 会丢失部分样式(font等)
+    # 但对于表格填空通常是可以接受的。
+    # 稍微好一点的方法是保留第一个 run 的样式，清空后面的。
+
+    # 这里使用最简单有效的方法：遍历 key 进行 replace
+    # 注意：这可能会重置该段落的样式为默认样式。
+    # 如果要保留样式，通常建议使用 python-docx-template 库，
+    # 但为了不引入新依赖，我们使用原生替换。
+
+    current_text = paragraph.text
+    for key, value in context.items():
+        if key in current_text:
+            current_text = current_text.replace(key, value)
+
+    # 如果文本发生了变化，更新段落
+    if current_text != paragraph.text:
+        paragraph.text = current_text

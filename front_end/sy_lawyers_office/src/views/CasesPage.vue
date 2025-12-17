@@ -55,23 +55,42 @@
     </div>
 
     <el-table :data="cases" border style="width: 100%" v-loading="tableLoading">
-      <el-table-column prop="case_number" label="案件号" width="220" align="center"/>
-      <el-table-column prop="client_name" label="委托人" align="center"/>
-      <el-table-column prop="case_category" label="案件类别" align="center"/>
-      <el-table-column prop="main_lawyer.real_name" label="主办律师" align="center"/>
-      <el-table-column prop="review_status" label="审核状态" align="center"/>
+      <el-table-column prop="case_number" label="案件号" width="220" align="center" />
+      <el-table-column prop="client_name" label="委托人" align="center" />
+      <el-table-column prop="case_category" label="案件类别" align="center" />
+      <el-table-column prop="main_lawyer.real_name" label="主办律师" align="center" />
+      <el-table-column prop="review_status" label="审核状态" align="center" />
       <el-table-column
         prop="created_at"
         label="创建时间"
         align="center"
         :formatter="(row, column, cellValue) => formatDate(cellValue)"
       />
-      <el-table-column label="操作" width="220" align="center">
-        <template #default="scope">
-          <el-button size="small" @click="viewCase(scope.row)">查看</el-button>
-          <el-button size="small" type="warning" @click="handleEditClick(scope.row)">编辑</el-button>
-          <el-button size="small" type="danger" @click="deleteCase(scope.row.case_id)">删除</el-button>
-        </template>
+      <el-table-column
+        label="操作"
+        width="300"
+        header-align="center"
+        align="left"
+      >
+      <template #default="scope">
+        <el-button size="small" @click="viewCase(scope.row)">查看</el-button>
+        <el-button size="small" type="warning" @click="handleEditClick(scope.row)">
+          编辑
+        </el-button>
+        <el-button size="small" type="danger" @click="deleteCase(scope.row.case_id)">
+          删除
+        </el-button>
+        <el-button
+          v-if="scope.row.review_status === '已审核'"
+          link
+          type="primary"
+          size="small"
+          @click="handleDownloadApproval(scope.row)"
+        >
+          <el-icon><Document /></el-icon>
+          下载审批表
+        </el-button>
+      </template>
       </el-table-column>
     </el-table>
 
@@ -103,7 +122,9 @@
       :close-on-click-modal="false"
     >
       <div class="import-container">
-        <p class="import-tip">支持.xlsx/.xls格式，模板下载：<el-link @click="downloadTemplate">案件导入模板</el-link></p>
+        <p class="import-tip">
+          支持.xlsx/.xls格式，模板下载：<el-link @click="downloadTemplate">案件导入模板</el-link>
+        </p>
 
         <el-upload
           class="upload-area"
@@ -130,17 +151,13 @@
           v-if="showProgress"
           :percentage="progress"
           stroke-width="4"
-          style="margin-top: 20px;"
+          style="margin-top: 20px"
         ></el-progress>
       </div>
 
       <template #footer>
         <el-button @click="showImportDialog = false" :disabled="isUploading">取消</el-button>
-        <el-button
-          type="primary"
-          @click="handleImport"
-          :disabled="!canUpload || isUploading"
-        >
+        <el-button type="primary" @click="handleImport" :disabled="!canUpload || isUploading">
           <el-icon v-if="!isUploading"><Check /></el-icon>
           <el-icon v-if="isUploading"><Loading /></el-icon>
           {{ isUploading ? '导入中...' : '开始导入' }}
@@ -173,7 +190,7 @@
         v-if="result.failed_cases && result.failed_cases.length"
         :data="result.failed_cases"
         border
-        style="width: 100%; margin-top: 15px;"
+        style="width: 100%; margin-top: 15px"
       >
         <el-table-column prop="case_number" label="案件号/行号" width="150"></el-table-column>
         <el-table-column prop="reason" label="失败原因"></el-table-column>
@@ -194,12 +211,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import axios from 'axios'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import CaseForm from './CaseForm.vue' // 引入抽离的CaseForm组件
 import { useRouter } from 'vue-router'
-import { Upload,Check,Loading } from '@element-plus/icons-vue'
+import { Check, Document, Loading, Upload } from '@element-plus/icons-vue'
 
 // -------------------------- 当前用户数据 ----------------------------
 const currentUserID = ref(sessionStorage.getItem('user_id'))
@@ -234,7 +251,6 @@ const selectedLawyerId = ref(null) // 选中的主办律师ID
 const formMode = ref('add') // 表单模式：'add'（新增）/'edit'（编辑）
 const currentCaseId = ref('') // 当前编辑的案件ID（编辑时用）
 
-
 // -------------------------- 数据存储相关 --------------------------
 const lawyers = ref([]) // 律师列表
 const formData = reactive({}) // 传递给CaseForm的表单数据
@@ -242,7 +258,7 @@ const formData = reactive({}) // 传递给CaseForm的表单数据
 // -------------------------- 初始化加载 --------------------------
 onMounted(() => {
   Promise.all([loadLawyers(), loadCases()]) // 并行加载律师和案件列表
-    .catch(err => console.error('初始化加载失败:', err))
+    .catch((err) => console.error('初始化加载失败:', err))
 })
 
 // -------------------------- 律师列表加载 --------------------------
@@ -262,16 +278,16 @@ const loadCases = async () => {
   try {
     const res = await axios.get('http://127.0.0.1:8002/cases/', {
       params: {
-        user_id: currentUserID.value ,
-        role: currentUserRole.value ,
+        user_id: currentUserID.value,
+        role: currentUserRole.value,
         skip: (page.value - 1) * pageSize.value,
         limit: pageSize.value,
-        keyword: searchKeyword.value,  // 搜索关键词
-        category: selectedCategory.value,  // 类别筛选
+        keyword: searchKeyword.value, // 搜索关键词
+        category: selectedCategory.value, // 类别筛选
         ...(currentUserRole.value === 'admin' || currentUserRole.value === 'owner'
           ? { main_lawyer_id: selectedLawyerId.value }
-          : {})
-      }
+          : {}),
+      },
     })
     cases.value = res.data.items || []
     total.value = res.data.total || 0
@@ -286,7 +302,7 @@ const loadCases = async () => {
 
 // -------------------------- 搜索功能 --------------------------
 const handleSearch = () => {
-  page.value = 1  // 重置为第一页
+  page.value = 1 // 重置为第一页
   loadCases()
 }
 
@@ -342,43 +358,41 @@ const handleFormSubmit = async (submittedData) => {
         'http://127.0.0.1:8002/cases/check_conflict',
         submittedData,
         {
-          params: {
-          }
-        }
-      );
+          params: {},
+        },
+      )
 
       if (conflictRes.data.has_conflict) {
         try {
           // 构建冲突提示文本
-          let message = '';
+          let message = ''
           // 检查是否有顾问单位类型的冲突
-          const hasConsultantConflict = conflictRes.data.details.some(c =>
-            c.conflict_type === '顾问单位作为被告'
-          );
+          const hasConsultantConflict = conflictRes.data.details.some(
+            (c) => c.conflict_type === '顾问单位作为被告',
+          )
 
           if (hasConsultantConflict) {
             // 顾问单位冲突提示
-            message = `检测到可能存在利益冲突：该案件的被告为法律顾问单位，是否继续创建？\n`;
+            message = `检测到可能存在利益冲突：该案件的被告为法律顾问单位，是否继续创建？\n`
           } else {
             // 常规利益冲突提示（使用第一个冲突的角色）
-            message = `检测到可能存在利益冲突：该委托人在以下案件中担任${conflictRes.data.details[0].role}，是否继续创建？\n`;
+            message = `检测到可能存在利益冲突：该委托人在以下案件中担任${conflictRes.data.details[0].role}，是否继续创建？\n`
           }
 
           // 拼接所有冲突案件信息
-          message += conflictRes.data.details.map(c =>
-            `案件号：${c.case_number}（主办律师：${c.other_lawyer_name || c.other_lawyer_id}）`
-          ).join('\n');
+          message += conflictRes.data.details
+            .map(
+              (c) =>
+                `案件号：${c.case_number}（主办律师：${c.other_lawyer_name || c.other_lawyer_id}）`,
+            )
+            .join('\n')
 
           // 弹出确认框
-          await ElMessageBox.confirm(
-            message,
-            '利益冲突警告',
-            {
-              confirmButtonText: '继续创建',
-              cancelButtonText: '取消',
-              type: 'warning'
-            }
-          )
+          await ElMessageBox.confirm(message, '利益冲突警告', {
+            confirmButtonText: '继续创建',
+            cancelButtonText: '取消',
+            type: 'warning',
+          })
         } catch {
           // 用户点了“取消”，直接返回，不创建案件
           ElMessage.info('已取消创建')
@@ -395,7 +409,7 @@ const handleFormSubmit = async (submittedData) => {
       // 批量上传附件
       if (filesToUpload.length > 0) {
         ElMessage.info(`正在上传 ${filesToUpload.length} 个附件...`)
-        const uploadPromises = filesToUpload.map(file => {
+        const uploadPromises = filesToUpload.map((file) => {
           const fileFormData = new FormData()
           fileFormData.append('file', file)
           fileFormData.append('case_id', newCaseId)
@@ -403,7 +417,7 @@ const handleFormSubmit = async (submittedData) => {
 
           // 直接调用附件上传接口
           return axios.post('http://127.0.0.1:8002/attachments/', fileFormData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
+            headers: { 'Content-Type': 'multipart/form-data' },
           })
         })
 
@@ -411,22 +425,24 @@ const handleFormSubmit = async (submittedData) => {
         const uploadResults = await Promise.allSettled(uploadPromises)
 
         // 检查失败情况并通知用户
-        const failedUploads = uploadResults.filter(r => r.status === 'rejected')
+        const failedUploads = uploadResults.filter((r) => r.status === 'rejected')
         if (failedUploads.length > 0) {
           console.error('部分附件上传失败:', failedUploads)
           ElNotification.warning({
             title: '案件创建成功，但附件上传有误',
             message: `共 ${filesToUpload.length} 个附件，其中 ${failedUploads.length} 个上传失败。您可以在案件详情页重新上传。`,
-            duration: 8000
+            duration: 8000,
           })
         } else {
           ElMessage.success('所有附件上传完成')
         }
       }
-
     } else {
       // 编辑案件：调用 /cases/case_update/{case_id}
-      await axios.put(`http://127.0.0.1:8002/cases/case_update/${currentCaseId.value}`, submittedData)
+      await axios.put(
+        `http://127.0.0.1:8002/cases/case_update/${currentCaseId.value}`,
+        submittedData,
+      )
       ElMessage.success('编辑案件成功')
     }
     await loadCases()
@@ -440,8 +456,9 @@ const handleFormSubmit = async (submittedData) => {
       `${formMode.value === 'add' ? '新增' : '编辑'}案件失败，请重试`
 
     // 针对新增模式：如果创建成功但附件上传失败，给出不同的提示
-    if (formMode.value === 'add' && newCaseId) { // newCaseId 现在可以在 catch 块中访问
-      ElMessage.warning(`案件创建成功 (ID: ${newCaseId})，但附件上传失败，请在案件详情页重新上传。`);
+    if (formMode.value === 'add' && newCaseId) {
+      // newCaseId 现在可以在 catch 块中访问
+      ElMessage.warning(`案件创建成功 (ID: ${newCaseId})，但附件上传失败，请在案件详情页重新上传。`)
     } else {
       ElMessage.error(errorMessage)
     }
@@ -475,55 +492,57 @@ const handleExportClick = async () => {
     const response = await axios.get('http://127.0.0.1:8002/cases/export/all', {
       params: {
         user_id: currentUserID.value,
-        role: currentUserRole.value
+        role: currentUserRole.value,
       },
-      responseType: 'blob' // 告诉 axios 返回文件流
-    });
+      responseType: 'blob', // 告诉 axios 返回文件流
+    })
 
     // 2️⃣ 创建下载链接
     const blob = new Blob([response.data], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    });
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
 
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
+    const downloadUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = downloadUrl
 
     // 3️⃣ 动态生成文件名（使用当前时间）
-    const timestamp = new Date().toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).replace(/\D/g, '');
-    link.download = `案件数据_${timestamp}.xlsx`;
+    const timestamp = new Date()
+      .toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+      .replace(/\D/g, '')
+    link.download = `案件数据_${timestamp}.xlsx`
 
     // 4️⃣ 触发下载
-    link.click();
-    window.URL.revokeObjectURL(downloadUrl);
+    link.click()
+    window.URL.revokeObjectURL(downloadUrl)
 
-    ElMessage.success('Excel 文件导出成功 ✅');
+    ElMessage.success('Excel 文件导出成功 ✅')
   } catch (error) {
-    console.error('导出Excel失败：', error);
-    ElMessage.error('导出失败，请稍后重试 ❌');
+    console.error('导出Excel失败：', error)
+    ElMessage.error('导出失败，请稍后重试 ❌')
   }
-};
+}
 
 // -------------------------- 辅助工具函数 --------------------------
 // 日期格式化（将时间戳/ISO字符串转为本地日期）
 const formatDate = (dateVal) => {
-  if (!dateVal) return '';
+  if (!dateVal) return ''
 
-  let timestamp;
+  let timestamp
 
   // 处理时间戳（数字类型）
   if (typeof dateVal === 'number') {
     // 处理秒级时间戳（如果是10位数字）
     if (dateVal.toString().length === 10) {
-      dateVal *= 1000;
+      dateVal *= 1000
     }
-    timestamp = dateVal;
+    timestamp = dateVal
   }
   // 处理字符串类型
   else if (typeof dateVal === 'string') {
@@ -534,30 +553,30 @@ const formatDate = (dateVal) => {
       // 尝试添加Z的情况（UTC时间）
       dateVal.replace(' ', 'T') + 'Z',
       // 尝试直接解析原始字符串
-      dateVal
-    ];
+      dateVal,
+    ]
 
     // 尝试各种格式，找到能正确解析的
     for (const fmt of formats) {
-      const tempDate = new Date(fmt);
+      const tempDate = new Date(fmt)
       if (!isNaN(tempDate.getTime())) {
-        timestamp = tempDate.getTime();
-        break;
+        timestamp = tempDate.getTime()
+        break
       }
     }
   }
   // 处理Date对象
   else if (dateVal instanceof Date) {
-    timestamp = dateVal.getTime();
+    timestamp = dateVal.getTime()
   }
 
   // 验证时间戳是否有效
   if (timestamp === undefined || isNaN(timestamp)) {
-    console.warn('无法解析的日期格式:', dateVal);
-    return '无效日期';
+    console.warn('无法解析的日期格式:', dateVal)
+    return '无效日期'
   }
 
-  const date = new Date(timestamp);
+  const date = new Date(timestamp)
 
   // 使用toLocaleString()同时显示日期和时间
   // 可以通过参数自定义格式，例如：
@@ -568,9 +587,9 @@ const formatDate = (dateVal) => {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: false // 24小时制
-  });
-};
+    hour12: false, // 24小时制
+  })
+}
 // ---------------------------- 批量导入 --------------------------
 // 批量导入相关状态
 const showImportDialog = ref(false)
@@ -658,18 +677,14 @@ const handleImport = async () => {
     progress.value = 0
 
     // ✅ 使用 axios 提供的 onUploadProgress 获取真实进度
-    const response = await axios.post(
-      'http://127.0.0.1:8002/cases/import',
-      formData,
-      {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        onUploadProgress: (event) => {
-          if (event.total > 0) {
-            progress.value = Math.round((event.loaded / event.total) * 100)
-          }
+    const response = await axios.post('http://127.0.0.1:8002/cases/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (event) => {
+        if (event.total > 0) {
+          progress.value = Math.round((event.loaded / event.total) * 100)
         }
-      }
-    )
+      },
+    })
 
     // ✅ 上传完成（确保100%）
     progress.value = 100
@@ -683,13 +698,13 @@ const handleImport = async () => {
     ElNotification({
       title: '导入完成',
       message: `成功导入 ${response.data.imported_cases} 条，失败 ${response.data.failed_cases?.length || 0} 条`,
-      type: response.data.failed_cases?.length ? 'warning' : 'success'
+      type: response.data.failed_cases?.length ? 'warning' : 'success',
     })
   } catch (error) {
     console.error('导入失败:', error)
     ElMessage.error({
       message: error.response?.data?.detail || '导入失败，请检查文件格式后重试',
-      duration: 5000
+      duration: 5000,
     })
   } finally {
     isUploading.value = false
@@ -712,9 +727,9 @@ const handleDownloadErrorLog = () => {
     `成功条数: ${result.value.imported_cases}`,
     `失败条数: ${result.value.failed_cases.length}`,
     '\n失败详情:',
-    ...result.value.failed_cases.map((item, index) =>
-      `${index + 1}. 案件号/行号: ${item.case_number} - 原因: ${item.reason}`
-    )
+    ...result.value.failed_cases.map(
+      (item, index) => `${index + 1}. 案件号/行号: ${item.case_number} - 原因: ${item.reason}`,
+    ),
   ].join('\n')
 
   const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' })
@@ -726,6 +741,46 @@ const handleDownloadErrorLog = () => {
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
+}
+
+const handleDownloadApproval = async (row) => {
+  try {
+    ElMessage.info('正在生成审批表，请稍候...')
+
+    // 发起请求
+    const response = await axios.get(
+      `http://127.0.0.1:8002/case_review/${row.case_id}/approval_form`,
+      {
+        responseType: 'blob', // 关键设置：告诉 axios 响应是一个二进制文件流
+      },
+    )
+
+    // 创建 Blob 对象
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    })
+
+    // 创建下载链接
+    const link = document.createElement('a')
+    link.href = window.URL.createObjectURL(blob)
+
+    // 设置文件名：优先使用后端 header 中的 filename，如果没有则手动拼接
+    // 也可以直接用: `案件审批表_${row.case_number}.docx`
+    link.download = `案件审批表_${row.case_number}.docx`
+
+    // 触发下载
+    document.body.appendChild(link)
+    link.click()
+
+    // 清理
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(link.href)
+
+    ElMessage.success('下载成功')
+  } catch (error) {
+    console.error('下载审批表失败:', error)
+    ElMessage.error('下载审批表失败，请稍后重试')
+  }
 }
 </script>
 
