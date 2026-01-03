@@ -1,5 +1,5 @@
 # api/user_profile.py
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -26,14 +26,14 @@ def get_user_info(db: Session = Depends(get_db), user_id: int = None):
 
 
 @router.get("/case-statistics", response_model=CaseStatistics)
-def get_case_statistics(user_id: int, db: Session = Depends(get_db)):
-    """获取用户案件统计数据"""
+def get_case_statistics(user_id: int, year: Optional[int] = None, db: Session = Depends(get_db)):
+    """获取用户案件统计数据，支持按年份筛选"""
     # 统计主办案件数
-    main_case_count = case_crud.count_main_cases(db, user_id)
+    main_case_count = case_crud.count_main_cases(db, user_id, year)
     # 统计主办案件总收费
-    total_income = case_crud.sum_main_case_income(db, user_id)
+    total_income = case_crud.sum_main_case_income(db, user_id, year)
     # 统计各类案件数量
-    case_category_stats = case_crud.count_cases_by_category(db, user_id)
+    case_category_stats = case_crud.count_cases_by_category(db, user_id, year)
 
     result = {
         "main_case_count": main_case_count,
@@ -44,7 +44,7 @@ def get_case_statistics(user_id: int, db: Session = Depends(get_db)):
     # 如果是管理员，添加审核案件数
     user = user_crud.get_user_by_id(db, user_id)
     if user.role in ["admin", "owner"]:
-        review_count = count_reviewed_cases(db, user_id)
+        review_count = count_reviewed_cases(db, user_id, year)
         result["review_case_count"] = review_count
 
     return result

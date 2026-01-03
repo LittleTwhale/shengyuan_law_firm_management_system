@@ -54,7 +54,7 @@
       </div>
     </div>
 
-    <el-table :data="cases" border style="width: 100%" v-loading="tableLoading">
+    <el-table :data="cases" border style="width: 100%" v-loading="tableLoading" @sort-change="handleSortChange">
       <el-table-column prop="case_number" label="案件号" width="220" align="center" />
       <el-table-column prop="client_name" label="委托人" align="center" />
       <el-table-column prop="case_category" label="案件类别" align="center" />
@@ -64,6 +64,7 @@
         prop="created_at"
         label="创建时间"
         align="center"
+        sortable="custom"
         :formatter="(row, column, cellValue) => formatDate(cellValue)"
       />
       <el-table-column
@@ -245,6 +246,9 @@ const caseCategories = ref([
   { label: '法律援助(刑事)', value: '法律援助(刑事)' },
 ])
 const selectedLawyerId = ref(null) // 选中的主办律师ID
+// 排序相关的响应式变量
+const currentSortField = ref('created_at') // 默认按创建时间排序
+const currentSortDir = ref('desc')         // 默认降序（最新的在前面）
 
 // -------------------------- 弹窗控制相关 --------------------------
 // 明确指定formMode的类型为'add'或'edit'
@@ -284,6 +288,8 @@ const loadCases = async () => {
         limit: pageSize.value,
         keyword: searchKeyword.value, // 搜索关键词
         category: selectedCategory.value, // 类别筛选
+        sort_field: currentSortField.value,
+        sort_dir: currentSortDir.value,
         ...(currentUserRole.value === 'admin' || currentUserRole.value === 'owner'
           ? { main_lawyer_id: selectedLawyerId.value }
           : {}),
@@ -297,6 +303,31 @@ const loadCases = async () => {
     total.value = 0
   } finally {
     tableLoading.value = false
+  }
+}
+
+// -------------------------- 处理表格排序事件 --------------------------
+const handleSortChange = ({ prop, order }) => {
+  // prop 是列的属性名（如 'created_at'）
+  // order 是排序方式：'ascending'（升序）, 'descending'（降序）, null（取消排序）
+
+  if (prop === 'created_at') {
+    // 映射 Element Plus 的排序状态到后端 API 需要的格式 ('asc' / 'desc')
+    if (order === 'ascending') {
+      currentSortDir.value = 'asc'
+    } else if (order === 'descending') {
+      currentSortDir.value = 'desc'
+    } else {
+      // 如果用户取消排序（即 order 为 null），通常恢复默认排序（降序）
+      currentSortDir.value = 'desc'
+    }
+
+    // 更新排序字段（虽然这里只有创建时间，但为了扩展性可以写上）
+    currentSortField.value = 'created_at'
+
+    // 重置到第一页并重新加载数据
+    page.value = 1
+    loadCases()
   }
 }
 

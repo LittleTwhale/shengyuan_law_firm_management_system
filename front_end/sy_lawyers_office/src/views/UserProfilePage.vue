@@ -15,7 +15,20 @@
 
       <!-- 统计信息 -->
       <div class="profile-stats">
-        <h3>案件统计</h3>
+        <div class="stats-header">
+          <h3>案件统计</h3>
+          <el-date-picker
+            v-model="selectedYear"
+            type="year"
+            placeholder="选择年份"
+            format="YYYY"
+            value-format="YYYY"
+            :clearable="false"
+            @change="fetchStats"
+            style="width: 120px"
+          />
+        </div>
+
         <el-row :gutter="20">
           <el-col :span="6">
             <el-card class="stat-card">
@@ -84,6 +97,9 @@ import axios from 'axios'
 // 状态管理
 const loading = ref(true)
 const userInfo = ref({})
+// 默认选中当前年份
+const selectedYear = ref(new Date().getFullYear().toString())
+
 const stats = ref({
   main_case_count: 0,
   total_income: 0,
@@ -129,6 +145,24 @@ const passwordRules = {
   ]
 }
 
+// 独立获取统计数据的方法
+const fetchStats = async () => {
+  try {
+    const statsRes = await axios.get(`http://127.0.0.1:8002/user/profile/case-statistics`, {
+      params: {
+        user_id: currentUserId,
+        year: selectedYear.value
+      }
+    })
+    stats.value = statsRes.data
+    // 数据更新后重新渲染图表
+    initChart()
+  } catch (err) {
+    console.error('获取统计数据失败:', err)
+    ElMessage.error('获取统计数据失败')
+  }
+}
+
 // 初始化数据
 const initData = async () => {
   try {
@@ -137,12 +171,8 @@ const initData = async () => {
     const userRes = await axios.get(`http://127.0.0.1:8002/user/profile/info?user_id=${currentUserId}`)
     userInfo.value = userRes.data
 
-    // 获取案件统计数据
-    const statsRes = await axios.get(`http://127.0.0.1:8002/user/profile/case-statistics?user_id=${currentUserId}`)
-    stats.value = statsRes.data
+    await fetchStats()
 
-    // 初始化图表
-    initChart()
   } catch (err) {
     console.error('加载个人信息失败:', err)
     ElMessage.error('加载个人信息失败')
@@ -301,6 +331,16 @@ h3 {
 
 .stat-card {
   height: 100%;
+}
+
+.stats-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+.stats-header h3 {
+  margin-bottom: 0;
 }
 
 .stat-item {

@@ -1,7 +1,7 @@
 # crud/case_review.py
 from typing import List, Optional, cast
 
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from sqlalchemy.orm import Session, joinedload
 
 from .case import get_case_by_id, split_with_separators
@@ -54,9 +54,12 @@ def update_review_status(db: Session, case_id: int, review_status: str, reviewer
     return cast(Case, case)
 
 
-def count_reviewed_cases(db: Session, lawyer_id: int) -> int:
+def count_reviewed_cases(db: Session, lawyer_id: int, year: Optional[int] = None) -> int:
     """统计审核过的案件数量"""
-    return db.query(Case).filter(Case.is_deleted == False, Case.reviewer_id == lawyer_id).count()
+    query = db.query(Case).filter(Case.is_deleted == False, Case.reviewer_id == lawyer_id)
+    if year:
+        query = query.filter(func.extract('year', Case.commission_date) == year)
+    return query.count()
 
 
 def check_interest_conflict_for_case(db: Session, case_id: int):

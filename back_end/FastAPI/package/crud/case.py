@@ -493,20 +493,32 @@ def export_bank_cases_by_user_role(
 
     return cast(list[Case], query.all())
 
-def count_main_cases(db: Session, lawyer_id: int) -> int:
+def count_main_cases(db: Session, lawyer_id: int, year: Optional[int] = None) -> int:
     """统计主办案件数量"""
-    return db.query(Case).filter(Case.main_lawyer_id == lawyer_id, Case.is_deleted == False).count()
+    query = db.query(Case).filter(Case.main_lawyer_id == lawyer_id, Case.is_deleted == False)
+    if year:
+        query = query.filter(func.extract('year', Case.commission_date) == year)
+    return query.count()
 
-def sum_main_case_income(db: Session, lawyer_id: int) -> float:
+
+def sum_main_case_income(db: Session, lawyer_id: int, year: Optional[int] = None) -> float:
     """统计主办案件总收费"""
-    result = db.query(func.sum(Case.case_income)).filter(Case.main_lawyer_id == lawyer_id, Case.is_deleted == False).first()
+    query = db.query(func.sum(Case.case_income)).filter(Case.main_lawyer_id == lawyer_id, Case.is_deleted == False)
+    if year:
+        query = query.filter(func.extract('year', Case.commission_date) == year)
+    result = query.first()
     return result[0] or 0
 
-def count_cases_by_category(db: Session, lawyer_id: int) -> dict:
+
+def count_cases_by_category(db: Session, lawyer_id: int, year: Optional[int] = None) -> dict:
     """按案件类型统计数量"""
-    categories = db.query(Case.case_category, func.count(Case.case_id)).\
-        filter(Case.main_lawyer_id == lawyer_id, Case.is_deleted == False).\
-        group_by(Case.case_category).all()
+    query = db.query(Case.case_category, func.count(Case.case_id)). \
+        filter(Case.main_lawyer_id == lawyer_id, Case.is_deleted == False)
+
+    if year:
+        query = query.filter(func.extract('year', Case.commission_date) == year)
+
+    categories = query.group_by(Case.case_category).all()
     return {category: count for category, count in categories}
 
 # 拆分字符串工具
