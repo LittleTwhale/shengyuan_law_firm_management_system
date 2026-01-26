@@ -1,2 +1,14 @@
-fastapi uvicorn passlib[bcrypt] python-multipart sqlalchemy pymysql python-dotenv cryptography itsdangerous
-python-jose[cryptography] openpyxl python-docx openpyxl python-pptx
+fastapi
+uvicorn
+passlib
+bcrypt==3.2.2
+python-multipart
+sqlalchemy
+pymysql
+python-dotenv
+cryptography
+itsdangerous
+python-jose[cryptography]
+openpyxl
+python-docx
+python-pptx
