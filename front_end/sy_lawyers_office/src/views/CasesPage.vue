@@ -1,7 +1,7 @@
 <template>
   <div class="cases-page">
     <div class="header">
-      <h2>案件管理</h2>
+      <h2>业务管理</h2>
       <div class="action-buttons">
         <el-button type="primary" @click="handleAddClick">新增案件</el-button>
         <el-button type="warning" @click="showImportDialog = true">

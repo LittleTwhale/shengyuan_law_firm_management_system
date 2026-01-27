@@ -2,7 +2,7 @@
   <div class="case-review-page">
     <!-- 页面头部 -->
     <div class="header">
-      <h2>案件审核</h2>
+      <h2>业务审核</h2>
       <div class="bulk-actions">
         <el-button
           type="primary"
