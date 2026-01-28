@@ -52,24 +52,25 @@ def list_cases_by_user_role(
         joinedload(Case.execution_assistant),
     ).filter(Case.is_deleted == False)
 
-    # 角色筛选
+    # 角色与主办律师筛选逻辑
     if role not in ["admin", "owner"]:
+        # 普通律师：只能看到自己相关的案件
         query = query.filter(
             or_(
                 Case.main_lawyer_id == user_id,
                 Case.assistant_lawyer_id == user_id
             )
         )
+    else:
+        # 管理员/所有者：默认看全部，但如果选择了特定律师，则进行过滤
+        if main_lawyer_id is not None:
+            query = query.filter(Case.main_lawyer_id == main_lawyer_id)
 
     # 类别筛选
     if category:
         query = query.filter(Case.case_category == category)
-    else:
-        # 管理员可以筛选特定主办律师
-        if main_lawyer_id is not None:
-            query = query.filter(Case.main_lawyer_id == main_lawyer_id)
 
-    # 关键词搜索（案件号或委托人）
+    # 关键词搜索
     if keyword:
         query = query.filter(
             (Case.case_number.like(f"%{keyword}%")) |
