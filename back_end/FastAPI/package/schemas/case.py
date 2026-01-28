@@ -5,9 +5,125 @@ from datetime import date, datetime
 from decimal import Decimal
 from .user import UserOut
 
+# 银行案件细节
+# 银行案件基础模型 - 包含银行相关案件的所有基本字段
+class BankCaseBase(BaseModel):
+    # 分行机构名称
+    branch_name: Optional[str] = None
+    # 借款人身份证号
+    borrower_id_number: Optional[str] = None
+    # 担保人信息
+    guarantor: Optional[str] = None
+    # 抵押物信息
+    collateral_info: Optional[str] = None
+    # 抵押物位置
+    collateral_location: Optional[str] = None
+    # 是否为普惠金融业务
+    is_inclusive_finance: bool = False
+    # 客户经理
+    account_manager: Optional[str] = None
+    # 贷款本金金额
+    loan_principal: Optional[Decimal] = 0
+    # 诉讼标的金额
+    litigation_target_amount: Optional[Decimal] = 0
+    # 信用卡违约金/罚息
+    credit_card_penalty: Optional[Decimal] = 0
+    # 放贷日期
+    loan_date: Optional[date] = None
+    # 贷款到期日
+    loan_due_date: Optional[date] = None
+    # 逾期日期
+    overdue_date: Optional[date] = None
+    # 诉讼时效状态
+    statute_of_limitations: Optional[str] = None
+    # 资料领取人
+    material_fetcher: Optional[str] = None
+    # 诉前催收情况
+    pre_litigation_collection: Optional[str] = None
+    # 盖章日期
+    seal_date: Optional[date] = None
+    # 材料提交日期
+    material_submission_date: Optional[date] = None
+    # 判决摘要
+    judgment_summary: Optional[str] = None
+    # 律师费支持金额
+    lawyer_fee_supported: Optional[Decimal] = 0
+    # 被告已付律师费
+    defendant_paid_lawyer_fee: Optional[Decimal] = 0
+    # 是否已结清
+    is_settled: bool = False
+    # 执行案号
+    execution_case_number: Optional[str] = None
+    # 执行立案日期
+    execution_filing_date: Optional[date] = None
+    # 执行法官
+    execution_judge: Optional[str] = None
+    # 借款人工作单位
+    borrower_work_unit: Optional[str] = None
+    # 是否有执行回款
+    is_execution_recovery: bool = False
+    # 执行收回本金
+    execution_principal: Optional[Decimal] = 0
+    # 执行律师费
+    execution_lawyer_fee: Optional[Decimal] = 0
+    # 财产调查情况
+    property_investigation: Optional[str] = None
+    # 网络查控状态
+    network_control_status: Optional[str] = None
+    # 执行方案
+    execution_plan: Optional[str] = None
+    # 法院执行措施
+    court_execution_measures: Optional[str] = None
+    # 查封冻结信息
+    seizure_freeze_info: Optional[str] = None
+    # 拍卖状态
+    auction_status: Optional[str] = None
+    # 拍卖成交价
+    auction_deal_price: Optional[Decimal] = 0
+    # 执行结案内容
+    execution_settlement_content: Optional[str] = None
+    # 程序终结日期
+    procedure_termination_date: Optional[date] = None
+    # 终结原因
+    termination_reason: Optional[str] = None
+    # 执行结案日期
+    execution_conclusion_date: Optional[date] = None
+    # 执行回收日期
+    execution_recovery_date: Optional[date] = None
+    # 还款日期
+    payoff_date: Optional[date] = None
+    # 执行回收金额
+    execution_collection_amount: Optional[Decimal] = 0
+    # 回收来源
+    collection_source: Optional[str] = None
+    # 执行结案记录日志（JSON格式列表）
+    execution_settlement_log: Optional[List[Dict]] = []  # JSON list
+    # 扣划记录日志（JSON格式列表）
+    deduction_log: Optional[List[Dict]] = []  # JSON list
+    # 调解跟踪情况
+    mediation_tracking: Optional[str] = None
+
+# 银行案件创建模型
+class BankCaseCreate(BankCaseBase):
+    pass
+
+# 银行案件更新模型
+class BankCaseUpdate(BankCaseBase):
+    pass
+
+# 银行案件输出模型
+class BankCaseOut(BankCaseBase):
+    # 案件唯一标识符
+    case_id: int
+
+    class Config:
+        # 允许从ORM对象属性创建Pydantic模型实例
+        from_attributes = True
+
+
 # 创建案件
 class CaseCreate(BaseModel):
-    # 🧾 基本信息
+    # 基本信息
     commission_date: date = Field(..., description="委托日期")
     client_name: str = Field(..., description="委托人")
     client_id_number: Optional[str] = Field(None, description="委托人身份证号/单位税号")
@@ -18,7 +134,7 @@ class CaseCreate(BaseModel):
     risk_ratio: Optional[str] = Field(None, description="风险比例")
     case_income: Optional[Decimal] = Field(0, description="案件收入")
 
-    # ⚖️ 诉讼相关
+    # 诉讼相关
     payment_due_date: Optional[date] = None
     cause: Optional[str] = None
     stage: Optional[str] = None
@@ -28,7 +144,7 @@ class CaseCreate(BaseModel):
     defendant: Optional[str] = None
     details: Optional[str] = None
 
-    # 👩‍💼 律师信息
+    # 律师信息
     main_lawyer_id: int = Field(..., description="主办律师ID")
     assistant_lawyer_id: Optional[int] = None
     execution_lawyer_id: Optional[int] = None
@@ -71,6 +187,8 @@ class CaseCreate(BaseModel):
 
     class Config:
         from_attributes = True
+
+    bank_details: Optional[BankCaseCreate] = None
 
 
 # 案件更新（部分字段可选）
@@ -141,10 +259,11 @@ class CaseUpdate(BaseModel):
     class Config:
         from_attributes = True
 
+    bank_details: Optional[BankCaseUpdate] = None
 
 # 案件返回给前端
 class CaseOut(BaseModel):
-    # 🧾 基本信息
+    # 基本信息
     case_id: int = Field(..., description="案件ID / Case ID")
     case_number: str = Field(..., description="案件号 / Case number")
     commission_date: date = Field(..., description="委托日期 / Commission date")
@@ -158,7 +277,7 @@ class CaseOut(BaseModel):
     risk_ratio: Optional[str] = Field(None, description="风险比例 / Risk ratio")
     case_income: Optional[Decimal] = Field(0, description="案件收入 / Case income")
 
-    # ⚖️ 诉讼相关
+    # 诉讼相关
     payment_due_date: Optional[date] = Field(None, description="付款到期日 / Payment due date")
     cause: Optional[str] = Field(None, description="案由 / Cause")
     stage: Optional[str] = Field(None, description="介入阶段 / Case stage")
@@ -174,7 +293,7 @@ class CaseOut(BaseModel):
     location: Optional[str] = Field(None, description="案件地点 / Case location")
     details: Optional[str] = Field(None, description="案件详情 / Case details")
 
-    # ⚙️ 状态与标记
+    # 状态与标记
     review_status: str = Field(..., description="案件审核状态 / Review status")
     is_major: bool = Field(False, description="是否重大 / Is major")
     has_paper_file: bool = Field(False, description="是否纸质卷宗 / Has paper file")
@@ -185,7 +304,7 @@ class CaseOut(BaseModel):
     preservation_start: Optional[date] = Field(None, description="保全开始日 / Preservation start date")
     preservation_end: Optional[date] = Field(None, description="保全终止日 / Preservation end date")
 
-    # 📅 结案与执行
+    # 结案与执行
     case_code: Optional[str] = Field(None, description="案号 / Case code")
     closing_status: Optional[str] = Field(None, description="结案状态 / Closing status")
     closing_method: Optional[str] = Field(None, description="结案方式 / Closing method")
@@ -199,19 +318,21 @@ class CaseOut(BaseModel):
     mediation_due_date: Optional[date] = Field(None, description="调解到期日 / Mediation due date")
     execution_due_date: Optional[date] = Field(None, description="执行到期日 / Execution due date")
 
-    # 👩‍💼 律师信息
+    # 律师信息
     main_lawyer: UserOut
     assistant_lawyer: Optional[UserOut] = None
     execution_lawyer: Optional[UserOut] = None
     execution_assistant: Optional[UserOut] = None
     reviewer: Optional[UserOut] = None
 
-    # 🕒 时间戳
+    # 时间戳
     created_at: datetime = Field(..., description="创建时间 / Created at")
     updated_at: datetime = Field(..., description="更新时间 / Updated at")
 
     class Config:
         from_attributes = True
+
+    bank_details: Optional[BankCaseOut] = None
 
 # 单条案件模型
 class CaseSimpleOut(BaseModel):

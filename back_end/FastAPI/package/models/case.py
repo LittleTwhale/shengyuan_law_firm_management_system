@@ -1,5 +1,5 @@
 # models/case.py
-from sqlalchemy import Column, Integer, String, Enum, Boolean, DECIMAL, Date, Text, ForeignKey, TIMESTAMP, func
+from sqlalchemy import Column, Integer, String, Enum, Boolean, DECIMAL, Date, Text, ForeignKey, TIMESTAMP, func, JSON
 from ..database.database import Base
 from sqlalchemy.orm import relationship
 
@@ -86,3 +86,87 @@ class Case(Base):
     execution_assistant = relationship("User", back_populates="execution_assistant_cases",
                                        foreign_keys="Case.execution_assistant_id")
     reviewer = relationship("User", foreign_keys="Case.reviewer_id")
+
+    # 银行案件细节
+    bank_case_details = relationship("BankCase", back_populates="case", uselist=False, cascade="all, delete-orphan")
+
+
+class BankCase(Base):
+    __tablename__ = "bank_cases"
+
+    case_id = Column(Integer, ForeignKey("cases.case_id"), primary_key=True, comment="关联主案件表ID")
+
+    # 借贷基础信息
+    branch_name = Column(String(100), comment="支行名称")
+    borrower_id_number = Column(String(50), comment="借款人身份证号码/统信代码")
+    guarantor = Column(String(255), comment="担保人")
+    collateral_info = Column(Text, comment="抵/质押物信息")
+    collateral_location = Column(String(255), comment="抵押物位置")
+    is_inclusive_finance = Column(Boolean, default=False, comment="是否普惠金融")
+    account_manager = Column(String(50), comment="客户经理")
+
+    # 金额相关
+    loan_principal = Column(DECIMAL(15, 2), default=0, comment="贷款本金")
+    litigation_target_amount = Column(DECIMAL(15, 2), default=0, comment="诉讼标的金额(含利息)")
+    credit_card_penalty = Column(DECIMAL(15, 2), default=0, comment="信用卡违约金")
+
+    # 关键日期
+    loan_date = Column(Date, comment="借款日")
+    loan_due_date = Column(Date, comment="到期日")
+    overdue_date = Column(Date, comment="逾期时间")
+    statute_of_limitations = Column(String(100), comment="诉讼时效")
+
+    # 诉讼流程细节
+    material_fetcher = Column(String(50), comment="取材料人")
+    pre_litigation_collection = Column(Text, comment="诉前催收情况")
+    seal_date = Column(Date, comment="盖章日")
+    material_submission_date = Column(Date, comment="材料提交法院日")
+
+    # 裁判结果补充
+    judgment_summary = Column(Text, comment="裁判摘要")
+    lawyer_fee_supported = Column(DECIMAL(15, 2), default=0, comment="支持律师费金额")
+    defendant_paid_lawyer_fee = Column(DECIMAL(15, 2), default=0, comment="被告支付律师费金额")
+    is_settled = Column(Boolean, default=False, comment="是否还清")
+
+    # 执行阶段详情
+    execution_case_number = Column(String(50), comment="执行案号")
+    execution_filing_date = Column(Date, comment="执行立案时间")
+    execution_judge = Column(String(50), comment="执行法官")
+    borrower_work_unit = Column(String(100), comment="借款人工作单位")
+    is_execution_recovery = Column(Boolean, default=False, comment="是否为恢复执行")
+
+    execution_principal = Column(DECIMAL(15, 2), default=0, comment="执行本金金额")
+    execution_lawyer_fee = Column(DECIMAL(15, 2), default=0, comment="执行律师费金额")
+
+    # 查控与财产
+    property_investigation = Column(Text, comment="财产调查情况")
+    network_control_status = Column(Text, comment="网络查控财产情况")
+    execution_plan = Column(Text, comment="承办人执行方案")
+    court_execution_measures = Column(Text, comment="法院执行措施")
+
+    # 查封与冻结 (建议存JSON字符串)
+    seizure_freeze_info = Column(Text, comment="查封冻结标的及时间")
+
+    # 拍卖流程
+    auction_status = Column(Text, comment="拍卖程序")
+    auction_deal_price = Column(DECIMAL(15, 2), default=0, comment="拍卖变卖成交价")
+
+    # 结案与终本
+    execution_settlement_content = Column(Text, comment="执行和解内容")
+    procedure_termination_date = Column(Date, comment="终本时间")
+    termination_reason = Column(Text, comment="终本原因")
+    execution_conclusion_date = Column(Date, comment="终结执行时间")
+    execution_recovery_date = Column(Date, comment="恢复执行时间")
+    payoff_date = Column(Date, comment="还清时间")
+
+    # 回款统计
+    execution_collection_amount = Column(DECIMAL(15, 2), default=0, comment="执行回款总金额")
+    collection_source = Column(String(100), comment="执行回款来源")
+
+    # 复杂记录 (JSON)
+    execution_settlement_log = Column(JSON, comment="执行和解跟进及回款额")
+    deduction_log = Column(JSON, comment="扣划跟进及回款额")
+    mediation_tracking = Column(Text, comment="调解案件履行跟踪情况")
+
+    # 关系
+    case = relationship("Case", back_populates="bank_case_details")

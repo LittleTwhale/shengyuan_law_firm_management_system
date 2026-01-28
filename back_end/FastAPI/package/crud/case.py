@@ -5,7 +5,7 @@ from typing import List, Optional, cast
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
-from ..models.case import Case
+from ..models.case import Case,BankCase
 from ..schemas.case import CaseCreate, CaseUpdate
 
 
@@ -20,6 +20,7 @@ def get_case_by_id(db: Session, case_id: int) -> Optional[Case]:
             joinedload(Case.assistant_lawyer),
             joinedload(Case.execution_lawyer),
             joinedload(Case.execution_assistant),
+            joinedload(Case.bank_case_details),
         )
         .filter(
             Case.case_id == case_id,
@@ -93,7 +94,7 @@ def list_cases_by_user_role(
         query = query.order_by(order_column.asc())
 
     cases = query.offset(skip).limit(limit).all()
-    return cast(list[Case], cases)
+    return cast(list[Case], cast(object, cases))
 
 def count_cases_by_user_role(
     db: Session,
@@ -192,7 +193,7 @@ def list_bank_cases_by_user_role(
         query = query.order_by(order_column.asc())
 
     cases = query.offset(skip).limit(limit).all()
-    return cast(list[Case], cases)
+    return cast(list[Case], cast(object, cases))
 
 def count_bank_cases_by_user_role(
     db: Session,
@@ -255,12 +256,21 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
     available_case_number = _find_reusable_case_number(db, case_type, year)
 
     # 创建全新的案件记录，但使用复用的编号
-    case_data = case_in.model_dump()
+    # 分离 Case 数据和 BankCase 数据
+    case_data = case_in.model_dump(exclude={"bank_details"})  # 排除 bank_details
     case_data["review_status"] = "待审核"
     case_data["is_deleted"] = False
 
     new_case = Case(**case_data, case_number=available_case_number)
     db.add(new_case)
+    db.flush()  # 刷新以获取 new_case.case_id
+
+    # 如果是银行案件且提供了详情，则创建扩展表记录
+    if case_in.case_category == "银行案件" and case_in.bank_details:
+        bank_data = case_in.bank_details.model_dump()
+        new_bank_case = BankCase(case_id=new_case.case_id, **bank_data)
+        db.add(new_bank_case)
+
     db.commit()
     db.refresh(new_case)
     return new_case
@@ -351,6 +361,7 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
         joinedload(Case.assistant_lawyer),
         joinedload(Case.execution_lawyer),
         joinedload(Case.execution_assistant),
+        joinedload(Case.bank_case_details),
     ).filter(
         Case.case_id == case_id,
         Case.is_deleted == False
@@ -366,11 +377,27 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
     # 检查是否修改了案件类别
     category_changed = (new_category != old_category)
 
+
+    # 更新主表数据
     # 先批量更新其他字段，但跳过案件类别，避免提前改变
-    for key, value in case_in.model_dump(exclude_unset=True).items():
-        if key == "case_category":
-            continue  # 延后处理
+    case_data = case_in.model_dump(exclude_unset=True, exclude={"bank_details"})
+    for key, value in case_data.items():
+        if key == "case_category": continue  # 延后处理
         setattr(case, key, value)
+
+    # 更新或创建银行案件详情
+    if case_in.bank_details:
+        if case.bank_case_details:
+            # 更新现有记录
+            bank_update_data = case_in.bank_details.model_dump(exclude_unset=True)
+            for k, v in bank_update_data.items():
+                setattr(case.bank_case_details, k, v)
+        else:
+            # 如果之前没有详情（可能是从其他类型转过来的），则创建
+            if case.case_category == "银行案件":
+                bank_data = case_in.bank_details.model_dump()
+                new_bank_case = BankCase(case_id=case.case_id, **bank_data)
+                db.add(new_bank_case)
 
     # 如果案件类别发生变化，则重新生成编号
     if category_changed:
@@ -440,23 +467,23 @@ def list_cases_by_lawyer(db: Session, lawyer_id: int) -> List[Case]:
     """
     return cast(
         List[Case],
-        db.query(Case)
-        .options(
+        cast(object, db.query(Case)
+             .options(
             joinedload(Case.main_lawyer),
             joinedload(Case.assistant_lawyer),
             joinedload(Case.execution_lawyer),
             joinedload(Case.execution_assistant),
         )
-        .filter(
+             .filter(
             Case.is_deleted == False,
             (
-                (Case.main_lawyer_id == lawyer_id)
-                | (Case.assistant_lawyer_id == lawyer_id)
-                | (Case.execution_lawyer_id == lawyer_id)
-                | (Case.execution_assistant_id == lawyer_id)
+                    (Case.main_lawyer_id == lawyer_id)
+                    | (Case.assistant_lawyer_id == lawyer_id)
+                    | (Case.execution_lawyer_id == lawyer_id)
+                    | (Case.execution_assistant_id == lawyer_id)
             )
         )
-        .all(),
+             .all()),
     )
 
 # 导出数据查询
@@ -475,7 +502,7 @@ def export_cases_by_user_role(
                 Case.assistant_lawyer_id == user_id
             ),Case.is_deleted == False)
 
-    return cast(list[Case], query.all())
+    return cast(list[Case], cast(object, query.all()))
 
 def export_bank_cases_by_user_role(
         db: Session,
@@ -492,7 +519,7 @@ def export_bank_cases_by_user_role(
                 Case.assistant_lawyer_id == user_id
             ),Case.is_deleted == False)
 
-    return cast(list[Case], query.all())
+    return cast(list[Case], cast(object, query.all()))
 
 def count_main_cases(db: Session, lawyer_id: int, year: Optional[int] = None) -> int:
     """统计主办案件数量"""
