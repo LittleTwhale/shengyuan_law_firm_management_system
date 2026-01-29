@@ -332,7 +332,7 @@ class CaseOut(BaseModel):
     class Config:
         from_attributes = True
 
-    bank_details: Optional[BankCaseOut] = None
+    bank_case_details: Optional[BankCaseOut] = None
 
 # 单条案件模型
 class CaseSimpleOut(BaseModel):

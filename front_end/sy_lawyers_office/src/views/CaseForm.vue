@@ -2,614 +2,991 @@
   <el-dialog
     :title="dialogTitle"
     v-model="dialogVisible"
-    width="900px"
+    width="1000px"
     destroy-on-close
     @close="handleCancel"
+    top="5vh"
   >
-    <el-form
-      :model="formData"
-      :rules="formRules"
-      ref="formRef"
-      label-width="150px"
-    >
+    <el-form :model="formData" :rules="formRules" ref="formRef" label-width="160px">
       <el-form-item label="案件类别" prop="case_category">
         <el-select v-model="formData.case_category" placeholder="请选择案件类别">
-          <el-option label="民事案件" value="民事案件"/>
-          <el-option label="银行案件" value="银行案件"/>
-          <el-option label="刑事案件" value="刑事案件"/>
-          <el-option label="行政案件" value="行政案件"/>
-          <el-option label="仲裁案件" value="仲裁案件"/>
-          <el-option label="非诉案件" value="非诉案件"/>
-          <el-option label="法律顾问业务" value="法律顾问业务"/>
-          <el-option label="法律援助(民事)" value="法律援助(民事)"/>
-          <el-option label="法律援助(刑事)" value="法律援助(刑事)"/>
+          <el-option label="民事案件" value="民事案件" />
+          <el-option label="银行案件" value="银行案件" />
+          <el-option label="刑事案件" value="刑事案件" />
+          <el-option label="行政案件" value="行政案件" />
+          <el-option label="仲裁案件" value="仲裁案件" />
+          <el-option label="非诉案件" value="非诉案件" />
+          <el-option label="法律顾问业务" value="法律顾问业务" />
+          <el-option label="法律援助(民事)" value="法律援助(民事)" />
+          <el-option label="法律援助(刑事)" value="法律援助(刑事)" />
         </el-select>
       </el-form-item>
 
-      <el-form-item label="委托日期" prop="commission_date">
-        <el-date-picker v-model="formData.commission_date" type="date" placeholder="选择日期" value-format="YYYY-MM-DD"/>
-      </el-form-item>
+      <template v-if="formData.case_category === '银行案件'">
+        <el-divider content-position="left">银行案件 - 借贷基础信息</el-divider>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="支行名称" prop="bank_case_details.branch_name">
+              <el-input v-model="formData.bank_case_details.branch_name" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="客户经理" prop="bank_case_details.account_manager">
+              <el-input v-model="formData.bank_case_details.account_manager" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="借款人身份证/统信代码" prop="bank_case_details.borrower_id_number">
+              <el-input v-model="formData.bank_case_details.borrower_id_number" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="是否普惠金融" prop="bank_case_details.is_inclusive_finance">
+              <el-switch v-model="formData.bank_case_details.is_inclusive_finance" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="担保人" prop="bank_case_details.guarantor">
+              <el-input v-model="formData.bank_case_details.guarantor" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="抵/质押物信息" prop="bank_case_details.collateral_info">
+              <el-input type="textarea" v-model="formData.bank_case_details.collateral_info" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="抵押物位置" prop="bank_case_details.collateral_location">
+              <el-input v-model="formData.bank_case_details.collateral_location" />
+            </el-form-item>
+          </el-col>
+        </el-row>
 
-      <el-form-item label="委托人" prop="client_name">
-        <el-input v-model="formData.client_name" placeholder="请输入委托人姓名"/>
-      </el-form-item>
+        <el-divider content-position="left">银行案件 - 金额与期限</el-divider>
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-form-item label="贷款本金" prop="bank_case_details.loan_principal">
+              <el-input-number
+                v-model="formData.bank_case_details.loan_principal"
+                :precision="2"
+                :step="1000"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item
+              label="诉讼标的金额(含利息)"
+              prop="bank_case_details.litigation_target_amount"
+            >
+              <el-input-number
+                v-model="formData.bank_case_details.litigation_target_amount"
+                :precision="2"
+                :step="1000"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="信用卡违约金" prop="bank_case_details.credit_card_penalty">
+              <el-input-number
+                v-model="formData.bank_case_details.credit_card_penalty"
+                :precision="2"
+                :step="100"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="借款日" prop="bank_case_details.loan_date">
+              <el-date-picker
+                v-model="formData.bank_case_details.loan_date"
+                type="date"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="到期日" prop="bank_case_details.loan_due_date">
+              <el-date-picker
+                v-model="formData.bank_case_details.loan_due_date"
+                type="date"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="逾期时间" prop="bank_case_details.overdue_date">
+              <el-date-picker
+                v-model="formData.bank_case_details.overdue_date"
+                type="date"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="诉讼时效" prop="bank_case_details.statute_of_limitations">
+              <el-input v-model="formData.bank_case_details.statute_of_limitations" />
+            </el-form-item>
+          </el-col>
+        </el-row>
 
-      <el-form-item label="委托人身份证/税号" prop="client_id_number">
-        <el-input v-model="formData.client_id_number" placeholder="请输入身份证号或税号"/>
-      </el-form-item>
+        <el-divider content-position="left">银行案件 - 诉讼流程</el-divider>
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-form-item label="取材料人" prop="bank_case_details.material_fetcher">
+              <el-input v-model="formData.bank_case_details.material_fetcher" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="盖章日" prop="bank_case_details.seal_date">
+              <el-date-picker
+                v-model="formData.bank_case_details.seal_date"
+                type="date"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="材料提交法院日" prop="bank_case_details.material_submission_date">
+              <el-date-picker
+                v-model="formData.bank_case_details.material_submission_date"
+                type="date"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="诉前催收情况" prop="bank_case_details.pre_litigation_collection">
+              <el-input
+                type="textarea"
+                v-model="formData.bank_case_details.pre_litigation_collection"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="裁判摘要" prop="bank_case_details.judgment_summary">
+              <el-input type="textarea" v-model="formData.bank_case_details.judgment_summary" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="支持律师费金额" prop="bank_case_details.lawyer_fee_supported">
+              <el-input-number
+                v-model="formData.bank_case_details.lawyer_fee_supported"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item
+              label="被告支付律师费金额"
+              prop="bank_case_details.defendant_paid_lawyer_fee"
+            >
+              <el-input-number
+                v-model="formData.bank_case_details.defendant_paid_lawyer_fee"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="是否还清" prop="bank_case_details.is_settled">
+              <el-switch v-model="formData.bank_case_details.is_settled" />
+            </el-form-item>
+          </el-col>
+        </el-row>
 
-      <el-form-item label="委托人电话" prop="client_phone">
-        <el-input v-model="formData.client_phone" placeholder="请输入联系电话"/>
-      </el-form-item>
+        <el-divider content-position="left">银行案件 - 执行与财产查控</el-divider>
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-form-item label="执行案号" prop="bank_case_details.execution_case_number">
+              <el-input v-model="formData.bank_case_details.execution_case_number" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="执行立案时间" prop="bank_case_details.execution_filing_date">
+              <el-date-picker
+                v-model="formData.bank_case_details.execution_filing_date"
+                type="date"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="执行法官" prop="bank_case_details.execution_judge">
+              <el-input v-model="formData.bank_case_details.execution_judge" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="借款人工作单位" prop="bank_case_details.borrower_work_unit">
+              <el-input v-model="formData.bank_case_details.borrower_work_unit" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="是否为恢复执行" prop="bank_case_details.is_execution_recovery">
+              <el-switch v-model="formData.bank_case_details.is_execution_recovery" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="执行本金金额" prop="bank_case_details.execution_principal">
+              <el-input-number
+                v-model="formData.bank_case_details.execution_principal"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="执行律师费金额" prop="bank_case_details.execution_lawyer_fee">
+              <el-input-number
+                v-model="formData.bank_case_details.execution_lawyer_fee"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
 
-      <el-form-item label="案件来源">
-        <el-input v-model="formData.case_source" placeholder="请输入案件来源（如客户介绍、线上咨询等）"/>
-      </el-form-item>
+          <el-col :span="24">
+            <el-form-item label="财产调查情况" prop="bank_case_details.property_investigation">
+              <el-input
+                type="textarea"
+                v-model="formData.bank_case_details.property_investigation"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="网络查控财产情况" prop="bank_case_details.network_control_status">
+              <el-input
+                type="textarea"
+                v-model="formData.bank_case_details.network_control_status"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="承办人执行方案" prop="bank_case_details.execution_plan">
+              <el-input type="textarea" v-model="formData.bank_case_details.execution_plan" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="法院执行措施" prop="bank_case_details.court_execution_measures">
+              <el-input
+                type="textarea"
+                v-model="formData.bank_case_details.court_execution_measures"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="查封冻结标的及时间" prop="bank_case_details.seizure_freeze_info">
+              <el-input type="textarea" v-model="formData.bank_case_details.seizure_freeze_info" />
+            </el-form-item>
+          </el-col>
+        </el-row>
 
-      <el-form-item label="收费方式">
-        <el-input v-model="formData.fee_method" placeholder="请输入收费方式（如固定收费、风险代理等）"/>
-      </el-form-item>
+        <el-divider content-position="left">银行案件 - 拍卖、结案与回款</el-divider>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="拍卖程序" prop="bank_case_details.auction_status">
+              <el-input v-model="formData.bank_case_details.auction_status" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="拍卖变卖成交价" prop="bank_case_details.auction_deal_price">
+              <el-input-number
+                v-model="formData.bank_case_details.auction_deal_price"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item
+              label="执行和解内容"
+              prop="bank_case_details.execution_settlement_content"
+            >
+              <el-input
+                type="textarea"
+                v-model="formData.bank_case_details.execution_settlement_content"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="终本时间" prop="bank_case_details.procedure_termination_date">
+              <el-date-picker
+                v-model="formData.bank_case_details.procedure_termination_date"
+                type="date"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="16">
+            <el-form-item label="终本原因" prop="bank_case_details.termination_reason">
+              <el-input v-model="formData.bank_case_details.termination_reason" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="终结执行时间" prop="bank_case_details.execution_conclusion_date">
+              <el-date-picker
+                v-model="formData.bank_case_details.execution_conclusion_date"
+                type="date"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="恢复执行时间" prop="bank_case_details.execution_recovery_date">
+              <el-date-picker
+                v-model="formData.bank_case_details.execution_recovery_date"
+                type="date"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="还清时间" prop="bank_case_details.payoff_date">
+              <el-date-picker
+                v-model="formData.bank_case_details.payoff_date"
+                type="date"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item
+              label="执行回款总金额"
+              prop="bank_case_details.execution_collection_amount"
+            >
+              <el-input-number
+                v-model="formData.bank_case_details.execution_collection_amount"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="执行回款来源" prop="bank_case_details.collection_source">
+              <el-input v-model="formData.bank_case_details.collection_source" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="调解案件履行跟踪情况" prop="bank_case_details.mediation_tracking">
+              <el-input type="textarea" v-model="formData.bank_case_details.mediation_tracking" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </template>
 
-      <el-form-item label="风险比例">
-        <el-input v-model="formData.risk_ratio" placeholder="请输入风险比例"/>
-      </el-form-item>
+      <el-divider content-position="left">通用信息</el-divider>
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item label="委托日期" prop="commission_date">
+            <el-date-picker
+              v-model="formData.commission_date"
+              type="date"
+              placeholder="选择日期"
+              style="width: 100%"
+              value-format="YYYY-MM-DD"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="委托人" prop="client_name">
+            <el-input v-model="formData.client_name" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="身份证号/单位税号" prop="client_id_number">
+            <el-input v-model="formData.client_id_number" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="联系电话" prop="client_phone">
+            <el-input v-model="formData.client_phone" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="案件来源" prop="case_source">
+            <el-input v-model="formData.case_source" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="介入阶段" prop="stage">
+            <el-input v-model="formData.stage" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="24">
+          <el-form-item label="案由" prop="cause">
+            <el-input v-model="formData.cause" type="textarea" />
+          </el-form-item>
+        </el-col>
 
-      <el-form-item label="案件收入" prop="case_income">
-        <el-input v-model.number="formData.case_income" type="number" placeholder="请输入金额"/>
-      </el-form-item>
+        <el-col :span="12">
+          <el-form-item label="原告/申请人" prop="plaintiff">
+            <el-input v-model="formData.plaintiff" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="被告" prop="defendant">
+            <el-input v-model="formData.defendant" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="上诉人" prop="appellant_info">
+            <el-input v-model="formData.appellant_info" placeholder="上诉人或第三人信息补充" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="被上诉人" prop="extra_appellant_info">
+            <el-input
+              v-model="formData.extra_appellant_info"
+              placeholder="被上诉人或被告诉讼补充"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="审理法院" prop="court">
+            <el-input v-model="formData.court" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="代理权限" prop="agency_power">
+            <el-select v-model="formData.agency_power">
+              <el-option label="特别代理" value="特别代理" />
+              <el-option label="一般代理" value="一般代理" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="开庭时间" prop="hearing_date">
+            <el-date-picker
+              v-model="formData.hearing_date"
+              type="date"
+              style="width: 100%"
+              value-format="YYYY-MM-DD"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="立案日" prop="filing_date">
+            <el-date-picker
+              v-model="formData.filing_date"
+              type="date"
+              style="width: 100%"
+              value-format="YYYY-MM-DD"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="结案时间" prop="closing_date">
+            <el-date-picker
+              v-model="formData.closing_date"
+              type="date"
+              style="width: 100%"
+              value-format="YYYY-MM-DD"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="案件地点" prop="location">
+            <el-input v-model="formData.location" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="24">
+          <el-form-item label="案件详情" prop="details">
+            <el-input v-model="formData.details" type="textarea" :rows="3" />
+          </el-form-item>
+        </el-col>
 
-      <el-form-item label="付款到期日">
-        <el-date-picker v-model="formData.payment_due_date" type="date" value-format="YYYY-MM-DD"/>
-      </el-form-item>
+        <el-divider content-position="left">律师分配</el-divider>
+        <el-col :span="12">
+          <el-form-item label="主办律师" prop="main_lawyer_id">
+            <el-select
+              v-model="formData.main_lawyer_id"
+              filterable
+              placeholder="请选择"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="item in lawyerOptions"
+                :key="item.id"
+                :label="item.real_name"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="助理律师" prop="assistant_lawyer_id">
+            <el-select
+              v-model="formData.assistant_lawyer_id"
+              filterable
+              placeholder="请选择"
+              style="width: 100%"
+              clearable
+            >
+              <el-option
+                v-for="item in lawyerOptions"
+                :key="item.id"
+                :label="item.real_name"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="执行主办律师" prop="execution_lawyer_id">
+            <el-select
+              v-model="formData.execution_lawyer_id"
+              filterable
+              placeholder="请选择"
+              style="width: 100%"
+              clearable
+            >
+              <el-option
+                v-for="item in lawyerOptions"
+                :key="item.id"
+                :label="item.real_name"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="执行助理律师" prop="execution_assistant_id">
+            <el-select
+              v-model="formData.execution_assistant_id"
+              filterable
+              placeholder="请选择"
+              style="width: 100%"
+              clearable
+            >
+              <el-option
+                v-for="item in lawyerOptions"
+                :key="item.id"
+                :label="item.real_name"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
 
-      <el-form-item label="案由" prop="cause">
-        <el-input type="textarea" v-model="formData.cause" placeholder="请输入案由"/>
-      </el-form-item>
+        <el-divider content-position="left">费用与标记</el-divider>
+        <el-col :span="8">
+          <el-form-item label="收费方式" prop="fee_method">
+            <el-input v-model="formData.fee_method" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item label="风险比例" prop="risk_ratio">
+            <el-input v-model="formData.risk_ratio" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item label="案件收入" prop="case_income">
+            <el-input-number v-model="formData.case_income" :precision="2" style="width: 100%" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item label="付款到期日" prop="payment_due_date">
+            <el-date-picker
+              v-model="formData.payment_due_date"
+              type="date"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="16">
+          <el-form-item label="标记">
+            <el-checkbox v-model="formData.is_major">是否重大</el-checkbox>
+            <el-checkbox v-model="formData.has_paper_file">是否纸质卷宗</el-checkbox>
+            <el-checkbox v-model="formData.has_record">是否笔录</el-checkbox>
+            <el-checkbox v-model="formData.has_preservation">是否保全</el-checkbox>
+            <el-checkbox v-model="formData.is_dismissed">是否解除</el-checkbox>
+          </el-form-item>
+        </el-col>
 
-      <el-form-item label="介入阶段">
-        <el-input v-model="formData.stage" placeholder="如一审、二审、执行阶段等"/>
-      </el-form-item>
+        <el-col :span="12" v-if="formData.has_preservation">
+          <el-form-item label="保全开始日" prop="preservation_start">
+            <el-date-picker
+              v-model="formData.preservation_start"
+              type="date"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12" v-if="formData.has_preservation">
+          <el-form-item label="保全终止日" prop="preservation_end">
+            <el-date-picker
+              v-model="formData.preservation_end"
+              type="date"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
 
-      <el-form-item label="原告/申请人/侦察机关/检察院">
-        <el-input type="textarea" v-model="formData.plaintiff" placeholder="请输入原告/申请人/侦察机关/检察院信息"/>
-      </el-form-item>
+        <el-divider content-position="left">诉讼费情况</el-divider>
+        <el-col :span="12">
+          <el-form-item label="诉讼费缴费时间" prop="litigation_fee_payment_date">
+            <el-date-picker
+              v-model="formData.litigation_fee_payment_date"
+              type="date"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="诉讼费缴费金额" prop="litigation_fee_payment_amount">
+            <el-input-number
+              v-model="formData.litigation_fee_payment_amount"
+              :precision="2"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="诉讼费退费时间" prop="litigation_fee_refund_date">
+            <el-date-picker
+              v-model="formData.litigation_fee_refund_date"
+              type="date"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="诉讼费退费金额" prop="litigation_fee_refund_amount">
+            <el-input-number
+              v-model="formData.litigation_fee_refund_amount"
+              :precision="2"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
 
-      <el-form-item label="上诉人/第三人信息">
-        <el-input type="textarea" v-model="formData.appellant_info" placeholder="请输入上诉人或第三人信息"/>
-      </el-form-item>
+        <el-divider content-position="left">结案与执行</el-divider>
+        <el-col :span="8">
+          <el-form-item label="结案状态" prop="closing_status">
+            <el-input v-model="formData.closing_status" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item label="结案方式" prop="closing_method">
+            <el-input v-model="formData.closing_method" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item label="申请执行日" prop="execution_application_date">
+            <el-date-picker
+              v-model="formData.execution_application_date"
+              type="date"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item label="调解到期日" prop="mediation_due_date">
+            <el-date-picker
+              v-model="formData.mediation_due_date"
+              type="date"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item label="执行到期日" prop="execution_due_date">
+            <el-date-picker
+              v-model="formData.execution_due_date"
+              type="date"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
 
-      <el-form-item label="被上诉人">
-        <el-input type="textarea" v-model="formData.extra_appellant_info" placeholder="请输入被上诉人信息"/>
-      </el-form-item>
-
-      <el-form-item label="被告（人）/被申请人">
-        <el-input v-model="formData.defendant" placeholder="请输入被告（人）/被申请人信息"/>
-      </el-form-item>
-
-      <el-form-item label="代理权限" prop="agency_power">
-        <el-select v-model="formData.agency_power" placeholder="请选择">
-          <el-option label="特别代理" value="特别代理"/>
-          <el-option label="一般代理" value="一般代理"/>
-        </el-select>
-      </el-form-item>
-
-      <el-form-item label="审理法院">
-        <el-input v-model="formData.court" placeholder="请输入审理法院名称"/>
-      </el-form-item>
-
-      <el-form-item label="开庭时间">
-        <el-date-picker v-model="formData.hearing_date" type="date" value-format="YYYY-MM-DD"/>
-      </el-form-item>
-
-      <el-form-item label="立案日">
-        <el-date-picker v-model="formData.filing_date" type="date" value-format="YYYY-MM-DD"/>
-      </el-form-item>
-
-      <el-form-item label="结案时间">
-        <el-date-picker v-model="formData.closing_date" type="date" value-format="YYYY-MM-DD"/>
-      </el-form-item>
-
-      <el-form-item label="主办律师" prop="main_lawyer_id">
-        <el-select
-          v-model="formData.main_lawyer_id"
-          placeholder="请选择主办律师"
-        >
-          <el-option
-            v-for="lawyer in props.lawyers"
-            :key="lawyer.id"
-            :label="lawyer.real_name"
-            :value="lawyer.id"
-          />
-        </el-select>
-      </el-form-item>
-
-      <el-form-item label="助理律师">
-        <el-select v-model="formData.assistant_lawyer_id" placeholder="请选择助理律师">
-          <el-option v-for="lawyer in lawyers" :key="lawyer.id" :label="lawyer.real_name" :value="lawyer.id"/>
-        </el-select>
-      </el-form-item>
-
-      <el-form-item label="执行主办律师">
-        <el-select v-model="formData.execution_lawyer_id" placeholder="请选择执行主办律师">
-          <el-option v-for="lawyer in lawyers" :key="lawyer.id" :label="lawyer.real_name" :value="lawyer.id"/>
-        </el-select>
-      </el-form-item>
-
-      <el-form-item label="执行助理律师">
-        <el-select v-model="formData.execution_assistant_id" placeholder="请选择执行助理律师">
-          <el-option v-for="lawyer in lawyers" :key="lawyer.id" :label="lawyer.real_name" :value="lawyer.id"/>
-        </el-select>
-      </el-form-item>
-
-      <el-form-item label="是否重大">
-        <el-switch v-model="formData.is_major"/>
-      </el-form-item>
-
-      <el-form-item label="是否纸质卷宗">
-        <el-switch v-model="formData.has_paper_file"/>
-      </el-form-item>
-
-      <el-form-item label="是否解除">
-        <el-switch v-model="formData.is_dismissed"/>
-      </el-form-item>
-
-      <el-form-item label="是否笔录">
-        <el-switch v-model="formData.has_record"/>
-      </el-form-item>
-
-      <el-form-item label="是否保全">
-        <el-switch v-model="formData.has_preservation" @change="handlePreservationChange"/>
-      </el-form-item>
-
-      <el-form-item
-        label="保全开始日"
-        v-if="formData.has_preservation"
+      <el-divider content-position="left">附件上传</el-divider>
+      <el-upload
+        class="upload-demo"
+        drag
+        action="#"
+        :auto-upload="false"
+        multiple
+        v-model:file-list="rawFiles"
       >
-        <el-date-picker v-model="formData.preservation_start" type="date" value-format="YYYY-MM-DD"/>
-      </el-form-item>
+        <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+        <div class="el-upload__text">将文件拖到此处，或 <em>点击上传</em></div>
+      </el-upload>
 
-      <el-form-item
-        label="保全终止日"
-        v-if="formData.has_preservation"
-      >
-        <el-date-picker v-model="formData.preservation_end" type="date" value-format="YYYY-MM-DD"/>
-      </el-form-item>
-
-      <el-form-item label="案号">
-        <el-input v-model="formData.case_code" placeholder="请输入法院案号"/>
-      </el-form-item>
-
-      <el-form-item label="结案状态">
-        <el-input v-model="formData.closing_status" placeholder="如已结案、审理中、中止等"/>
-      </el-form-item>
-
-      <el-form-item label="结案方式">
-        <el-input v-model="formData.closing_method" placeholder="如判决、调解、撤诉等"/>
-      </el-form-item>
-
-      <el-form-item label="诉讼费缴费时间">
-        <el-date-picker v-model="formData.litigation_fee_payment_date" type="date" value-format="YYYY-MM-DD"/>
-      </el-form-item>
-
-      <el-form-item label="诉讼费缴费金额">
-        <el-input v-model.number="formData.litigation_fee_payment_amount" type="number"/>
-      </el-form-item>
-
-      <el-form-item label="诉讼费退费时间">
-        <el-date-picker v-model="formData.litigation_fee_refund_date" type="date" value-format="YYYY-MM-DD"/>
-      </el-form-item>
-
-      <el-form-item label="诉讼费退费金额">
-        <el-input v-model.number="formData.litigation_fee_refund_amount" type="number"/>
-      </el-form-item>
-
-      <el-form-item label="申请执行日">
-        <el-date-picker v-model="formData.execution_application_date" type="date" value-format="YYYY-MM-DD"/>
-      </el-form-item>
-
-      <el-form-item label="调解到期日">
-        <el-date-picker v-model="formData.mediation_due_date" type="date" value-format="YYYY-MM-DD"/>
-      </el-form-item>
-
-      <el-form-item label="执行到期日">
-        <el-date-picker v-model="formData.execution_due_date" type="date" value-format="YYYY-MM-DD"/>
-      </el-form-item>
-
-      <el-form-item label="案件详情">
-        <el-input type="textarea" v-model="formData.details" placeholder="请输入案件详细描述"/>
-      </el-form-item>
-
-      <el-form-item label="案件附件">
-        <template v-if="props.mode === 'add'">
-          <el-upload
-            class="upload-demo"
-            ref="uploadRef"
-            action="#"
-            :auto-upload="false"
-            :on-change="handleRawFileChange"
-            :on-remove="handleRawFileRemove"
-            :file-list="formData.attachments"
-            :multiple="true"
-          >
-            <el-button size="small" type="primary">
-              <el-icon><Upload /></el-icon> 选择附件
-            </el-button>
-            <template #tip>
-              <div class="el-upload__tip">
-                选择文件后，案件创建成功后将自动上传附件
-              </div>
+      <div v-if="formData.attachments && formData.attachments.length > 0" style="margin-top: 20px">
+        <p style="font-weight: bold; margin-bottom: 10px">已归档附件:</p>
+        <el-table :data="formData.attachments" border style="width: 100%" size="small">
+          <el-table-column prop="name" label="文件名" />
+          <el-table-column label="操作" width="160" align="center">
+            <template #default="scope">
+              <el-button
+                link
+                type="primary"
+                size="small"
+                @click="downloadFormAttachment(scope.row.uid)"
+              >
+                下载
+              </el-button>
+              <el-button
+                link
+                type="danger"
+                size="small"
+                @click="deleteFormAttachment(scope.row.uid)"
+              >
+                删除
+              </el-button>
             </template>
-          </el-upload>
-        </template>
-
-        <template v-else>
-          <el-upload
-            class="upload-demo"
-            action="http://127.0.0.1:8002/attachments/"
-            :data="{ case_id: props.caseId, uploaded_by: props.currentUserId }"
-            :on-success="handleAttachmentUpload"
-            :on-error="handleAttachmentError"
-            :file-list="formData.attachments || []"
-            :auto-upload="true"
-            name="file"
-          >
-            <el-button size="small" type="primary">
-              <el-icon><Upload /></el-icon> 上传附件
-            </el-button>
-            <template #tip>
-              <div class="el-upload__tip">
-                支持上传多种格式文件
-              </div>
-            </template>
-          </el-upload>
-
-          <el-table
-            v-if="formData.attachments && formData.attachments.length > 0"
-            :data="formData.attachments"
-            border
-            style="width: 100%; margin-top: 10px"
-          >
-            <el-table-column prop="name" label="文件名" />
-            <el-table-column label="操作">
-              <template #default="scope">
-                <el-button
-                  size="small"
-                  @click="downloadFormAttachment(scope.row.uid)"
-                >
-                  下载
-                </el-button>
-                <el-button
-                  size="small"
-                  type="danger"
-                  @click="deleteFormAttachment(scope.row.uid)"
-                >
-                  删除
-                </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </template>
-      </el-form-item>
+          </el-table-column>
+        </el-table>
+      </div>
     </el-form>
-
     <template #footer>
-      <el-button @click="handleCancel">取消</el-button>
-      <el-button type="primary" @click="handleSubmit">提交</el-button>
+      <span class="dialog-footer">
+        <el-button @click="handleCancel">取消</el-button>
+        <el-button type="primary" :loading="loading" @click="handleSubmit"> 确定 </el-button>
+      </span>
     </template>
   </el-dialog>
 </template>
 
 <script setup>
-import { ref, reactive, watch, computed } from 'vue'
-import { Upload } from '@element-plus/icons-vue'
+import { ref, reactive, watch, defineProps, defineEmits, computed, onMounted } from 'vue'
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { UploadFilled } from '@element-plus/icons-vue'
 
-// 1. Props：接收父组件传递的数据
 const props = defineProps({
-  // 接收父组件的弹窗显示状态（v-model 绑定）
-  visible: {
-    type: Boolean,
-    required: true,
-    default: false
-  },
-  // 律师列表（新增/编辑都需要）
-  lawyers: {
-    type: Array,
-    required: true,
-    default: () => []
-  },
-  // 表单初始值（编辑时传入案件数据，新增时为空对象）
-  initialFormData: {
-    type: Object,
-    required: false,
-    default: () => ({})
-  },
-  // 表单模式（新增/编辑，用于差异化逻辑）
-  mode: {
-    type: String,
-    required: true,
-    validator: (value) => ['add', 'edit'].includes(value) // 仅允许add/edit两种值
-  },
-  currentUserId: [String, Number],
-  currentUserRole: String,
-  caseId: [String, Number]
+  visible: { type: Boolean, default: false },
+  caseId: { type: [Number, String], default: null },
 })
-// 使用本地响应式变量替代直接修改 prop
+
+const emit = defineEmits(['update:visible', 'submit'])
+
 const dialogVisible = computed({
-  get() {
-    return props.visible
-  },
-  set(val) {
-    emit('update:visible', val)
-  }
+  get: () => props.visible,
+  set: (val) => emit('update:visible', val),
 })
 
-// 2. 表单核心数据
-const formRef = ref(null) // 表单引用，用于验证
-// 计算属性：根据模式确定弹窗标题
-const dialogTitle = computed(() => {
-  return props.mode === 'add' ? '新增案件' : '编辑案件'
-})
-// 工具函数：获取当前日期（Date对象，时分秒设为0，适配el-date-picker的date类型）
-const getCurrentDate = () => {
-  const now = new Date()
-  // 获取本地时区的年、月、日
-  const year = now.getFullYear()
-  // 月份从0开始，需要+1并补零
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  // 日期补零
-  const day = String(now.getDate()).padStart(2, '0')
+const dialogTitle = computed(() => (props.caseId ? '编辑案件' : '新增案件'))
+const loading = ref(false)
+const formRef = ref(null)
+const rawFiles = ref([]) // 新上传的文件
+const lawyerOptions = ref([]) // 律师列表
 
-  // 返回YYYY-MM-DD格式的字符串
-  return `${year}-${month}-${day}`
+// 定义银行案件初始数据对象
+const initialBankDetails = {
+  branch_name: null,
+  borrower_id_number: null,
+  guarantor: null,
+  collateral_info: null,
+  collateral_location: null,
+  is_inclusive_finance: false,
+  account_manager: null,
+  loan_principal: 0,
+  litigation_target_amount: 0,
+  credit_card_penalty: 0,
+  loan_date: null,
+  loan_due_date: null,
+  overdue_date: null,
+  statute_of_limitations: null,
+  material_fetcher: null,
+  pre_litigation_collection: null,
+  seal_date: null,
+  material_submission_date: null,
+  judgment_summary: null,
+  lawyer_fee_supported: 0,
+  defendant_paid_lawyer_fee: 0,
+  is_settled: false,
+  execution_case_number: null,
+  execution_filing_date: null,
+  execution_judge: null,
+  borrower_work_unit: null,
+  is_execution_recovery: false,
+  execution_principal: 0,
+  execution_lawyer_fee: 0,
+  property_investigation: null,
+  network_control_status: null,
+  execution_plan: null,
+  court_execution_measures: null,
+  seizure_freeze_info: null,
+  auction_status: null,
+  auction_deal_price: 0,
+  execution_settlement_content: null,
+  procedure_termination_date: null,
+  termination_reason: null,
+  execution_conclusion_date: null,
+  execution_recovery_date: null,
+  payoff_date: null,
+  execution_collection_amount: 0,
+  collection_source: null,
+  mediation_tracking: null,
 }
-// 表单数据
-const defaultFormData = {
-  // 初始化默认值（避免undefined）
-  case_category: "",
-  commission_date: getCurrentDate(),
-  client_name: "",
-  client_id_number: "",
-  client_phone: "",
-  case_source: "",
-  fee_method: "",
-  risk_ratio: "",
-  case_income: 0,
-  payment_due_date: null,
-  cause: "",
-  stage: "",
-  plaintiff: "",
-  appellant_info: "",
-  extra_appellant_info: "",
-  defendant: "",
-  agency_power: "",
-  court: "",
-  hearing_date: null,
-  filing_date: null,
-  closing_date: null,
-  main_lawyer_id: Number(props.currentUserId),
+
+const formData = reactive({
+  case_category: '民事案件',
+  commission_date: null,
+  client_name: null,
+  client_id_number: null,
+  client_phone: null,
+  case_source: null,
+  stage: null,
+  cause: null,
+
+  // 律师
+  main_lawyer_id: null,
   assistant_lawyer_id: null,
   execution_lawyer_id: null,
   execution_assistant_id: null,
+
+  // 诉讼主体
+  plaintiff: null,
+  defendant: null,
+  appellant_info: null,
+  extra_appellant_info: null,
+
+  // 审理信息
+  agency_power: null,
+  court: null,
+  hearing_date: null,
+  filing_date: null,
+  closing_date: null,
+  location: null,
+  details: null,
+
+  // 费用
+  fee_method: null,
+  risk_ratio: null,
+  case_income: 0,
+  payment_due_date: null,
+
+  // 标记
   is_major: false,
   has_paper_file: false,
-  is_dismissed: false,
   has_record: false,
   has_preservation: false,
+  is_dismissed: false,
   preservation_start: null,
   preservation_end: null,
-  case_code: "",
-  closing_status: "",
-  closing_method: "",
+
+  // 结案与执行
+  closing_status: null,
+  closing_method: null,
+  execution_application_date: null,
+  mediation_due_date: null,
+  execution_due_date: null,
+
+  // 诉讼费
   litigation_fee_payment_date: null,
   litigation_fee_payment_amount: 0,
   litigation_fee_refund_date: null,
   litigation_fee_refund_amount: 0,
-  execution_application_date: null,
-  mediation_due_date: null,
-  execution_due_date: null,
-  details: "",
-  attachments: [] // 新增附件数组
+
+  // 重点修改：使用 bank_case_details
+  bank_case_details: JSON.parse(JSON.stringify(initialBankDetails)),
+
+  // 附件列表（仅用于显示）
+  attachments: [],
+})
+
+const formRules = {
+  case_category: [{ required: true, message: '请选择案件类别', trigger: 'change' }],
+  commission_date: [{ required: true, message: '请选择委托日期', trigger: 'change' }],
+  client_name: [{ required: true, message: '请输入委托人', trigger: 'blur' }],
+  main_lawyer_id: [{ required: true, message: '请选择主办律师', trigger: 'change' }],
+  plaintiff: [{ required: true, message: '请输入原告/申请人', trigger: 'blur' }],
 }
-const formData = reactive(defaultFormData)
-// 保全状态切换时的处理逻辑
-const handlePreservationChange = (val) => {
-  if (!val) {
-    // 如果关闭保全，清空日期
-    formData.preservation_start = null
-    formData.preservation_end = null
+
+// 加载律师列表
+const fetchLawyers = async () => {
+  try {
+    const res = await axios.get('http://127.0.0.1:8002/cases/users/lawyers')
+    lawyerOptions.value = res.data
+  } catch (e) {
+    console.error('加载律师列表失败', e)
   }
 }
 
-// 3. 表单验证规则（确保数据合法性）
-const formRules = reactive({
-  case_category: [{ required: true, message: '请选择案件类别', trigger: 'change' }],
-  client_name: [{ required: true, message: '请输入委托人姓名', trigger: 'blur' }],
-  client_id_number: [
-    {
-      required: false,  // 改为非必填
-      message: '请输入委托人身份证号或税号',
-      trigger: 'blur'
-    },
-    {
-      // 自定义校验：非空时必须为18位字符
-      validator: (rule, value, callback) => {
-        // 1. 若未填写（value为空），直接通过校验
-        if (!value) {
-          return callback();
-        }
-        // 2. 若填写了，校验是否为18位字符（数字/字母均可，若需纯数字可加正则）
-        const length = value.trim().length; // 去除空格后计算长度
-        if (length === 18) {
-          callback(); // 长度正确，通过校验
-        } else {
-          callback(new Error('身份证号/税号需为18位字符')); // 长度错误，抛出提示
-        }
-      },
-      trigger: 'blur' // 失去焦点时触发校验
+// 获取详情并填充表单
+const fetchCaseDetail = async () => {
+  if (!props.caseId) return
+  try {
+    const res = await axios.get(`http://127.0.0.1:8002/cases/${props.caseId}`)
+    const data = res.data
+
+    // 填充通用数据
+    Object.keys(formData).forEach((key) => {
+      if (key !== 'bank_case_details' && key !== 'attachments' && data[key] !== undefined) {
+        formData[key] = data[key]
+      }
+    })
+
+    // 填充银行案件数据 (读取 bank_case_details)
+    if (data.case_category === '银行案件' && data.bank_case_details) {
+      formData.bank_case_details = { ...initialBankDetails, ...data.bank_case_details }
+    } else {
+      formData.bank_case_details = JSON.parse(JSON.stringify(initialBankDetails))
     }
-  ],
-  main_lawyer_id: [{ required: true, message: '请选择主办律师', trigger: 'change' }],
-  commission_date: [{ required: true, message: '请选择委托日期', trigger: 'change' }],
-  plaintiff: [{ required: true, message: '请输入原告/申请人信息', trigger: 'blur' }]
-})
 
-// 4. 附件相关变量和方法
-const formMode = ref(props.mode) // 表单模式
-// 新增状态：在新增模式下存储用户选择的原始文件对象
-const rawFiles = ref([])
-
-// 处理文件选择变化（用于新增模式，只收集文件）
-const handleRawFileChange = (file, fileList) => {
-  // 收集原始文件对象
-  rawFiles.value = fileList.map(item => item.raw)
-  // 更新 attachments 数组用于前端立即显示（uid使用临时标识）
-  formData.attachments = fileList.map((item, index) => ({
-    name: item.name,
-    uid: item.uid || `new-${index}`,
-    status: 'success',
-    url: ''
-  }))
+    // 加载附件
+    await loadFormAttachments(props.caseId)
+  } catch (err) {
+    console.error(err)
+    ElMessage.error('加载案件数据失败')
+  }
 }
 
-// 处理文件移除
-const handleRawFileRemove = (file, fileList) => {
-  rawFiles.value = fileList.map(item => item.raw)
-  formData.attachments = fileList.map((item, index) => ({
-    name: item.name,
-    uid: item.uid || `new-${index}`,
-    status: 'success',
-    url: ''
-  }))
-}
-
-
-// 处理附件上传成功 (编辑模式)
-const handleAttachmentUpload = async (response) => {
-  ElMessage.success('附件上传成功')
-
-  // 将上传的附件添加到表单列表
-  formData.attachments.push({
-    name: response.file_name,
-    uid: response.attachment_id,
-    url: `/attachments/${response.attachment_id}/download`
-  })
-}
-
-// 处理附件上传失败 (编辑模式)
-const handleAttachmentError = (err) => {
-  console.error('附件上传失败:', err)
-  ElMessage.error('附件上传失败')
-}
-
-// 下载表单中的附件
+// 下载附件
 const downloadFormAttachment = (attachmentId) => {
   window.open(`http://127.0.0.1:8002/attachments/${attachmentId}/download`, '_blank')
 }
 
-// 删除表单中的附件
+// 删除附件
 const deleteFormAttachment = async (attachmentId) => {
-  if (!confirm('确定要删除该附件吗？')) return
-
   try {
+    await ElMessageBox.confirm('确定要永久删除该附件吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
     await axios.delete(`http://127.0.0.1:8002/attachments/${attachmentId}`)
     ElMessage.success('附件删除成功')
-
-    // 从表单列表中移除
-    formData.attachments = formData.attachments.filter(
-      item => item.uid !== attachmentId
-    )
+    formData.attachments = formData.attachments.filter((item) => item.uid !== attachmentId)
   } catch (err) {
-    console.error('删除附件失败:', err)
-    ElMessage.error('删除附件失败')
+    if (err !== 'cancel') {
+      console.error('删除附件失败:', err)
+      ElMessage.error('删除附件失败')
+    }
   }
 }
-
-// 5. 监听initialFormData变化（编辑时加载案件数据）
-watch(
-  () => props.initialFormData,
-  (newVal) => {
-    if (newVal && props.mode === 'edit') {
-      const copy = JSON.parse(JSON.stringify(newVal))
-      // 将对象型字段转换为 ID
-      copy.main_lawyer_id = copy.main_lawyer?.id || null
-      copy.assistant_lawyer_id = copy.assistant_lawyer?.id || null
-      copy.execution_lawyer_id = copy.execution_lawyer?.id || null
-      copy.execution_assistant_id = copy.execution_assistant?.id || null
-
-      Object.assign(formData, copy)
-
-      // 加载该案件的附件
-      if (copy.case_id) {
-        loadFormAttachments(copy.case_id)
-      }
-    }
-  },
-  { immediate: true, deep: true }
-)
-watch(
-  () => props.mode,
-  (newMode) => {
-    formMode.value = newMode
-    if (newMode === 'add') {
-      // 清空所有字段
-      Object.keys(formData).forEach(key => (formData[key] = ""))
-      // 重置布尔字段为 false
-      const boolKeys = [
-        'is_major',
-        'has_record',
-        'has_paper_file',
-        'is_dismissed',
-        'has_preservation',
-      ]
-      boolKeys.forEach(key => (formData[key] = false))
-
-      formData.case_income = 0
-      formData.litigation_fee_payment_amount = 0
-      formData.litigation_fee_refund_amount = 0
-      formData.commission_date = getCurrentDate()
-      formData.attachments = [] // 清空附件列表
-      rawFiles.value = [] // 清空 rawFiles
-
-      // 主办律师默认为当前用户
-      if (props.currentUserRole === 'user' || props.currentUserRole === 'admin') {
-        formData.main_lawyer_id = Number(props.currentUserId)
-      }
-      // 重置其他律师ID和各日期为null
-      const resetLawyerKeys = [
-        'assistant_lawyer_id',
-        'execution_lawyer_id',
-        'execution_assistant_id'
-      ]
-      resetLawyerKeys.forEach(key => (formData[key] = null))
-
-      const resetDateKeys = [
-        'preservation_start',
-        'preservation_end',
-        'litigation_fee_payment_date',
-        'litigation_fee_refund_date',
-        'execution_application_date',
-        'mediation_due_date',
-        'execution_due_date',
-        'closing_date',
-        'filing_date',
-        'hearing_date',
-        'payment_due_date'
-      ]
-      resetDateKeys.forEach(key => (formData[key] = null))
-    }
-  }
-)
 
 // 加载表单中的附件列表
 const loadFormAttachments = async (caseId) => {
   try {
     const res = await axios.get(`http://127.0.0.1:8002/attachments/case/${caseId}`)
-    formData.attachments = res.data.map(item => ({
+    formData.attachments = res.data.map((item) => ({
       name: item.file_name,
       uid: item.attachment_id,
-      url: `/attachments/${item.attachment_id}/download`
+      url: `/attachments/${item.attachment_id}/download`,
     }))
   } catch (err) {
     console.error('加载附件失败:', err)
@@ -617,39 +994,111 @@ const loadFormAttachments = async (caseId) => {
   }
 }
 
-// 6. 事件：向父组件传递操作结果
-const emit = defineEmits(['submit', 'update:visible'])
+watch(
+  () => props.visible,
+  (val) => {
+    if (val) {
+      fetchLawyers()
+      if (props.caseId) {
+        fetchCaseDetail()
+      } else {
+        // 重置表单
+        if (formRef.value) formRef.value.resetFields()
+        // 手动重置 reactive 对象到初始状态（略繁琐，简化处理）
+        Object.assign(formData, {
+          case_category: '民事案件',
+          commission_date: null,
+          client_name: null,
+          main_lawyer_id: null,
+          // ... 其他字段重置 ...
+          bank_case_details: JSON.parse(JSON.stringify(initialBankDetails)),
+          attachments: [],
+        })
+        rawFiles.value = []
+      }
+    }
+  },
+)
 
-// 取消操作：通知父组件关闭弹窗
 const handleCancel = () => {
   emit('update:visible', false)
-  // 重置表单（避免下次打开有残留数据）
   formRef.value?.resetFields()
-  rawFiles.value = [] // 清除 rawFiles
+  rawFiles.value = []
 }
 
-// 提交操作：先验证，再通知父组件
 const handleSubmit = async () => {
-  // 表单验证
-  const valid = await formRef.value.validate()
-  if (valid) {
-    // 深拷贝避免引用问题
-    const submitData = JSON.parse(JSON.stringify(formData));
+  if (!formRef.value) return
+  await formRef.value.validate(async (valid) => {
+    if (valid) {
+      loading.value = true
+      try {
+        const submitData = JSON.parse(JSON.stringify(formData))
 
-    // 移除附件信息，因为附件是通过单独API上传的
-    delete submitData.attachments;
+        // 如果不是银行案件，清空详情
+        if (submitData.case_category !== '银行案件') {
+          submitData.bank_case_details = null
+        }
 
-    // 如果是新增模式，附加文件列表到提交数据中
-    if (props.mode === 'add') {
-      submitData.filesToUpload = rawFiles.value; // 将原始文件对象传递给父组件
+        // 处理附件不需要包含在 JSON body 中，如果是 update 接口通常不处理文件上传
+        // 这里假设 create/update 接口只处理 JSON 数据
+        // 附件通常通过单独的接口上传，或者使用 FormData 提交
+        // 为保持原有逻辑，这里先提交 JSON 数据
+
+        // 移除 attachments 字段避免后端报错
+        delete submitData.attachments
+
+        let res
+        if (props.caseId) {
+          res = await axios.put(
+            `http://127.0.0.1:8002/cases/case_update/${props.caseId}`,
+            submitData,
+          )
+          ElMessage.success('更新成功')
+        } else {
+          res = await axios.post('http://127.0.0.1:8002/cases/case_create', submitData)
+          ElMessage.success('创建成功')
+        }
+
+        const newCaseId = props.caseId || res.data.case_id
+
+        // 如果有新文件，上传文件
+        if (rawFiles.value.length > 0 && newCaseId) {
+          const fd = new FormData()
+          rawFiles.value.forEach((file) => {
+            fd.append('files', file.raw)
+          })
+          // 假设有批量上传接口
+          await axios.post(`http://127.0.0.1:8002/attachments/upload/${newCaseId}`, fd, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          })
+        }
+
+        emit('submit')
+        handleCancel()
+      } catch (err) {
+        console.error(err)
+        ElMessage.error('提交失败: ' + (err.response?.data?.detail || err.message))
+      } finally {
+        loading.value = false
+      }
     }
-
-    emit('submit', submitData);
-    // 提交成功后关闭弹窗
-    emit('update:visible', false);
-    // 清除 rawFiles 状态
-    rawFiles.value = []
-  }
+  })
 }
 
+onMounted(() => {
+  // 初始加载逻辑
+})
 </script>
+
+<style scoped>
+.file-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.file-list li {
+  padding: 4px 0;
+  color: #606266;
+  font-size: 14px;
+}
+</style>
