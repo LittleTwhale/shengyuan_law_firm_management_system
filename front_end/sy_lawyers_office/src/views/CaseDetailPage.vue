@@ -259,13 +259,30 @@
       <el-divider />
 
       <el-descriptions title="诉讼信息" :column="2" border>
-        <el-descriptions-item :label="plaintiffLabel">
+        <el-descriptions-item :label="plaintiffLabel" v-if="caseData.case_category !== '刑事案件'">
           {{ caseData.plaintiff || '-' }}
         </el-descriptions-item>
+
+        <template v-if="caseData.case_category === '刑事案件'">
+          <el-descriptions-item label="侦查机关">
+            {{ caseData.investigative_agency || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="检察院">
+            {{ caseData.procuratorate || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="二审检察机关">
+            {{ caseData.second_instance_procuratorate || '-' }}
+          </el-descriptions-item>
+        </template>
 
         <el-descriptions-item :label="defendantLabel">
           {{ caseData.defendant || '-' }}
         </el-descriptions-item>
+
+        <el-descriptions-item label="第三人" v-if="caseData.case_category !== '刑事案件'">
+          {{ caseData.third_party || '-' }}
+        </el-descriptions-item>
+
         <el-descriptions-item label="上诉人">{{
             caseData.appellant_info || '-'
           }}</el-descriptions-item>
@@ -484,7 +501,7 @@ const loadCaseDetail = async () => {
 
 // 1️⃣ 当事人标题动态化
 const plaintiffLabel = computed(() => {
-  if (caseData.value.case_category?.includes('刑')) return '侦查机关/检察院'
+  // 修正：移除了刑事案件的判断，因为刑事案件不再显示此字段
   if (caseData.value.case_category?.includes('仲裁')) return '申请人'
   return '原告/申请人'
 })

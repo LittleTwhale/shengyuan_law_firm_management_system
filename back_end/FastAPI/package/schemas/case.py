@@ -142,6 +142,10 @@ class CaseCreate(BaseModel):
     appellant_info: Optional[str] = None
     extra_appellant_info: Optional[str] = None
     defendant: Optional[str] = None
+    third_party: Optional[str] = None
+    investigative_agency: Optional[str] = Field(None, description="侦查机关")
+    procuratorate: Optional[str] = Field(None, description="检察院")
+    second_instance_procuratorate: Optional[str] = Field(None, description="二审检察机关")
     details: Optional[str] = None
 
     # 律师信息
@@ -214,6 +218,10 @@ class CaseUpdate(BaseModel):
     appellant_info: Optional[str] = Field(None, description="上诉人信息 / Appellant info")
     extra_appellant_info: Optional[str] = Field(None, description="被上诉人信息 / Extra appellant info")
     defendant: Optional[str] = Field(None, description="被告 / Defendant")
+    third_party: Optional[str] = Field(None, description="第三人 / Third party")
+    investigative_agency: Optional[str] = Field(None, description="侦查机关 / Investigative Agency")
+    procuratorate: Optional[str] = Field(None, description="检察院 / Procuratorate")
+    second_instance_procuratorate: Optional[str] = Field(None,description="二审检察机关 / Second Instance Procuratorate")
     details: Optional[str] = Field(None, description="案件详情 / Case details")
 
     # 律师分配 / Lawyers
@@ -285,6 +293,10 @@ class CaseOut(BaseModel):
     appellant_info: Optional[str] = Field(None, description="上诉人信息 / Appellant info")
     extra_appellant_info: Optional[str] = Field(None, description="补上诉人信息 / Extra appellant info")
     defendant: Optional[str] = Field(None, description="被告 / Defendant")
+    third_party: Optional[str] = Field(None, description="第三人 / Third party")
+    investigative_agency: Optional[str] = Field(None, description="侦查机关 / Investigative Agency")
+    procuratorate: Optional[str] = Field(None, description="检察院 / Procuratorate")
+    second_instance_procuratorate: Optional[str] = Field(None,description="二审检察机关 / Second Instance Procuratorate")
     agency_power: Optional[str] = Field(None, description="代理权限 / Agency power")
     court: Optional[str] = Field(None, description="审理法院 / Court")
     hearing_date: Optional[date] = Field(None, description="开庭时间 / Hearing date")

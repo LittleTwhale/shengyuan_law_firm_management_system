@@ -435,6 +435,26 @@
             <el-input v-model="formData.plaintiff" />
           </el-form-item>
         </el-col>
+        <template v-if="formData.case_category === '刑事案件'">
+          <el-col :span="8">
+            <el-form-item label="侦查机关" prop="investigative_agency">
+              <el-input v-model="formData.investigative_agency" placeholder="公安局/侦查部门" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="检察院" prop="procuratorate">
+              <el-input v-model="formData.procuratorate" placeholder="提起公诉的检察院" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="二审检察机关" prop="second_instance_procuratorate">
+              <el-input
+                v-model="formData.second_instance_procuratorate"
+                placeholder="二审检察机关"
+              />
+            </el-form-item>
+          </el-col>
+        </template>
         <el-col :span="12">
           <el-form-item label="被告" prop="defendant">
             <el-input v-model="formData.defendant" />
@@ -442,7 +462,7 @@
         </el-col>
         <el-col :span="12">
           <el-form-item label="上诉人" prop="appellant_info">
-            <el-input v-model="formData.appellant_info" placeholder="上诉人或第三人信息补充" />
+            <el-input v-model="formData.appellant_info" placeholder="上诉人信息" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -451,6 +471,11 @@
               v-model="formData.extra_appellant_info"
               placeholder="被上诉人或被告诉讼补充"
             />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8" v-if="formData.case_category !== '刑事案件'">
+          <el-form-item label="第三人" prop="third_party">
+            <el-input v-model="formData.third_party" placeholder="请输入第三人" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -863,6 +888,10 @@ const formData = reactive({
   defendant: null,
   appellant_info: null,
   extra_appellant_info: null,
+  third_party: null,
+  investigative_agency: null,
+  procuratorate: null,
+  second_instance_procuratorate: null,
 
   // 审理信息
   agency_power: null,
@@ -913,7 +942,6 @@ const formRules = {
   commission_date: [{ required: true, message: '请选择委托日期', trigger: 'change' }],
   client_name: [{ required: true, message: '请输入委托人', trigger: 'blur' }],
   main_lawyer_id: [{ required: true, message: '请选择主办律师', trigger: 'change' }],
-  plaintiff: [{ required: true, message: '请输入原告/申请人', trigger: 'blur' }],
 }
 
 // 加载律师列表

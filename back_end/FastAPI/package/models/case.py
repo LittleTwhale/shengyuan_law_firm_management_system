@@ -27,9 +27,13 @@ class Case(Base):
     stage = Column(String(100), nullable=True, comment="介入阶段")
 
     plaintiff = Column(String(100), nullable=False, comment="原告/申请人")
-    appellant_info = Column(Text, nullable=True, comment="上诉人或第三人信息补充")
+    appellant_info = Column(Text, nullable=True, comment="上诉人信息补充")
     extra_appellant_info = Column(Text, nullable=True, comment="补上诉人或补告信息补充")
     defendant = Column(String(100), nullable=True, comment="被告")
+    third_party = Column(String(255), nullable=True, comment="第三人")
+    investigative_agency = Column(String(255), nullable=True, comment="侦查机关")
+    procuratorate = Column(String(255), nullable=True, comment="检察院")
+    second_instance_procuratorate = Column(String(255), nullable=True, comment="二审检察机关")
 
     agency_power = Column(Enum('特别代理','一般代理',''), nullable=True, comment="代理权限")
     court = Column(String(100), nullable=True, comment="审理法院")
