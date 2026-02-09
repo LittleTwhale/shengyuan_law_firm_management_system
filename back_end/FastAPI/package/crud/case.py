@@ -5,7 +5,7 @@ from typing import List, Optional, cast
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
-from ..models.case import Case,BankCase
+from ..models.case import Case,BankCase,CaseParty
 from ..schemas.case import CaseCreate, CaseUpdate
 
 
@@ -229,6 +229,26 @@ def count_bank_cases_by_user_role(
     return query.count()
 
 
+# 辅助函数：将当事人列表转换为逗号分隔字符串（用于兼容旧字段）
+def _sync_legacy_fields(parties_data: list) -> dict:
+    plaintiffs = []
+    defendants = []
+    for p in parties_data:
+        # 这里需要判断 p 是对象还是字典，取决于传入来源
+        p_type = p.party_type if hasattr(p, 'party_type') else p.get('party_type')
+        p_name = p.name if hasattr(p, 'name') else p.get('name')
+
+        if p_type in ['原告', '申请人', '上诉人']:
+            plaintiffs.append(p_name)
+        elif p_type in ['被告', '被申请人', '被上诉人']:
+            defendants.append(p_name)
+
+    return {
+        "plaintiff": "、".join(plaintiffs) if plaintiffs else None,
+        "defendant": "、".join(defendants) if defendants else None
+    }
+
+
 def create_case(db: Session, case_in: CaseCreate) -> Case:
     """
     创建新案件（复用已删除案件的原始编号，但创建新记录）
@@ -256,14 +276,32 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
     available_case_number = _find_reusable_case_number(db, case_type, year)
 
     # 创建全新的案件记录，但使用复用的编号
-    # 分离 Case 数据和 BankCase 数据
-    case_data = case_in.model_dump(exclude={"bank_details"})  # 排除 bank_details
+    # 分离 Case 数据和 BankCase、parties 数据
+    case_data = case_in.model_dump(exclude={"bank_details", "parties"})
+
+    # 如果前端传了当事人列表，自动生成旧字段字符串
+    if case_in.parties:
+        legacy_update = _sync_legacy_fields(case_in.parties)
+        if legacy_update["plaintiff"]:
+            case_data["plaintiff"] = legacy_update["plaintiff"]
+        if legacy_update["defendant"]:
+            case_data["defendant"] = legacy_update["defendant"]
+
+    # 创建主案件
     case_data["review_status"] = "待审核"
     case_data["is_deleted"] = False
-
     new_case = Case(**case_data, case_number=available_case_number)
     db.add(new_case)
     db.flush()  # 刷新以获取 new_case.case_id
+
+    # 保存当事人列表
+    if case_in.parties:
+        for party in case_in.parties:
+            new_party = CaseParty(
+                case_id=new_case.case_id,
+                **party.model_dump()
+            )
+            db.add(new_party)
 
     # 如果是银行案件且提供了详情，则创建扩展表记录
     if case_in.case_category == "银行案件" and case_in.bank_details:
@@ -380,10 +418,30 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
 
     # 更新主表数据
     # 先批量更新其他字段，但跳过案件类别，避免提前改变
-    case_data = case_in.model_dump(exclude_unset=True, exclude={"bank_details"})
+    case_data = case_in.model_dump(exclude_unset=True, exclude={"bank_details", "parties"})
     for key, value in case_data.items():
-        if key == "case_category": continue  # 延后处理
+        if key == "case_category": continue
         setattr(case, key, value)
+
+    # 处理当事人列表更新 (全删全增策略)
+    if case_in.parties is not None:
+        # A. 删除该案件所有的旧当事人
+        db.query(CaseParty).filter(CaseParty.case_id == case_id).delete()
+
+        # B. 添加新当事人
+        for party in case_in.parties:
+            new_party = CaseParty(
+                case_id=case_id,
+                **party.model_dump()
+            )
+            db.add(new_party)
+
+        # C. 同步更新旧字段 (plaintiff/defendant)
+        legacy_update = _sync_legacy_fields(case_in.parties)
+        if legacy_update["plaintiff"] is not None:
+            case.plaintiff = legacy_update["plaintiff"]
+        if legacy_update["defendant"] is not None:
+            case.defendant = legacy_update["defendant"]
 
     # 更新或创建银行案件详情
     if case_in.bank_details:

@@ -405,7 +405,7 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="身份证号/单位税号" prop="client_id_number">
+          <el-form-item label="委托人身份证/税号" prop="client_id_number">
             <el-input v-model="formData.client_id_number" />
           </el-form-item>
         </el-col>
@@ -421,7 +421,7 @@
         </el-col>
         <el-col :span="12">
           <el-form-item label="介入阶段" prop="stage">
-            <el-input v-model="formData.stage" />
+            <el-input v-model="formData.stage" placeholder="如一审、二审、执行阶段等" />
           </el-form-item>
         </el-col>
         <el-col :span="24">
@@ -436,17 +436,17 @@
           </el-form-item>
         </el-col>
         <template v-if="formData.case_category === '刑事案件'">
-          <el-col :span="8">
+          <el-col :span="12">
             <el-form-item label="侦查机关" prop="investigative_agency">
               <el-input v-model="formData.investigative_agency" placeholder="公安局/侦查部门" />
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col :span="12">
             <el-form-item label="检察院" prop="procuratorate">
               <el-input v-model="formData.procuratorate" placeholder="提起公诉的检察院" />
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col :span="12">
             <el-form-item label="二审检察机关" prop="second_instance_procuratorate">
               <el-input
                 v-model="formData.second_instance_procuratorate"
@@ -473,9 +473,14 @@
             />
           </el-form-item>
         </el-col>
-        <el-col :span="8" v-if="formData.case_category !== '刑事案件'">
+        <el-col :span="12" v-if="formData.case_category !== '刑事案件'">
           <el-form-item label="第三人" prop="third_party">
             <el-input v-model="formData.third_party" placeholder="请输入第三人" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="案号" prop="case_code">
+            <el-input v-model="formData.case_code" placeholder="请输入案号" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -756,6 +761,9 @@
       >
         <el-icon class="el-icon--upload"><upload-filled /></el-icon>
         <div class="el-upload__text">将文件拖到此处，或 <em>点击上传</em></div>
+        <template #tip>
+          <div class="el-upload__tip">选择文件后，点击底部的“确定”按钮保存案件时会自动上传。</div>
+        </template>
       </el-upload>
 
       <div v-if="formData.attachments && formData.attachments.length > 0" style="margin-top: 20px">
@@ -803,6 +811,7 @@ import { UploadFilled } from '@element-plus/icons-vue'
 const props = defineProps({
   visible: { type: Boolean, default: false },
   caseId: { type: [Number, String], default: null },
+  currentUserId: { type: [Number, String], default: null }, // 新增: 接收当前用户ID
 })
 
 const emit = defineEmits(['update:visible', 'submit'])
@@ -869,6 +878,7 @@ const initialBankDetails = {
 
 const formData = reactive({
   case_category: '民事案件',
+  case_code: null,
   commission_date: null,
   client_name: null,
   client_id_number: null,
@@ -942,6 +952,7 @@ const formRules = {
   commission_date: [{ required: true, message: '请选择委托日期', trigger: 'change' }],
   client_name: [{ required: true, message: '请输入委托人', trigger: 'blur' }],
   main_lawyer_id: [{ required: true, message: '请选择主办律师', trigger: 'change' }],
+  client_id_number: [{ required: true, message: '请输入委托人身份证或单位税号', trigger: 'blur' }],
 }
 
 // 加载律师列表
@@ -967,6 +978,15 @@ const fetchCaseDetail = async () => {
         formData[key] = data[key]
       }
     })
+
+    // 显式处理律师对象映射（如果后端返回的是对象而非ID）
+    if (data.main_lawyer && data.main_lawyer.id) formData.main_lawyer_id = data.main_lawyer.id
+    if (data.assistant_lawyer && data.assistant_lawyer.id)
+      formData.assistant_lawyer_id = data.assistant_lawyer.id
+    if (data.execution_lawyer && data.execution_lawyer.id)
+      formData.execution_lawyer_id = data.execution_lawyer.id
+    if (data.execution_assistant && data.execution_assistant.id)
+      formData.execution_assistant_id = data.execution_assistant.id
 
     // 填充银行案件数据 (读取 bank_case_details)
     if (data.case_category === '银行案件' && data.bank_case_details) {
@@ -1035,13 +1055,23 @@ watch(
         // 手动重置 reactive 对象到初始状态（略繁琐，简化处理）
         Object.assign(formData, {
           case_category: '民事案件',
+          case_code: null, // 重置案号
           commission_date: null,
           client_name: null,
           main_lawyer_id: null,
+          assistant_lawyer_id: null,
+          execution_lawyer_id: null,
+          execution_assistant_id: null,
           // ... 其他字段重置 ...
           bank_case_details: JSON.parse(JSON.stringify(initialBankDetails)),
           attachments: [],
         })
+
+        // 新增案件时，默认当前用户为主办律师
+        if (props.currentUserId) {
+          formData.main_lawyer_id = Number(props.currentUserId)
+        }
+
         rawFiles.value = []
       }
     }
@@ -1067,38 +1097,53 @@ const handleSubmit = async () => {
           submitData.bank_case_details = null
         }
 
-        // 处理附件不需要包含在 JSON body 中，如果是 update 接口通常不处理文件上传
-        // 这里假设 create/update 接口只处理 JSON 数据
-        // 附件通常通过单独的接口上传，或者使用 FormData 提交
-        // 为保持原有逻辑，这里先提交 JSON 数据
-
         // 移除 attachments 字段避免后端报错
         delete submitData.attachments
 
         let res
+        let targetCaseId
         if (props.caseId) {
           res = await axios.put(
             `http://127.0.0.1:8002/cases/case_update/${props.caseId}`,
             submitData,
           )
+          targetCaseId = props.caseId
           ElMessage.success('更新成功')
         } else {
           res = await axios.post('http://127.0.0.1:8002/cases/case_create', submitData)
+          targetCaseId = res.data.case_id
           ElMessage.success('创建成功')
         }
 
-        const newCaseId = props.caseId || res.data.case_id
+        // 修改后的附件上传逻辑：循环调用单文件接口
+        if (rawFiles.value.length > 0 && targetCaseId) {
+          const uploadPromises = rawFiles.value.map((fileItem) => {
+            const fd = new FormData()
+            // 注意：Element Plus 的 file-list 中，真实文件对象在 .raw 属性中
+            // 如果是原生 file 对象则直接使用
+            const file = fileItem.raw || fileItem
 
-        // 如果有新文件，上传文件
-        if (rawFiles.value.length > 0 && newCaseId) {
-          const fd = new FormData()
-          rawFiles.value.forEach((file) => {
-            fd.append('files', file.raw)
+            // 1. 字段名改为单数 'file'，匹配后端 @router.post("/")
+            fd.append('file', file)
+            // 2. 补充必填参数 case_id
+            fd.append('case_id', targetCaseId)
+            // 3. 补充必填参数 uploaded_by (使用 props.currentUserId)
+            // 如果未传 currentUserId，这里默认给 1，防止报错
+            fd.append('uploaded_by', props.currentUserId || 1)
+
+            // 4. URL 改为 /attachments/ (去掉 /upload/)
+            return axios.post('http://127.0.0.1:8002/attachments/', fd, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            })
           })
-          // 假设有批量上传接口
-          await axios.post(`http://127.0.0.1:8002/attachments/upload/${newCaseId}`, fd, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-          })
+
+          try {
+            await Promise.all(uploadPromises)
+            ElMessage.success(`成功上传 ${rawFiles.value.length} 个附件`)
+          } catch (uploadErr) {
+            console.error('部分附件上传失败', uploadErr)
+            ElMessage.warning('案件已保存，但部分附件上传失败，请检查')
+          }
         }
 
         emit('submit')

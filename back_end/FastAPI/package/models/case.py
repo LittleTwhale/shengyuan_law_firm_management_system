@@ -93,6 +93,8 @@ class Case(Base):
 
     # 银行案件细节
     bank_case_details = relationship("BankCase", back_populates="case", uselist=False, cascade="all, delete-orphan")
+    # 当事人
+    parties = relationship("CaseParty", back_populates="case", cascade="all, delete-orphan")
 
 
 class BankCase(Base):
@@ -174,3 +176,27 @@ class BankCase(Base):
 
     # 关系
     case = relationship("Case", back_populates="bank_case_details")
+
+
+class CaseParty(Base):
+    __tablename__ = "case_parties"
+
+    id = Column(Integer, primary_key=True, index=True, comment="当事人ID")
+    case_id = Column(Integer, ForeignKey("cases.case_id"), nullable=False, comment="关联案件ID")
+
+    # 核心字段
+    party_type = Column(String(50), nullable=False, comment="当事人类型：原告、被告、第三人等")
+    name = Column(String(100), nullable=False, comment="姓名/名称")
+
+    # 详细信息
+    id_number = Column(String(50), nullable=True, comment="身份证号/统一社会信用代码")
+    phone = Column(String(50), nullable=True, comment="联系电话")
+    address = Column(Text, nullable=True, comment="住所地/通讯地址")
+    legal_representative = Column(String(50), nullable=True, comment="法定代表人")
+
+    # 时间戳
+    created_at = Column(TIMESTAMP, server_default=func.now(), comment="创建时间")
+    updated_at = Column(TIMESTAMP, server_default=func.now(), server_onupdate=func.now(), comment="更新时间")
+
+    # 建立与 Case 的反向关系
+    case = relationship("Case", back_populates="parties")

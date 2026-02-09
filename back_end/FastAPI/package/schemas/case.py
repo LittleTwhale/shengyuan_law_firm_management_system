@@ -120,6 +120,23 @@ class BankCaseOut(BankCaseBase):
         # 允许从ORM对象属性创建Pydantic模型实例
         from_attributes = True
 
+# 案件当事人基础模型
+class CasePartyBase(BaseModel):
+    party_type: str = Field(..., description="类型：原告/被告/第三人等")
+    name: str = Field(..., description="姓名")
+    id_number: Optional[str] = Field(None, description="身份证号")
+    phone: Optional[str] = Field(None, description="电话")
+    address: Optional[str] = Field(None, description="地址")
+    legal_representative: Optional[str] = Field(None, description="法定代表人")
+
+class CasePartyCreate(CasePartyBase):
+    pass
+
+class CasePartyOut(CasePartyBase):
+    id: int
+    case_id: int
+    class Config:
+        from_attributes = True
 
 # 创建案件
 class CaseCreate(BaseModel):
@@ -193,7 +210,7 @@ class CaseCreate(BaseModel):
         from_attributes = True
 
     bank_details: Optional[BankCaseCreate] = None
-
+    parties: Optional[List[CasePartyCreate]] = []
 
 # 案件更新（部分字段可选）
 class CaseUpdate(BaseModel):
@@ -268,6 +285,7 @@ class CaseUpdate(BaseModel):
         from_attributes = True
 
     bank_details: Optional[BankCaseUpdate] = None
+    parties: Optional[List[CasePartyCreate]] = None
 
 # 案件返回给前端
 class CaseOut(BaseModel):
@@ -345,6 +363,7 @@ class CaseOut(BaseModel):
         from_attributes = True
 
     bank_case_details: Optional[BankCaseOut] = None
+    parties: List[CasePartyOut] = []
 
 # 单条案件模型
 class CaseSimpleOut(BaseModel):
