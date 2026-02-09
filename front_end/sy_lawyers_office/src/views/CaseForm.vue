@@ -6,10 +6,16 @@
     destroy-on-close
     @close="handleCancel"
     top="5vh"
+    class="custom-dialog"
   >
     <el-form :model="formData" :rules="formRules" ref="formRef" label-width="160px">
+      <!-- ================= 案件类别 ================= -->
       <el-form-item label="案件类别" prop="case_category">
-        <el-select v-model="formData.case_category" placeholder="请选择案件类别">
+        <el-select
+          v-model="formData.case_category"
+          placeholder="请选择案件类别"
+          style="width: 100%"
+        >
           <el-option label="民事案件" value="民事案件" />
           <el-option label="银行案件" value="银行案件" />
           <el-option label="刑事案件" value="刑事案件" />
@@ -22,6 +28,7 @@
         </el-select>
       </el-form-item>
 
+      <!-- ================= 银行案件专属字段 ================= -->
       <template v-if="formData.case_category === '银行案件'">
         <el-divider content-position="left">银行案件 - 借贷基础信息</el-divider>
         <el-row :gutter="20">
@@ -386,6 +393,311 @@
         </el-row>
       </template>
 
+      <!-- ================= 当事人信息区域 (优化UI) ================= -->
+      <el-divider content-position="left">当事人信息</el-divider>
+
+      <!-- 1. 委托人 (Client) -->
+      <div class="party-section">
+        <div class="party-section-header">
+          <span class="section-title">委托人</span>
+          <el-button type="primary" plain size="small" :icon="Plus" @click="addClient"
+            >添加委托人</el-button
+          >
+        </div>
+
+        <template v-for="(item, index) in formData.party_clients" :key="'client_' + index">
+          <div class="party-card client-card">
+            <div class="party-card-header">
+              <span class="party-index-label">
+                <el-icon><User /></el-icon> 委托人 #{{ index + 1 }}
+              </span>
+              <el-button
+                link
+                type="danger"
+                :icon="Delete"
+                size="small"
+                @click="removeClient(index)"
+              >
+                删除
+              </el-button>
+            </div>
+            <div class="party-card-body">
+              <el-row :gutter="10">
+                <el-col :span="8">
+                  <el-form-item
+                    label="姓名/名称"
+                    :prop="'party_clients.' + index + '.name'"
+                    :rules="{ required: true, message: '请输入委托人姓名', trigger: 'blur' }"
+                    label-width="90px"
+                  >
+                    <el-input v-model="item.name" placeholder="请输入姓名" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="8">
+                  <el-form-item
+                    label="电话"
+                    :prop="'party_clients.' + index + '.phone'"
+                    :rules="{ required: true, message: '请输入联系电话', trigger: 'blur' }"
+                    label-width="60px"
+                  >
+                    <el-input v-model="item.phone" placeholder="联系电话" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="8">
+                  <el-form-item
+                    label="证件号"
+                    :prop="'party_clients.' + index + '.id_number'"
+                    :rules="{ required: true, message: '请输入身份证/税号', trigger: 'blur' }"
+                    label-width="70px"
+                  >
+                    <el-input v-model="item.id_number" placeholder="身份证号/税号" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="地址" label-width="50px">
+                    <el-input v-model="item.address" placeholder="选填" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="法人" label-width="50px">
+                    <el-input v-model="item.legal_representative" placeholder="法定代表人 (选填)" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </div>
+          </div>
+        </template>
+        <div v-if="formData.party_clients.length === 0" class="empty-tip">
+          <el-icon><Warning /></el-icon> 暂无委托人信息，请添加。
+        </div>
+      </div>
+
+      <!-- 2. 原告/申请人 (Plaintiff) -->
+      <div class="party-section">
+        <div class="party-section-header">
+          <span class="section-title">原告/申请人/上诉人</span>
+          <el-button type="success" plain size="small" :icon="Plus" @click="addPlaintiff"
+            >添加原告/申请人/上诉人</el-button
+          >
+        </div>
+
+        <template v-for="(item, index) in formData.party_plaintiffs" :key="'plaintiff_' + index">
+          <div class="party-card plaintiff-card">
+            <div class="party-card-header">
+              <span class="party-index-label"> 原告/申请人/上诉人 #{{ index + 1 }} </span>
+              <el-button
+                link
+                type="danger"
+                :icon="Delete"
+                size="small"
+                @click="removePlaintiff(index)"
+              >
+                删除
+              </el-button>
+            </div>
+            <div class="party-card-body">
+              <el-row :gutter="10">
+                <el-col :span="5">
+                  <el-form-item
+                    label="类型"
+                    label-width="50px"
+                    :prop="'party_plaintiffs.' + index + '.party_type'"
+                    :rules="{ required: true, message: '必选', trigger: 'change' }"
+                  >
+                    <el-select v-model="item.party_type">
+                      <el-option label="原告" value="原告" />
+                      <el-option label="申请人" value="申请人" />
+                      <el-option label="上诉人" value="上诉人" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="6">
+                  <el-form-item
+                    label="姓名"
+                    label-width="50px"
+                    :prop="'party_plaintiffs.' + index + '.name'"
+                    :rules="{ required: true, message: '必填', trigger: 'blur' }"
+                  >
+                    <el-input v-model="item.name" placeholder="姓名/名称" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="6">
+                  <el-form-item label="电话" label-width="50px">
+                    <el-input v-model="item.phone" placeholder="选填" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="7">
+                  <el-form-item label="证件号" label-width="70px">
+                    <el-input v-model="item.id_number" placeholder="选填" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="地址" label-width="50px">
+                    <el-input v-model="item.address" placeholder="选填" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="法人" label-width="50px">
+                    <el-input v-model="item.legal_representative" placeholder="法定代表人 (选填)" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </div>
+          </div>
+        </template>
+        <div v-if="formData.party_plaintiffs.length === 0" class="empty-tip-simple">
+          暂无原告/申请人/上诉人信息
+        </div>
+      </div>
+
+      <!-- 3. 被告/被申请人 (Defendant) -->
+      <div class="party-section">
+        <div class="party-section-header">
+          <span class="section-title">被告/被申请人/被上诉人</span>
+          <el-button type="warning" plain size="small" :icon="Plus" @click="addDefendant"
+            >添加被告/被申请人/被上诉人</el-button
+          >
+        </div>
+
+        <template v-for="(item, index) in formData.party_defendants" :key="'defendant_' + index">
+          <div class="party-card defendant-card">
+            <div class="party-card-header">
+              <span class="party-index-label"> 被告/被申请人/被上诉人 #{{ index + 1 }} </span>
+              <el-button
+                link
+                type="danger"
+                :icon="Delete"
+                size="small"
+                @click="removeDefendant(index)"
+              >
+                删除
+              </el-button>
+            </div>
+            <div class="party-card-body">
+              <el-row :gutter="10">
+                <el-col :span="5">
+                  <el-form-item
+                    label="类型"
+                    label-width="50px"
+                    :prop="'party_defendants.' + index + '.party_type'"
+                    :rules="{ required: true, message: '必选', trigger: 'change' }"
+                  >
+                    <el-select v-model="item.party_type">
+                      <el-option label="被告" value="被告" />
+                      <el-option label="被申请人" value="被申请人" />
+                      <el-option label="被上诉人" value="被上诉人" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="6">
+                  <el-form-item
+                    label="姓名"
+                    label-width="50px"
+                    :prop="'party_defendants.' + index + '.name'"
+                    :rules="{ required: true, message: '必填', trigger: 'blur' }"
+                  >
+                    <el-input v-model="item.name" placeholder="姓名/名称" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="6">
+                  <el-form-item label="电话" label-width="50px">
+                    <el-input v-model="item.phone" placeholder="选填" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="7">
+                  <el-form-item label="证件号" label-width="70px">
+                    <el-input v-model="item.id_number" placeholder="选填" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="地址" label-width="50px">
+                    <el-input v-model="item.address" placeholder="选填" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="法人" label-width="50px">
+                    <el-input v-model="item.legal_representative" placeholder="法定代表人 (选填)" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </div>
+          </div>
+        </template>
+        <div v-if="formData.party_defendants.length === 0" class="empty-tip-simple">
+          暂无被告/被申请人/被上诉人信息
+        </div>
+      </div>
+
+      <!-- 4. 第三人 (ThirdParties) -->
+      <div class="party-section" v-if="formData.case_category !== '刑事案件'">
+        <div class="party-section-header">
+          <span class="section-title">第三人</span>
+          <el-button color="#6d14d7" plain size="small" :icon="Plus" @click="addThirdParty">
+            添加第三人
+          </el-button>
+        </div>
+
+        <template v-for="(item, index) in formData.party_third_parties" :key="'third_' + index">
+          <div class="party-card third-party-card">
+            <div class="party-card-header">
+              <span class="party-index-label"> 第三人 #{{ index + 1 }} </span>
+              <el-button
+                link
+                type="danger"
+                :icon="Delete"
+                size="small"
+                @click="removeThirdParty(index)"
+              >
+                删除
+              </el-button>
+            </div>
+            <div class="party-card-body">
+              <el-row :gutter="10">
+                <el-col :span="5">
+                  <el-form-item label="类型" label-width="50px">
+                    <el-input v-model="item.party_type" disabled />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="6">
+                  <el-form-item
+                    label="姓名"
+                    label-width="50px"
+                    :prop="'party_third_parties.' + index + '.name'"
+                    :rules="{ required: true, message: '必填', trigger: 'blur' }"
+                  >
+                    <el-input v-model="item.name" placeholder="姓名/名称" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="6">
+                  <el-form-item label="电话" label-width="50px">
+                    <el-input v-model="item.phone" placeholder="选填" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="7">
+                  <el-form-item label="证件号" label-width="70px">
+                    <el-input v-model="item.id_number" placeholder="选填" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="地址" label-width="50px">
+                    <el-input v-model="item.address" placeholder="选填" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="法人" label-width="50px">
+                    <el-input v-model="item.legal_representative" placeholder="法定代表人 (选填)" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </div>
+          </div>
+        </template>
+        <div v-if="formData.party_third_parties.length === 0" class="empty-tip-simple">
+          暂无第三人信息
+        </div>
+      </div>
+
+      <!-- ================= 通用信息 ================= -->
       <el-divider content-position="left">通用信息</el-divider>
       <el-row :gutter="20">
         <el-col :span="12">
@@ -397,21 +709,6 @@
               style="width: 100%"
               value-format="YYYY-MM-DD"
             />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="委托人" prop="client_name">
-            <el-input v-model="formData.client_name" />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="委托人身份证/税号" prop="client_id_number">
-            <el-input v-model="formData.client_id_number" />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="联系电话" prop="client_phone">
-            <el-input v-model="formData.client_phone" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -430,11 +727,6 @@
           </el-form-item>
         </el-col>
 
-        <el-col :span="12">
-          <el-form-item label="原告/申请人" prop="plaintiff">
-            <el-input v-model="formData.plaintiff" />
-          </el-form-item>
-        </el-col>
         <template v-if="formData.case_category === '刑事案件'">
           <el-col :span="12">
             <el-form-item label="侦查机关" prop="investigative_agency">
@@ -455,29 +747,7 @@
             </el-form-item>
           </el-col>
         </template>
-        <el-col :span="12">
-          <el-form-item label="被告" prop="defendant">
-            <el-input v-model="formData.defendant" />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="上诉人" prop="appellant_info">
-            <el-input v-model="formData.appellant_info" placeholder="上诉人信息" />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="被上诉人" prop="extra_appellant_info">
-            <el-input
-              v-model="formData.extra_appellant_info"
-              placeholder="被上诉人或被告诉讼补充"
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12" v-if="formData.case_category !== '刑事案件'">
-          <el-form-item label="第三人" prop="third_party">
-            <el-input v-model="formData.third_party" placeholder="请输入第三人" />
-          </el-form-item>
-        </el-col>
+
         <el-col :span="12">
           <el-form-item label="案号" prop="case_code">
             <el-input v-model="formData.case_code" placeholder="请输入案号" />
@@ -803,15 +1073,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, defineProps, defineEmits, computed, onMounted } from 'vue'
+import { ref, reactive, watch, computed, onMounted } from 'vue'
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { UploadFilled } from '@element-plus/icons-vue'
+import { UploadFilled, Delete, Plus, User, Warning } from '@element-plus/icons-vue'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
   caseId: { type: [Number, String], default: null },
-  currentUserId: { type: [Number, String], default: null }, // 新增: 接收当前用户ID
+  currentUserId: { type: [Number, String], default: null }, //  接收当前用户ID
 })
 
 const emit = defineEmits(['update:visible', 'submit'])
@@ -880,9 +1150,23 @@ const formData = reactive({
   case_category: '民事案件',
   case_code: null,
   commission_date: null,
+
+  // 新增：前端分类管理的当事人列表
+  party_clients: [], // 委托人
+  party_plaintiffs: [], // 原告/申请人/上诉人
+  party_defendants: [], // 被告/被申请人/被上诉人
+  party_third_parties: [], // 第三人
+
+  // 旧字段保留（用于兼容，不直接绑定）
   client_name: null,
   client_id_number: null,
   client_phone: null,
+  plaintiff: null,
+  defendant: null,
+  appellant_info: null,
+  extra_appellant_info: null,
+  third_party: null,
+
   case_source: null,
   stage: null,
   cause: null,
@@ -894,11 +1178,6 @@ const formData = reactive({
   execution_assistant_id: null,
 
   // 诉讼主体
-  plaintiff: null,
-  defendant: null,
-  appellant_info: null,
-  extra_appellant_info: null,
-  third_party: null,
   investigative_agency: null,
   procuratorate: null,
   second_instance_procuratorate: null,
@@ -950,9 +1229,64 @@ const formData = reactive({
 const formRules = {
   case_category: [{ required: true, message: '请选择案件类别', trigger: 'change' }],
   commission_date: [{ required: true, message: '请选择委托日期', trigger: 'change' }],
-  client_name: [{ required: true, message: '请输入委托人', trigger: 'blur' }],
   main_lawyer_id: [{ required: true, message: '请选择主办律师', trigger: 'change' }],
-  client_id_number: [{ required: true, message: '请输入委托人身份证或单位税号', trigger: 'blur' }],
+  // 移除了原有的 client_name, client_id_number 的校验，改为行内校验
+}
+
+// 当事人操作方法
+const addClient = () => {
+  formData.party_clients.push({
+    party_type: '委托人',
+    name: '',
+    phone: '',
+    id_number: '',
+    address: '',
+    legal_representative: '',
+  })
+}
+const removeClient = (index) => {
+  formData.party_clients.splice(index, 1)
+}
+
+const addPlaintiff = () => {
+  formData.party_plaintiffs.push({
+    party_type: '原告', // 默认值
+    name: '',
+    phone: '',
+    id_number: '',
+    address: '',
+    legal_representative: '',
+  })
+}
+const removePlaintiff = (index) => {
+  formData.party_plaintiffs.splice(index, 1)
+}
+
+const addDefendant = () => {
+  formData.party_defendants.push({
+    party_type: '被告', // 默认值
+    name: '',
+    phone: '',
+    id_number: '',
+    address: '',
+    legal_representative: '',
+  })
+}
+const removeDefendant = (index) => {
+  formData.party_defendants.splice(index, 1)
+}
+const addThirdParty = () => {
+  formData.party_third_parties.push({
+    party_type: '第三人',
+    name: '',
+    phone: '',
+    id_number: '',
+    address: '',
+    legal_representative: '',
+  })
+}
+const removeThirdParty = (index) => {
+  formData.party_third_parties.splice(index, 1)
 }
 
 // 加载律师列表
@@ -974,10 +1308,80 @@ const fetchCaseDetail = async () => {
 
     // 填充通用数据
     Object.keys(formData).forEach((key) => {
-      if (key !== 'bank_case_details' && key !== 'attachments' && data[key] !== undefined) {
+      // 跳过数组类型的字段，避免直接覆盖
+      if (
+        [
+          'bank_case_details',
+          'attachments',
+          'party_clients',
+          'party_plaintiffs',
+          'party_defendants',
+        ].includes(key)
+      )
+        return
+      if (data[key] !== undefined) {
         formData[key] = data[key]
       }
     })
+
+    // 处理当事人数据
+    formData.party_clients = []
+    formData.party_plaintiffs = []
+    formData.party_defendants = []
+    formData.party_third_parties = []
+
+    if (data.parties && data.parties.length > 0) {
+      // 如果有新版数据，按类型分发
+      data.parties.forEach((p) => {
+        if (p.party_type === '委托人') {
+          formData.party_clients.push(p)
+        } else if (['原告', '申请人', '上诉人'].includes(p.party_type)) {
+          formData.party_plaintiffs.push(p)
+        } else if (['被告', '被申请人', '被上诉人'].includes(p.party_type)) {
+          formData.party_defendants.push(p)
+        } else if (p.party_type === '第三人') {
+          formData.party_third_parties.push(p)
+        }
+      })
+    } else {
+      // 兼容旧数据：如果 parties 为空但有旧字段
+      if (data.client_name) {
+        // 尝试拆分旧的逗号分隔字符串
+        const clients = data.client_name.split(/[,，、]/).filter((s) => s)
+        clients.forEach((c, idx) => {
+          formData.party_clients.push({
+            party_type: '委托人',
+            name: c,
+            phone: idx === 0 ? data.client_phone : '', // 仅第一个填充电话
+            id_number: idx === 0 ? data.client_id_number : '',
+            address: '',
+          })
+        })
+      }
+      if (data.plaintiff) {
+        const plaintiffs = data.plaintiff.split(/[,，、]/).filter((s) => s)
+        plaintiffs.forEach((p) => {
+          formData.party_plaintiffs.push({ party_type: '原告', name: p })
+        })
+      }
+      if (data.defendant) {
+        const defendants = data.defendant.split(/[,，、]/).filter((s) => s)
+        defendants.forEach((d) => {
+          formData.party_defendants.push({ party_type: '被告', name: d })
+        })
+      }
+      if (data.third_party) {
+        const thirdParties = data.third_party.split(/[,，、]/).filter((s) => s)
+        thirdParties.forEach((t) => {
+          formData.party_third_parties.push({ party_type: '第三人', name: t })
+        })
+      }
+    }
+
+    // 如果没有任何委托人，默认添加一行方便输入
+    if (formData.party_clients.length === 0) {
+      addClient()
+    }
 
     // 显式处理律师对象映射（如果后端返回的是对象而非ID）
     if (data.main_lawyer && data.main_lawyer.id) formData.main_lawyer_id = data.main_lawyer.id
@@ -1057,7 +1461,6 @@ watch(
           case_category: '民事案件',
           case_code: null, // 重置案号
           commission_date: null,
-          client_name: null,
           main_lawyer_id: null,
           assistant_lawyer_id: null,
           execution_lawyer_id: null,
@@ -1065,7 +1468,15 @@ watch(
           // ... 其他字段重置 ...
           bank_case_details: JSON.parse(JSON.stringify(initialBankDetails)),
           attachments: [],
+
+          // 重置当事人
+          party_clients: [],
+          party_plaintiffs: [],
+          party_defendants: [],
         })
+
+        // 新增时默认添加一个空委托人
+        addClient()
 
         // 新增案件时，默认当前用户为主办律师
         if (props.currentUserId) {
@@ -1088,17 +1499,52 @@ const handleSubmit = async () => {
   if (!formRef.value) return
   await formRef.value.validate(async (valid) => {
     if (valid) {
+      // 额外逻辑校验
+      if (formData.party_clients.length === 0) {
+        ElMessage.error('请至少添加一位委托人')
+        return
+      }
+
       loading.value = true
       try {
         const submitData = JSON.parse(JSON.stringify(formData))
+
+        // ================== 修复代码开始 ==================
+        // 1. 兼容旧字段：将 party_clients 的第一个人信息填入旧字段
+        // 后端报错是因为 client_name 为 null，这里强制转为字符串
+        if (submitData.party_clients && submitData.party_clients.length > 0) {
+          const firstClient = submitData.party_clients[0]
+          submitData.client_name = firstClient.name || ''
+          submitData.client_phone = firstClient.phone || ''
+          submitData.client_id_number = firstClient.id_number || ''
+        } else {
+          //以此防止万一为空的情况（虽然上面校验过了）
+          submitData.client_name = ''
+        }
+        // ================== 修复代码结束 ==================
 
         // 如果不是银行案件，清空详情
         if (submitData.case_category !== '银行案件') {
           submitData.bank_case_details = null
         }
 
-        // 移除 attachments 字段避免后端报错
+        // 合并当事人数据
+        submitData.parties = [
+          ...formData.party_clients,
+          ...formData.party_plaintiffs,
+          ...formData.party_defendants,
+          ...formData.party_third_parties,
+        ]
+
+        // 移除前端临时数组和附件字段
+        delete submitData.party_clients
+        delete submitData.party_plaintiffs
+        delete submitData.party_defendants
+        delete submitData.party_third_parties
         delete submitData.attachments
+
+        // 移除旧字段避免数据冲突(可选，视后端逻辑而定，这里保留为了兼容后端可能的读取)
+        // 但建议主要依赖 parties
 
         let res
         let targetCaseId
@@ -1173,5 +1619,125 @@ onMounted(() => {
   padding: 4px 0;
   color: #606266;
   font-size: 14px;
+}
+
+/* 当事人部分通用样式 */
+.party-section {
+  margin-bottom: 24px;
+}
+
+.party-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-weight: bold;
+  font-size: 14px;
+  color: #606266;
+}
+
+.party-card {
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  background-color: #fff;
+  transition: all 0.3s;
+}
+
+.party-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.party-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #ebeef5;
+  background-color: #f5f7fa;
+  border-radius: 4px 4px 0 0;
+}
+
+.party-index-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #606266;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.party-card-body {
+  padding: 16px 12px 4px 12px; /* Bottom padding slightly reduced */
+}
+
+/* 委托人特有样式 */
+.client-card .party-card-header {
+  background-color: #ecf5ff; /* Light Blue */
+}
+.client-card .party-index-label {
+  color: #409eff;
+}
+.client-card {
+  border-left: 3px solid #409eff;
+}
+
+/* 原告特有样式 */
+.plaintiff-card .party-card-header {
+  background-color: #f0f9eb; /* Light Green */
+}
+.plaintiff-card .party-index-label {
+  color: #67c23a;
+}
+.plaintiff-card {
+  border-left: 3px solid #67c23a;
+}
+
+/* 被告特有样式 */
+.defendant-card .party-card-header {
+  background-color: #fdf6ec; /* Light Orange */
+}
+.defendant-card .party-index-label {
+  color: #e6a23c;
+}
+.defendant-card {
+  border-left: 3px solid #e6a23c;
+}
+
+/* 第三人特有样式 */
+.third-party-card .party-card-header {
+  background-color: #ebdcfc;
+}
+.third-party-card .party-index-label {
+  color: #6d14d7;
+}
+.third-party-card {
+  border-left: 3px solid #6d14d7;
+}
+
+/* 空状态样式 */
+.empty-tip {
+  color: #f56c6c;
+  font-size: 13px;
+  margin-left: 4px;
+  background-color: #fef0f0;
+  padding: 8px 12px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.empty-tip-simple {
+  color: #909399;
+  font-size: 13px;
+  text-align: center;
+  padding: 15px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+  border: 1px dashed #dcdfe6;
 }
 </style>

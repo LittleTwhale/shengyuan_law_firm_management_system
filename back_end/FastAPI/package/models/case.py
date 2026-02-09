@@ -185,7 +185,7 @@ class CaseParty(Base):
     case_id = Column(Integer, ForeignKey("cases.case_id"), nullable=False, comment="关联案件ID")
 
     # 核心字段
-    party_type = Column(String(50), nullable=False, comment="当事人类型：原告、被告、第三人等")
+    party_type = Column(String(50), nullable=False, comment="当事人类型：委托人、原告、被告、第三人等")
     name = Column(String(100), nullable=False, comment="姓名/名称")
 
     # 详细信息

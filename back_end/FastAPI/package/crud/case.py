@@ -231,6 +231,7 @@ def count_bank_cases_by_user_role(
 
 # 辅助函数：将当事人列表转换为逗号分隔字符串（用于兼容旧字段）
 def _sync_legacy_fields(parties_data: list) -> dict:
+    clients = []
     plaintiffs = []
     defendants = []
     for p in parties_data:
@@ -242,11 +243,26 @@ def _sync_legacy_fields(parties_data: list) -> dict:
             plaintiffs.append(p_name)
         elif p_type in ['被告', '被申请人', '被上诉人']:
             defendants.append(p_name)
+        elif p_type == '委托人':
+            clients.append(p)
 
-    return {
+    result = {
         "plaintiff": "、".join(plaintiffs) if plaintiffs else None,
-        "defendant": "、".join(defendants) if defendants else None
+        "defendant": "、".join(defendants) if defendants else None,
+        "client_name": "、".join([c.name if hasattr(c, 'name') else c.get('name') for c in clients]) if clients else None
     }
+
+    # 额外逻辑：如果存在委托人，将第一个委托人的电话和身份证同步到主表
+    if clients:
+        first_client = clients[0]
+        # 兼容字典和对象
+        phone = first_client.phone if hasattr(first_client, 'phone') else first_client.get('phone')
+        id_number = first_client.id_number if hasattr(first_client, 'id_number') else first_client.get('id_number')
+
+        result["client_phone"] = phone
+        result["client_id_number"] = id_number
+
+    return result
 
 
 def create_case(db: Session, case_in: CaseCreate) -> Case:
@@ -286,6 +302,12 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
             case_data["plaintiff"] = legacy_update["plaintiff"]
         if legacy_update["defendant"]:
             case_data["defendant"] = legacy_update["defendant"]
+        if legacy_update.get("client_name"):
+            case_data["client_name"] = legacy_update["client_name"]
+        if legacy_update.get("client_phone"):
+            case_data["client_phone"] = legacy_update["client_phone"]
+        if legacy_update.get("client_id_number"):
+            case_data["client_id_number"] = legacy_update["client_id_number"]
 
     # 创建主案件
     case_data["review_status"] = "待审核"
@@ -436,12 +458,18 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
             )
             db.add(new_party)
 
-        # C. 同步更新旧字段 (plaintiff/defendant)
+        # C. 同步更新旧字段
         legacy_update = _sync_legacy_fields(case_in.parties)
         if legacy_update["plaintiff"] is not None:
             case.plaintiff = legacy_update["plaintiff"]
         if legacy_update["defendant"] is not None:
             case.defendant = legacy_update["defendant"]
+        if legacy_update.get("client_name"):
+            case.client_name = legacy_update["client_name"]
+        if legacy_update.get("client_phone"):
+            case.client_phone = legacy_update["client_phone"]
+        if legacy_update.get("client_id_number"):
+            case.client_id_number = legacy_update["client_id_number"]
 
     # 更新或创建银行案件详情
     if case_in.bank_details:

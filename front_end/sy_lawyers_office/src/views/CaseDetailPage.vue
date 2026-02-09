@@ -7,28 +7,126 @@
     <el-card class="detail-card" v-loading="loading">
       <el-descriptions title="案件基本信息" :column="2" border>
         <el-descriptions-item label="案件号">{{
-            caseData.case_number || '-'
-          }}</el-descriptions-item>
+          caseData.case_number || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="案件类别">{{
-            caseData.case_category || '-'
-          }}</el-descriptions-item>
+          caseData.case_category || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="委托日期">{{
-            formatDate(caseData.commission_date)
-          }}</el-descriptions-item>
-        <el-descriptions-item :label="clientLabel">
-          {{ caseData.client_name || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="身份证号/单位税号">{{
-            caseData.client_id_number || '-'
-          }}</el-descriptions-item>
-        <el-descriptions-item label="联系电话">{{
-            caseData.client_phone || '-'
-          }}</el-descriptions-item>
+          formatDate(caseData.commission_date)
+        }}</el-descriptions-item>
         <el-descriptions-item label="案件来源">{{
-            caseData.case_source || '-'
-          }}</el-descriptions-item>
+          caseData.case_source || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="介入阶段">{{ caseData.stage || '-' }}</el-descriptions-item>
         <el-descriptions-item label="案由">{{ caseData.cause || '-' }}</el-descriptions-item>
+      </el-descriptions>
+
+      <el-divider />
+
+      <el-descriptions title="当事人信息" :column="1" border>
+        <el-descriptions-item :label="clientLabel">
+          <div v-if="partyClients.length > 0">
+            <div v-for="(p, index) in partyClients" :key="p.id" class="party-item">
+              <span class="party-index">{{ index + 1 }}.</span>
+              <span class="party-name">{{ p.name }}</span>
+              <span class="party-tag" v-if="p.phone">
+                <el-icon><Phone /></el-icon> {{ p.phone }}
+              </span>
+              <span class="party-tag" v-if="p.id_number">
+                <el-icon><Postcard /></el-icon> {{ p.id_number }}
+              </span>
+              <span class="party-address" v-if="p.address"> (地址: {{ p.address }}) </span>
+              <span class="party-address" v-if="p.legal_representative">
+                [法人: {{ p.legal_representative }}]
+              </span>
+            </div>
+          </div>
+          <span v-else>-</span>
+        </el-descriptions-item>
+
+        <el-descriptions-item :label="plaintiffLabel" v-if="caseData.case_category !== '刑事案件'">
+          <div v-if="partyPlaintiffs.length > 0">
+            <div v-for="(p, index) in partyPlaintiffs" :key="p.id" class="party-item">
+              <span class="party-index">{{ index + 1 }}.</span>
+              <span class="party-role-badge">{{ p.party_type }}</span>
+              <span class="party-name">{{ p.name }}</span>
+              <span class="party-tag" v-if="p.phone">
+                <el-icon><Phone /></el-icon> {{ p.phone }}
+              </span>
+              <span class="party-tag" v-if="p.id_number">
+                <el-icon><Postcard /></el-icon> {{ p.id_number }}
+              </span>
+              <span class="party-address" v-if="p.address"> (地址: {{ p.address }}) </span>
+              <span class="party-address" v-if="p.legal_representative">
+                [法人: {{ p.legal_representative }}]
+              </span>
+            </div>
+          </div>
+          <span v-else>-</span>
+        </el-descriptions-item>
+
+        <template v-if="caseData.case_category === '刑事案件'">
+          <el-descriptions-item label="侦查机关">
+            {{ caseData.investigative_agency || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="检察院">
+            {{ caseData.procuratorate || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="二审检察机关">
+            {{ caseData.second_instance_procuratorate || '-' }}
+          </el-descriptions-item>
+        </template>
+
+        <el-descriptions-item :label="defendantLabel">
+          <div v-if="partyDefendants.length > 0">
+            <div v-for="(p, index) in partyDefendants" :key="p.id" class="party-item">
+              <span class="party-index">{{ index + 1 }}.</span>
+              <span class="party-role-badge warning">{{ p.party_type }}</span>
+              <span class="party-name">{{ p.name }}</span>
+              <span class="party-tag" v-if="p.phone">
+                <el-icon><Phone /></el-icon> {{ p.phone }}
+              </span>
+              <span class="party-tag" v-if="p.id_number">
+                <el-icon><Postcard /></el-icon> {{ p.id_number }}
+              </span>
+              <span class="party-address" v-if="p.address"> (地址: {{ p.address }}) </span>
+              <span class="party-address" v-if="p.legal_representative">
+                [法人: {{ p.legal_representative }}]
+              </span>
+            </div>
+          </div>
+          <span v-else>-</span>
+        </el-descriptions-item>
+
+        <el-descriptions-item label="第三人" v-if="caseData.case_category !== '刑事案件'">
+          <div v-if="partyThirdParties.length > 0">
+            <div v-for="(p, index) in partyThirdParties" :key="p.id" class="party-item">
+              <span class="party-index">{{ index + 1 }}.</span>
+              <el-tag
+                size="small"
+                color="#ebdcfc"
+                style="color: #6d14d7; border-color: #6d14d7; margin-right: 5px"
+              >
+                第三人
+              </el-tag>
+              <span class="party-name">{{ p.name }}</span>
+              <span class="party-tag" v-if="p.phone">
+                <el-icon><Phone /></el-icon> {{ p.phone }}
+              </span>
+              <span class="party-tag" v-if="p.id_number">
+                <el-icon><Postcard /></el-icon> {{ p.id_number }}
+              </span>
+              <span class="party-address" v-if="p.address"> (地址: {{ p.address }}) </span>
+              <span class="party-address" v-if="p.legal_representative">
+                [法人: {{ p.legal_representative }}]
+              </span>
+            </div>
+          </div>
+          <span v-else>
+            {{ caseData.third_party || '-' }}
+          </span>
+        </el-descriptions-item>
       </el-descriptions>
 
       <template v-if="caseData.case_category === '银行案件' && caseData.bank_case_details">
@@ -36,45 +134,45 @@
 
         <el-descriptions title="银行案件 - 借贷基础信息" :column="2" border>
           <el-descriptions-item label="支行名称">{{
-              caseData.bank_case_details.branch_name || '-'
-            }}</el-descriptions-item>
+            caseData.bank_case_details.branch_name || '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="客户经理">{{
-              caseData.bank_case_details.account_manager || '-'
-            }}</el-descriptions-item>
+            caseData.bank_case_details.account_manager || '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="借款人身份证号码/统信代码">{{
-              caseData.bank_case_details.borrower_id_number || '-'
-            }}</el-descriptions-item>
+            caseData.bank_case_details.borrower_id_number || '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="借款人工作单位">{{
-              caseData.bank_case_details.borrower_work_unit || '-'
-            }}</el-descriptions-item>
+            caseData.bank_case_details.borrower_work_unit || '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="担保人">{{
-              caseData.bank_case_details.guarantor || '-'
-            }}</el-descriptions-item>
+            caseData.bank_case_details.guarantor || '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="是否普惠金融">
             <el-tag :type="caseData.bank_case_details.is_inclusive_finance ? 'success' : 'info'">
               {{ caseData.bank_case_details.is_inclusive_finance ? '是' : '否' }}
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="借款日">{{
-              formatDate(caseData.bank_case_details.loan_date)
-            }}</el-descriptions-item>
+            formatDate(caseData.bank_case_details.loan_date)
+          }}</el-descriptions-item>
           <el-descriptions-item label="到期日">{{
-              formatDate(caseData.bank_case_details.loan_due_date)
-            }}</el-descriptions-item>
+            formatDate(caseData.bank_case_details.loan_due_date)
+          }}</el-descriptions-item>
           <el-descriptions-item label="逾期时间">{{
-              formatDate(caseData.bank_case_details.overdue_date)
-            }}</el-descriptions-item>
+            formatDate(caseData.bank_case_details.overdue_date)
+          }}</el-descriptions-item>
           <el-descriptions-item label="诉讼时效">{{
-              caseData.bank_case_details.statute_of_limitations || '-'
-            }}</el-descriptions-item>
+            caseData.bank_case_details.statute_of_limitations || '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="抵/质押物信息" :span="2">
             <div class="case-detail-content">
               {{ caseData.bank_case_details.collateral_info || '-' }}
             </div>
           </el-descriptions-item>
           <el-descriptions-item label="抵押物位置" :span="2">{{
-              caseData.bank_case_details.collateral_location || '-'
-            }}</el-descriptions-item>
+            caseData.bank_case_details.collateral_location || '-'
+          }}</el-descriptions-item>
         </el-descriptions>
 
         <el-divider />
@@ -90,19 +188,19 @@
             {{ formatCurrency(caseData.bank_case_details.credit_card_penalty) }}
           </el-descriptions-item>
           <el-descriptions-item label="取材料人">{{
-              caseData.bank_case_details.material_fetcher || '-'
-            }}</el-descriptions-item>
+            caseData.bank_case_details.material_fetcher || '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="诉前催收情况" :span="2">
             <div class="case-detail-content">
               {{ caseData.bank_case_details.pre_litigation_collection || '-' }}
             </div>
           </el-descriptions-item>
           <el-descriptions-item label="盖章日">{{
-              formatDate(caseData.bank_case_details.seal_date)
-            }}</el-descriptions-item>
+            formatDate(caseData.bank_case_details.seal_date)
+          }}</el-descriptions-item>
           <el-descriptions-item label="材料提交法院日">{{
-              formatDate(caseData.bank_case_details.material_submission_date)
-            }}</el-descriptions-item>
+            formatDate(caseData.bank_case_details.material_submission_date)
+          }}</el-descriptions-item>
           <el-descriptions-item label="裁判摘要" :span="2">
             <div class="case-detail-content">
               {{ caseData.bank_case_details.judgment_summary || '-' }}
@@ -125,14 +223,14 @@
 
         <el-descriptions title="银行案件 - 执行与查控" :column="2" border>
           <el-descriptions-item label="执行案号">{{
-              caseData.bank_case_details.execution_case_number || '-'
-            }}</el-descriptions-item>
+            caseData.bank_case_details.execution_case_number || '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="执行法官">{{
-              caseData.bank_case_details.execution_judge || '-'
-            }}</el-descriptions-item>
+            caseData.bank_case_details.execution_judge || '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="执行立案时间">{{
-              formatDate(caseData.bank_case_details.execution_filing_date)
-            }}</el-descriptions-item>
+            formatDate(caseData.bank_case_details.execution_filing_date)
+          }}</el-descriptions-item>
           <el-descriptions-item label="是否为恢复执行">
             <el-tag :type="caseData.bank_case_details.is_execution_recovery ? 'success' : 'info'">
               {{ caseData.bank_case_details.is_execution_recovery ? '是' : '否' }}
@@ -175,8 +273,8 @@
 
         <el-descriptions title="银行案件 - 拍卖、结案与回款" :column="2" border>
           <el-descriptions-item label="拍卖程序">{{
-              caseData.bank_case_details.auction_status || '-'
-            }}</el-descriptions-item>
+            caseData.bank_case_details.auction_status || '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="拍卖变卖成交价">
             {{ formatCurrency(caseData.bank_case_details.auction_deal_price) }}
           </el-descriptions-item>
@@ -186,26 +284,26 @@
             </div>
           </el-descriptions-item>
           <el-descriptions-item label="终本时间">{{
-              formatDate(caseData.bank_case_details.procedure_termination_date)
-            }}</el-descriptions-item>
+            formatDate(caseData.bank_case_details.procedure_termination_date)
+          }}</el-descriptions-item>
           <el-descriptions-item label="终本原因">{{
-              caseData.bank_case_details.termination_reason || '-'
-            }}</el-descriptions-item>
+            caseData.bank_case_details.termination_reason || '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="终结执行时间">{{
-              formatDate(caseData.bank_case_details.execution_conclusion_date)
-            }}</el-descriptions-item>
+            formatDate(caseData.bank_case_details.execution_conclusion_date)
+          }}</el-descriptions-item>
           <el-descriptions-item label="恢复执行时间">{{
-              formatDate(caseData.bank_case_details.execution_recovery_date)
-            }}</el-descriptions-item>
+            formatDate(caseData.bank_case_details.execution_recovery_date)
+          }}</el-descriptions-item>
           <el-descriptions-item label="还清时间">{{
-              formatDate(caseData.bank_case_details.payoff_date)
-            }}</el-descriptions-item>
+            formatDate(caseData.bank_case_details.payoff_date)
+          }}</el-descriptions-item>
           <el-descriptions-item label="执行回款总金额">
             {{ formatCurrency(caseData.bank_case_details.execution_collection_amount) }}
           </el-descriptions-item>
           <el-descriptions-item label="执行回款来源">{{
-              caseData.bank_case_details.collection_source || '-'
-            }}</el-descriptions-item>
+            caseData.bank_case_details.collection_source || '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="调解案件履行跟踪情况" :span="2">
             <div class="case-detail-content">
               {{ caseData.bank_case_details.mediation_tracking || '-' }}
@@ -218,98 +316,63 @@
 
       <el-descriptions title="费用信息" :column="2" border>
         <el-descriptions-item label="收费方式">{{
-            caseData.fee_method || '-'
-          }}</el-descriptions-item>
+          caseData.fee_method || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="案件收入">
           {{ caseData.case_income ? `${caseData.case_income} 元` : '-' }}
         </el-descriptions-item>
         <el-descriptions-item label="风险比例">{{
-            caseData.risk_ratio || '-'
-          }}</el-descriptions-item>
+          caseData.risk_ratio || '-'
+        }}</el-descriptions-item>
       </el-descriptions>
 
       <el-divider />
 
       <el-descriptions title="律师信息" :column="2" border>
         <el-descriptions-item label="主办律师">{{
-            caseData.main_lawyer?.real_name || '-'
-          }}</el-descriptions-item>
+          caseData.main_lawyer?.real_name || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="助理律师">{{
-            caseData.assistant_lawyer?.real_name || '-'
-          }}</el-descriptions-item>
+          caseData.assistant_lawyer?.real_name || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="执行律师">{{
-            caseData.execution_lawyer?.real_name || '-'
-          }}</el-descriptions-item>
+          caseData.execution_lawyer?.real_name || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="执行助理">{{
-            caseData.execution_assistant?.real_name || '-'
-          }}</el-descriptions-item>
+          caseData.execution_assistant?.real_name || '-'
+        }}</el-descriptions-item>
       </el-descriptions>
 
       <el-divider />
 
-      <el-descriptions title="系统信息" :column="2" border>
-        <el-descriptions-item label="创建时间">{{
-            formatDateTime(caseData.created_at)
-          }}</el-descriptions-item>
-        <el-descriptions-item label="更新时间">{{
-            formatDateTime(caseData.updated_at)
-          }}</el-descriptions-item>
-      </el-descriptions>
-
-      <el-divider />
-
-      <el-descriptions title="诉讼信息" :column="2" border>
-        <el-descriptions-item :label="plaintiffLabel" v-if="caseData.case_category !== '刑事案件'">
-          {{ caseData.plaintiff || '-' }}
-        </el-descriptions-item>
-
-        <template v-if="caseData.case_category === '刑事案件'">
-          <el-descriptions-item label="侦查机关">
-            {{ caseData.investigative_agency || '-' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="检察院">
-            {{ caseData.procuratorate || '-' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="二审检察机关">
-            {{ caseData.second_instance_procuratorate || '-' }}
-          </el-descriptions-item>
-        </template>
-
-        <el-descriptions-item :label="defendantLabel">
-          {{ caseData.defendant || '-' }}
-        </el-descriptions-item>
-
-        <el-descriptions-item label="第三人" v-if="caseData.case_category !== '刑事案件'">
-          {{ caseData.third_party || '-' }}
-        </el-descriptions-item>
-
+      <el-descriptions title="审理与管辖信息" :column="2" border>
         <el-descriptions-item label="上诉人">{{
-            caseData.appellant_info || '-'
-          }}</el-descriptions-item>
+          caseData.appellant_info || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="被上诉人">{{
-            caseData.extra_appellant_info || '-'
-          }}</el-descriptions-item>
+          caseData.extra_appellant_info || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="代理权限">{{
-            caseData.agency_power || '-'
-          }}</el-descriptions-item>
+          caseData.agency_power || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item :label="courtLabel">
           {{ caseData.court || '-' }}
         </el-descriptions-item>
         <el-descriptions-item label="立案日">{{
-            formatDate(caseData.filing_date)
-          }}</el-descriptions-item>
+          formatDate(caseData.filing_date)
+        }}</el-descriptions-item>
         <el-descriptions-item label="开庭时间">{{
-            formatDate(caseData.hearing_date)
-          }}</el-descriptions-item>
+          formatDate(caseData.hearing_date)
+        }}</el-descriptions-item>
         <el-descriptions-item label="结案时间">{{
-            formatDate(caseData.closing_date)
-          }}</el-descriptions-item>
+          formatDate(caseData.closing_date)
+        }}</el-descriptions-item>
         <el-descriptions-item label="结案状态">{{
-            caseData.closing_status || '-'
-          }}</el-descriptions-item>
+          caseData.closing_status || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="结案方式">{{
-            caseData.closing_method || '-'
-          }}</el-descriptions-item>
+          caseData.closing_method || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="案件地点">{{ caseData.location || '-' }}</el-descriptions-item>
         <el-descriptions-item label="案件详情">
           <div class="case-detail-content" v-text="caseData.details || '-'"></div>
@@ -318,40 +381,51 @@
 
       <el-divider />
 
+      <el-descriptions title="系统信息" :column="2" border>
+        <el-descriptions-item label="创建时间">{{
+          formatDateTime(caseData.created_at)
+        }}</el-descriptions-item>
+        <el-descriptions-item label="更新时间">{{
+          formatDateTime(caseData.updated_at)
+        }}</el-descriptions-item>
+      </el-descriptions>
+
+      <el-divider />
+
       <el-descriptions title="案件状态" :column="2" border>
         <el-descriptions-item label="审核状态">{{ caseData.review_status }}</el-descriptions-item>
         <el-descriptions-item label="审核人">{{
-            caseData.reviewer?.real_name || '-'
-          }}</el-descriptions-item>
+          caseData.reviewer?.real_name || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="是否重大">{{
-            caseData.is_major ? '是' : '否'
-          }}</el-descriptions-item>
+          caseData.is_major ? '是' : '否'
+        }}</el-descriptions-item>
         <el-descriptions-item label="是否解除">{{
-            caseData.is_dismissed ? '是' : '否'
-          }}</el-descriptions-item>
+          caseData.is_dismissed ? '是' : '否'
+        }}</el-descriptions-item>
         <el-descriptions-item label="是否纸质卷宗">{{
-            caseData.has_paper_file ? '是' : '否'
-          }}</el-descriptions-item>
+          caseData.has_paper_file ? '是' : '否'
+        }}</el-descriptions-item>
         <el-descriptions-item label="是否笔录">{{
-            caseData.has_record ? '是' : '否'
-          }}</el-descriptions-item>
+          caseData.has_record ? '是' : '否'
+        }}</el-descriptions-item>
         <el-descriptions-item label="是否保全">{{
-            caseData.has_preservation ? '是' : '否'
-          }}</el-descriptions-item>
+          caseData.has_preservation ? '是' : '否'
+        }}</el-descriptions-item>
         <el-descriptions-item label="保全开始日">{{
-            formatDate(caseData.preservation_start)
-          }}</el-descriptions-item>
+          formatDate(caseData.preservation_start)
+        }}</el-descriptions-item>
         <el-descriptions-item label="保全终止日">{{
-            formatDate(caseData.preservation_end)
-          }}</el-descriptions-item>
+          formatDate(caseData.preservation_end)
+        }}</el-descriptions-item>
       </el-descriptions>
 
       <el-divider />
 
       <el-descriptions title="费用与执行信息" :column="2" border>
         <el-descriptions-item label="诉讼费缴费时间">{{
-            formatDate(caseData.litigation_fee_payment_date)
-          }}</el-descriptions-item>
+          formatDate(caseData.litigation_fee_payment_date)
+        }}</el-descriptions-item>
         <el-descriptions-item label="诉讼费缴费金额">
           {{
             caseData.litigation_fee_payment_amount
@@ -360,8 +434,8 @@
           }}
         </el-descriptions-item>
         <el-descriptions-item label="诉讼费退费时间">{{
-            formatDate(caseData.litigation_fee_refund_date)
-          }}</el-descriptions-item>
+          formatDate(caseData.litigation_fee_refund_date)
+        }}</el-descriptions-item>
         <el-descriptions-item label="诉讼费退费金额">
           {{
             caseData.litigation_fee_refund_amount
@@ -370,14 +444,14 @@
           }}
         </el-descriptions-item>
         <el-descriptions-item label="申请执行日">{{
-            formatDate(caseData.execution_application_date)
-          }}</el-descriptions-item>
+          formatDate(caseData.execution_application_date)
+        }}</el-descriptions-item>
         <el-descriptions-item label="调解到期日">{{
-            formatDate(caseData.mediation_due_date)
-          }}</el-descriptions-item>
+          formatDate(caseData.mediation_due_date)
+        }}</el-descriptions-item>
         <el-descriptions-item label="执行到期日">{{
-            formatDate(caseData.execution_due_date)
-          }}</el-descriptions-item>
+          formatDate(caseData.execution_due_date)
+        }}</el-descriptions-item>
       </el-descriptions>
 
       <el-divider />
@@ -448,6 +522,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import { Phone, Postcard } from '@element-plus/icons-vue' // 引入图标
 
 const route = useRoute()
 const router = useRouter()
@@ -523,6 +598,29 @@ const courtLabel = computed(() => {
   if (caseData.value.case_category?.includes('仲裁')) return '仲裁委员会'
   if (caseData.value.case_category?.includes('刑')) return '审理机构'
   return '审理法院'
+})
+
+// 修改点4：当事人分组计算属性
+const partyClients = computed(() => {
+  if (!caseData.value.parties) return []
+  return caseData.value.parties.filter((p) => p.party_type === '委托人')
+})
+
+const partyPlaintiffs = computed(() => {
+  if (!caseData.value.parties) return []
+  return caseData.value.parties.filter((p) => ['原告', '申请人', '上诉人'].includes(p.party_type))
+})
+
+const partyDefendants = computed(() => {
+  if (!caseData.value.parties) return []
+  return caseData.value.parties.filter((p) =>
+    ['被告', '被申请人', '被上诉人'].includes(p.party_type),
+  )
+})
+
+const partyThirdParties = computed(() => {
+  if (!caseData.value.parties) return []
+  return caseData.value.parties.filter((p) => p.party_type === '第三人')
 })
 
 // 加载案件附件
@@ -736,5 +834,56 @@ const formatDateTime = (dateVal) => {
   height: 100%;
   border: 1px solid #ffffff;
   border-radius: 4px;
+}
+
+/* 新增当事人列表样式 */
+.party-item {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed #eee;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.party-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+.party-index {
+  color: #999;
+  font-weight: bold;
+}
+.party-name {
+  font-weight: bold;
+  font-size: 15px;
+  color: #333;
+}
+.party-tag {
+  font-size: 13px;
+  color: #666;
+  background-color: #f4f4f5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.party-role-badge {
+  font-size: 12px;
+  background-color: #ecf5ff;
+  color: #409eff;
+  border: 1px solid #d9ecff;
+  padding: 0 5px;
+  border-radius: 4px;
+}
+.party-role-badge.warning {
+  background-color: #fdf6ec;
+  color: #e6a23c;
+  border-color: #faecd8;
+}
+.party-address {
+  font-size: 12px;
+  color: #999;
 }
 </style>
