@@ -549,8 +549,8 @@ const loadCaseDetail = async () => {
     caseData.value = res.data || {}
 
     // 权限判断逻辑
-    const role = sessionStorage.getItem('role')
-    const currentUserId = sessionStorage.getItem('user_id')
+    const role = localStorage.getItem('role')
+    const currentUserId = localStorage.getItem('user_id')
     const mainLawyerId = caseData.value.main_lawyer?.id
     const assistantLawyerId = caseData.value.assistant_lawyer?.id
 

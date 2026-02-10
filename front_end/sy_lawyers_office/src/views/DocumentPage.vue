@@ -198,7 +198,7 @@ import { ElMessage, ElNotification } from 'element-plus'
 // 基础变量
 const templates = ref([])
 const isAdmin = computed(() => {
-  const role = sessionStorage.getItem('role')
+  const role = localStorage.getItem('role')
   return role === 'admin' || role === 'owner'
 })
 
@@ -317,7 +317,7 @@ const handleUploadSubmit = async () => {
   const formData = new FormData()
   formData.append('file', file)
   const templateName = uploadForm.name
-  const uploadedBy = sessionStorage.getItem('user_id')
+  const uploadedBy = localStorage.getItem('user_id')
   formData.append('description', uploadForm.description)
 
   isUploading.value = true

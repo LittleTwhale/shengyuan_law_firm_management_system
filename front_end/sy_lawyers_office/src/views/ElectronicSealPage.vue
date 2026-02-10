@@ -264,8 +264,8 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `/pdfjs/pdf.worker.min.mjs`
 
 // --- 基础状态 ---
 const API_BASE = 'http://127.0.0.1:8002/electronic_seal'
-const currentUserId = parseInt(sessionStorage.getItem('user_id'))
-const currentUserRole = sessionStorage.getItem('role')
+const currentUserId = parseInt(localStorage.getItem('user_id'))
+const currentUserRole = localStorage.getItem('role')
 const isAdmin = computed(() => ['admin', 'owner'].includes(currentUserRole))
 // 授权审核人ID 列表
 const AUTHORIZED_REVIEWER_IDS = [1, 2]

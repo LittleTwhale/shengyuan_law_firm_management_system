@@ -231,8 +231,8 @@ import { useRouter } from 'vue-router'
 import { Check, Document, Loading, Upload } from '@element-plus/icons-vue'
 
 // -------------------------- 当前用户数据 ----------------------------
-const currentUserID = ref(sessionStorage.getItem('user_id'))
-const currentUserRole = ref(sessionStorage.getItem('role'))
+const currentUserID = ref(localStorage.getItem('user_id'))
+const currentUserRole = ref(localStorage.getItem('role'))
 
 // -------------------------- 表格与分页相关 --------------------------
 const page = ref(1)
@@ -513,7 +513,15 @@ const handleFormSubmit = async (submittedData) => {
 // -------------------------- 查看案件相关 --------------------------
 const router = useRouter()
 const viewCase = (row) => {
-  router.push(`/main/cases/${row.case_id}`)
+  // 1. 解析路由目标，生成完整的 href
+  // router.resolve 可以接受与 router.push 相同的参数（path 或 name）
+  const routeData = router.resolve({
+    path: `/main/cases/${row.case_id}`,
+  })
+
+  // 2. 使用原生 window.open 打开新窗口
+  // routeData.href 就是解析出来的完整链接
+  window.open(routeData.href, '_blank')
 }
 
 // -------------------------- 删除案件相关 --------------------------

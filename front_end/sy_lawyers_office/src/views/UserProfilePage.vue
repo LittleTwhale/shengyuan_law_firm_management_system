@@ -117,8 +117,8 @@ const chartContainer = ref(null)
 const router = useRouter()
 
 // 当前用户信息
-const currentUserId = ref(sessionStorage.getItem('user_id')).value
-const currentUserRole = ref(sessionStorage.getItem('role')).value
+const currentUserId = ref(localStorage.getItem('user_id')).value
+const currentUserRole = ref(localStorage.getItem('role')).value
 const isAdmin = computed(() => ['admin', 'owner'].includes(currentUserRole))
 
 // 表单验证规则
@@ -294,7 +294,7 @@ const handleChangePassword = async () => {
         confirmPassword: ''
       }
       // 跳转到登录页
-      sessionStorage.clear()
+      localStorage.clear()
       await router.push('/login')
     } catch (err) {
       console.error('修改密码失败:', err)

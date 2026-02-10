@@ -18,14 +18,16 @@
           size="small"
           :disabled="!selectedCases.length"
           @click="batchReview('已审核')"
-        >批量通过</el-button>
+          >批量通过</el-button
+        >
 
         <el-button
           type="danger"
           size="small"
           :disabled="!selectedCases.length"
           @click="batchReview('已拒绝')"
-        >批量拒绝</el-button>
+          >批量拒绝</el-button
+        >
       </div>
     </div>
 
@@ -67,8 +69,12 @@
       <!-- 操作按钮列 -->
       <el-table-column label="操作">
         <template #default="scope">
-          <el-button type="success" size="small" @click="review(scope.row, '已审核')">通过</el-button>
-          <el-button type="danger" size="small" @click="review(scope.row, '已拒绝')">拒绝</el-button>
+          <el-button type="success" size="small" @click="review(scope.row, '已审核')"
+            >通过</el-button
+          >
+          <el-button type="danger" size="small" @click="review(scope.row, '已拒绝')"
+            >拒绝</el-button
+          >
         </template>
       </el-table-column>
     </el-table>
@@ -104,8 +110,8 @@ const tableLoading = ref(false)
 const caseTableRef = ref(null)
 
 // 当前用户信息
-const currentUserId = ref(sessionStorage.getItem('user_id'))
-const currentUserRole = ref(sessionStorage.getItem('role'))
+const currentUserId = ref(localStorage.getItem('user_id'))
+const currentUserRole = ref(localStorage.getItem('role'))
 
 // 多选状态
 const selectedCases = ref([])
@@ -123,7 +129,7 @@ const toggleSelectAll = () => {
   if (isAllSelected.value) {
     caseTableRef.value.clearSelection()
   } else {
-    casesList.value.forEach(row => {
+    casesList.value.forEach((row) => {
       caseTableRef.value.toggleRowSelection(row, true)
     })
   }
@@ -133,125 +139,114 @@ const toggleSelectAll = () => {
 // 利益冲突确认对话框
 const showConflictDialog = (conflicts, caseId, caseNumber) => {
   return new Promise((resolve) => {
-    // 构建冲突详情HTML
-    let conflictHtml = `<div style="max-height: 300px; overflow-y: auto;">
-      <p style="color: #e6a23c; margin-bottom: 15px;">
+    // 动态生成 HTML，增加跳转链接
+    // 注意：这里的字段名要对应后端 check_interest_conflict_for_case 返回的字典 key
+    let conflictHtml = `<div style="max-height: 400px; overflow-y: auto;">
+      <p style="color: #e6a23c; margin-bottom: 15px; font-size: 16px;">
         <i class="el-icon-warning"></i>
-        案件 <strong>${caseNumber}</strong> 可能存在利益冲突，是否继续审核？
+        案件 <strong>${caseNumber}</strong> 可能存在利益冲突，管理员操作需谨慎。
       </p>
-      <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
-        <h4 style="margin: 0 0 10px 0; color: #606266;">冲突详情：</h4>
+      <div style="background: #fff5f5; padding: 15px; border-radius: 4px; border: 1px solid #fab6b6;">
+        <h4 style="margin: 0 0 10px 0; color: #f56c6c;">冲突详情：</h4>
         <ul style="margin: 0; padding-left: 20px;">
-          ${conflicts.map(conflict =>
-          `<li style="margin-bottom: 8px;">
-              <div>
-                <strong>冲突案件：</strong>
-                <a href="javascript:void(0)"
-                   onclick="window.open('/main/cases/${conflict.case_id}', '_blank')"
-                   style="color: #409eff; text-decoration: none;">
-                  ${conflict.case_number}
+          ${conflicts
+            .map(
+              (c) => `
+            <li style="margin-bottom: 12px; line-height: 1.5;">
+              <div style="font-weight: bold; color: #303133;">${c.conflict_type}</div>
+              <div style="font-size: 13px; color: #606266;">
+                冲突案件：
+                <a href="/main/cases/${c.case_id}" target="_blank" style="color: #409eff; text-decoration: underline; font-weight: bold;">
+                  ${c.case_number}
                 </a>
+                <span style="margin-left: 10px;">(主办: ${c.other_lawyer_name})</span>
               </div>
-              <div><strong>对方律师：</strong>${conflict.other_lawyer_name}</div>
-              <div><strong>冲突角色：</strong>
-                ${conflict.conflict_type === '常规利益冲突'
-            ? `委托人在${conflict.case_number}中担任${conflict.role}`
-            : '该案件被告为法律顾问单位'}
+              <div style="font-size: 13px; color: #F56C6C;">
+                说明：${c.message}
               </div>
-              <div><strong>案件类别：</strong>${conflict.conflict_case_category}</div>
-            </li>`
-        ).join('')}
+            </li>
+          `,
+            )
+            .join('')}
         </ul>
       </div>
+      <p style="margin-top: 15px; font-size: 13px; color: #909399;">
+        提示：点击案件号可新窗口打开详情。确认"强制通过"将忽略此冲突。
+      </p>
     </div>`
 
-    ElMessageBox.confirm(conflictHtml, '利益冲突警告', {
+    ElMessageBox.confirm(conflictHtml, '可能存在利益冲突', {
       dangerouslyUseHTMLString: true,
-      confirmButtonText: '继续通过',
-      cancelButtonText: '取消',
+      confirmButtonText: '强制通过',
+      cancelButtonText: '取消审核',
       type: 'warning',
-      customClass: 'conflict-dialog'
-    }).then(() => {
-      resolve(true) // 用户选择继续
-    }).catch(() => {
-      resolve(false) // 用户选择取消
+      customClass: 'conflict-dialog',
+      closeOnClickModal: false,
+      width: '600px',
     })
+      .then(() => {
+        resolve(true) // 用户选择强制通过
+      })
+      .catch(() => {
+        resolve(false) // 用户取消
+      })
   })
 }
 
 // 审核操作
 const review = async (row, status) => {
   try {
-    // 如果是审核通过，先检查利益冲突
-    if (status === '已审核') {
-      try {
-        // 直接发送审核请求，后端会返回冲突信息
-        await axios.put(`${API_BASE}/case_review/${row.case_id}/review`,
-          {},
-          {
-            params: {
-              reviewer_id: currentUserId.value,
-              role: currentUserRole.value,
-              review_status: status
-            }
-          }
-        )
-      } catch (err) {
-        // 如果是冲突错误（409），显示冲突对话框
-        if (err.response?.status === 409 && err.response?.data?.detail?.conflicts) {
-          const conflictData = err.response.data.detail
-          const userContinue = await showConflictDialog(
-            conflictData.conflicts,
-            row.case_id,
-            row.case_number
-          )
-
-          if (userContinue) {
-            // 用户确认继续，强制通过审核（忽略冲突）
-            await forceReview(row.case_id, status)
-          } else {
-            return // 用户取消，不执行任何操作
-          }
-        } else {
-          // 其他错误正常抛出
-          throw err
-        }
-      }
-    } else {
-      // 拒绝审核不需要检查冲突
-      await axios.put(`${API_BASE}/case_review/${row.case_id}/review`,
-        {},
-        {
-          params: {
-            reviewer_id: currentUserId.value,
-            role: currentUserRole.value,
-            review_status: status
-          }
-        }
-      )
-    }
+    // 第一次尝试请求 (force = false)
+    await sendReviewRequest(row, status, false)
 
     ElMessage.success(`案件已${status === '已审核' ? '通过' : '拒绝'}`)
     await fetchPendingCases()
   } catch (err) {
-    if (err.response?.status !== 409) { // 排除冲突错误，因为已经处理过了
-      console.error('审核操作失败:', err)
-      ElMessage.error(err.response?.data?.detail?.message || err.response?.data?.detail || '审核操作失败')
+    // 捕获 409 冲突
+    if (err.response?.status === 409 && err.response?.data?.detail?.conflicts) {
+      const conflictData = err.response.data.detail
+
+      // 弹出对话框
+      const userConfirmed = await showConflictDialog(
+        conflictData.conflicts,
+        row.case_id,
+        row.case_number,
+      )
+
+      if (userConfirmed) {
+        // 用户确认强制通过，再次请求 (force = true)
+        try {
+          await sendReviewRequest(row, status, true)
+          ElMessage.warning(`已忽略冲突，强制通过案件 ${row.case_number}`)
+          await fetchPendingCases()
+        } catch (retryErr) {
+          console.error('强制审核失败:', retryErr)
+          ElMessage.error('强制操作失败: ' + (retryErr.response?.data?.detail || '未知错误'))
+        }
+      }
+    } else {
+      // 其他常规错误
+      console.error('审核失败:', err)
+      ElMessage.error(
+        err.response?.data?.detail?.message || err.response?.data?.detail || '审核操作失败',
+      )
     }
   }
 }
 
 // 强制通过审核（忽略冲突）
-const forceReview = async (caseId, status) => {
-  await axios.put(`${API_BASE}/case_review/${caseId}/force_review`,
-    {},
+const sendReviewRequest = async (row, status, force) => {
+  await axios.put(
+    `${API_BASE}/case_review/${row.case_id}/review`,
+    {}, // body 为空
     {
       params: {
         reviewer_id: currentUserId.value,
         role: currentUserRole.value,
         review_status: status,
-      }
-    }
+        force: force, // 传递 force 参数
+      },
+    },
   )
 }
 
@@ -263,22 +258,28 @@ const batchReview = async (status) => {
     await ElMessageBox.confirm(
       `确定要将选中的 ${selectedCases.value.length} 个案件标记为「${status}」吗？`,
       '批量审核确认',
-      { type: status === '已审核' ? 'success' : 'warning' }
+      { type: status === '已审核' ? 'success' : 'warning' },
     )
 
     await Promise.all(
-      selectedCases.value.map(item =>
-        axios.put(`${API_BASE}/case_review/${item.case_id}/review`, {}, {
-          params: {
-            reviewer_id: currentUserId.value,
-            role: currentUserRole.value,
-            review_status: status
-          }
-        })
-      )
+      selectedCases.value.map((item) =>
+        axios.put(
+          `${API_BASE}/case_review/${item.case_id}/review`,
+          {},
+          {
+            params: {
+              reviewer_id: currentUserId.value,
+              role: currentUserRole.value,
+              review_status: status,
+            },
+          },
+        ),
+      ),
     )
 
-    ElMessage.success(`已成功批量${status === '已审核' ? '通过' : '拒绝'} ${selectedCases.value.length} 个案件`)
+    ElMessage.success(
+      `已成功批量${status === '已审核' ? '通过' : '拒绝'} ${selectedCases.value.length} 个案件`,
+    )
     selectedCases.value = []
     isAllSelected.value = false
     await fetchPendingCases()
@@ -298,8 +299,8 @@ const fetchPendingCases = async () => {
       params: {
         role: currentUserRole.value,
         skip: (page.value - 1) * pageSize.value,
-        limit: pageSize.value
-      }
+        limit: pageSize.value,
+      },
     })
     casesList.value = res.data.items || []
     total.value = res.data.total || 0
@@ -315,12 +316,13 @@ const fetchPendingCases = async () => {
 
 // 跳转到详情页
 const navigateToDetail = (caseId) => {
-  router.push({
+  const routeData = router.resolve({
     path: `/main/cases/${caseId}`,
     query: {
-      from: '/main/case_review'
-    }
+      from: '/main/case_review',
+    },
   })
+  window.open(routeData.href, '_blank')
 }
 
 // 分页切换
@@ -331,38 +333,34 @@ const handlePageChange = (p) => {
 
 // 日期格式化
 const formatDate = (dateVal) => {
-  if (!dateVal) return '';
+  if (!dateVal) return ''
 
-  let timestamp;
+  let timestamp
   if (typeof dateVal === 'number') {
     if (dateVal.toString().length === 10) {
-      dateVal *= 1000;
+      dateVal *= 1000
     }
-    timestamp = dateVal;
+    timestamp = dateVal
   } else if (typeof dateVal === 'string') {
-    const formats = [
-      dateVal.replace(' ', 'T'),
-      dateVal.replace(' ', 'T') + 'Z',
-      dateVal
-    ];
+    const formats = [dateVal.replace(' ', 'T'), dateVal.replace(' ', 'T') + 'Z', dateVal]
 
     for (const fmt of formats) {
-      const tempDate = new Date(fmt);
+      const tempDate = new Date(fmt)
       if (!isNaN(tempDate.getTime())) {
-        timestamp = tempDate.getTime();
-        break;
+        timestamp = tempDate.getTime()
+        break
       }
     }
   } else if (dateVal instanceof Date) {
-    timestamp = dateVal.getTime();
+    timestamp = dateVal.getTime()
   }
 
   if (timestamp === undefined || isNaN(timestamp)) {
-    console.warn('无法解析的日期格式:', dateVal);
-    return '无效日期';
+    console.warn('无法解析的日期格式:', dateVal)
+    return '无效日期'
   }
 
-  const date = new Date(timestamp);
+  const date = new Date(timestamp)
   return date.toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
@@ -370,9 +368,9 @@ const formatDate = (dateVal) => {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: false
-  });
-};
+    hour12: false,
+  })
+}
 
 // 页面加载时初始化
 onMounted(() => {

@@ -46,7 +46,7 @@ import axios from 'axios'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-const currentUserId = sessionStorage.getItem('user_id')
+const currentUserId = localStorage.getItem('user_id')
 const events = ref([])
 const loading = ref(false)
 const daysRange = ref(30) // 默认显示30天

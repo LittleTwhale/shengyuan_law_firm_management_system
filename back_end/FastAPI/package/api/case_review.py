@@ -51,34 +51,35 @@ def get_pending_cases(
 def review_case(
         case_id: int,
         reviewer_id: int,
-        review_status: str,  # 接收"已审核"或"已拒绝"
+        review_status: str,
         role: Optional[str] = None,
+        force: bool = Query(False, description="是否强制通过（忽略利益冲突）"),  # 新增参数
         db: Session = Depends(get_db)
 ):
     """
     审核案件（通过/拒绝，仅管理员可操作）
     """
-    # 验证管理员权限
     if not role or role not in ["admin", "owner"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="无审核案件权限"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无审核案件权限")
 
-    try:
-        # 如果是审核通过，先检查利益冲突
-        if review_status == "已审核":
+    # 1. 审核通过逻辑
+    if review_status == "已审核":
+        # 如果不是强制通过，则进行冲突检测
+        if not force:
             conflict_result = check_interest_conflict_for_case(db, case_id)
             if conflict_result["has_conflict"]:
-                # 返回冲突信息，让前端决定是否继续
+                # 409 Conflict: 返回详细信息给前端展示
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail={
-                        "message": "存在利益冲突，是否继续审核？",
+                        "code": "INTEREST_CONFLICT",
+                        "message": "检测到潜在利益冲突，是否强制通过？",
                         "conflicts": conflict_result["details"]
                     }
                 )
 
+    # 2. 执行更新
+    try:
         updated_case = update_review_status(
             db=db,
             case_id=case_id,
@@ -86,16 +87,12 @@ def review_case(
             reviewer_id=reviewer_id
         )
         if not updated_case:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="案件不存在或已被删除"
-            )
+            raise HTTPException(status_code=404, detail="案件不存在")
+
         return updated_case
+
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.put("/{case_id}/force_review", response_model=CaseOut)
 def review_case(

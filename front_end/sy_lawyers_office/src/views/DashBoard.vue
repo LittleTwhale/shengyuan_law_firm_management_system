@@ -71,23 +71,23 @@ import axios from 'axios' // 引入axios
 import { Bell } from '@element-plus/icons-vue'
 
 const router = useRouter()
-const currentUser = ref(sessionStorage.getItem('username'))
+const currentUser = ref(localStorage.getItem('username'))
 const activeMenu = ref('/dashboard/cases')
-const role = sessionStorage.getItem('role')
+const role = localStorage.getItem('role')
 
 // 登出
 const handleLogout = () => {
-  sessionStorage.removeItem('token')
-  sessionStorage.removeItem('username')
-  sessionStorage.removeItem('role')
-  sessionStorage.removeItem('userId')
+  localStorage.removeItem('token')
+  localStorage.removeItem('username')
+  localStorage.removeItem('role')
+  localStorage.removeItem('userId')
   router.push('/')
   ElMessage.info('已退出登录')
 }
 
 // 新增：检查紧急提醒
 const checkUrgentReminders = async () => {
-  const userId = sessionStorage.getItem('user_id')
+  const userId = localStorage.getItem('user_id')
   if (!userId) return
 
   try {

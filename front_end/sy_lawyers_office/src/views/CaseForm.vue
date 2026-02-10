@@ -1543,8 +1543,65 @@ const handleSubmit = async () => {
         delete submitData.party_third_parties
         delete submitData.attachments
 
-        // 移除旧字段避免数据冲突(可选，视后端逻辑而定，这里保留为了兼容后端可能的读取)
-        // 但建议主要依赖 parties
+        // ================== ✨ 新增：利益冲突检测逻辑开始 ==================
+        try {
+          const conflictRes = await axios.post(
+            'http://127.0.0.1:8002/cases/check_conflict',
+            submitData,
+          )
+
+          if (conflictRes.data.has_conflict) {
+            // 格式化冲突详情为 HTML
+            const detailsHtml = conflictRes.data.details
+              .map(
+                (item, index) => `
+              <div style="margin-bottom: 10px; padding: 8px; background-color: #fef0f0; border-radius: 4px; border: 1px solid #fde2e2;">
+                <div style="font-weight: bold; color: #f56c6c;">${index + 1}. ${item.conflict_type}</div>
+                <div style="font-size: 13px; margin: 4px 0;">${item.message}</div>
+                <div style="font-size: 12px; color: #909399;">
+                  冲突案件: ${item.case_number} | 承办律师: ${item.other_lawyer_name}
+                </div>
+              </div>
+            `,
+              )
+              .join('')
+
+            const warningHtml = `
+              <div style="text-align: left;">
+                <p style="font-size: 14px; margin-bottom: 10px;">
+                  系统检测到 <strong>${conflictRes.data.details.length}</strong> 项潜在的利益冲突风险：
+                </p>
+                <div style="max-height: 300px; overflow-y: auto;">
+                  ${detailsHtml}
+                </div>
+                <p style="margin-top: 10px; color: #E6A23C;">是否确认忽略风险并强制提交？</p>
+              </div>
+            `
+
+            // 弹出确认框
+            await ElMessageBox.confirm(warningHtml, '可能存在利益冲突', {
+              dangerouslyUseHTMLString: true,
+              confirmButtonText: '强制提交',
+              cancelButtonText: '取消提交',
+              confirmButtonClass: 'el-button--danger', // 让确认按钮变红，警示用户
+              type: 'warning',
+              closeOnClickModal: false,
+              width: '600px',
+            })
+            // 如果用户点击确认，代码继续向下执行；
+            // 如果用户点击取消，会抛出 error 并在 catch 中被捕获，终止提交
+          }
+        } catch (conflictErr) {
+          // 处理用户点击“取消”的情况
+          if (conflictErr === 'cancel') {
+            loading.value = false
+            return // 终止整个 handleSubmit
+          }
+          // 如果接口报错（如网络错误），通常选择提示并允许用户尝试提交，或者阻断
+          // 这里选择仅记录日志，防止因检测服务挂了导致无法立案
+          console.error('利益冲突检测服务异常', conflictErr)
+        }
+        // ================== ✨ 新增：利益冲突检测逻辑结束 ==================
 
         let res
         let targetCaseId

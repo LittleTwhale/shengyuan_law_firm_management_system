@@ -119,7 +119,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 // 当前用户角色
-const role = sessionStorage.getItem('role')
+const role = localStorage.getItem('role')
 
 // 用户列表及搜索
 const users = ref([])

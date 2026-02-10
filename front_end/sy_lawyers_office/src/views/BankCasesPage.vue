@@ -40,11 +40,12 @@
 
     <!-- 案件表格：委托人列改为委托银行 -->
     <el-table :data="cases" border style="width: 100%" v-loading="tableLoading">
-      <el-table-column prop="case_number" label="案件号" width="220" align="center"/>
-      <el-table-column prop="client_name" label="委托银行" align="center"/> <!-- 修改此处label -->
-      <el-table-column prop="case_category" label="案件类别" align="center"/>
-      <el-table-column prop="main_lawyer.real_name" label="主办律师" align="center"/>
-      <el-table-column prop="review_status" label="审核状态" align="center"/>
+      <el-table-column prop="case_number" label="案件号" width="220" align="center" />
+      <el-table-column prop="client_name" label="委托银行" align="center" />
+      <!-- 修改此处label -->
+      <el-table-column prop="case_category" label="案件类别" align="center" />
+      <el-table-column prop="main_lawyer.real_name" label="主办律师" align="center" />
+      <el-table-column prop="review_status" label="审核状态" align="center" />
       <el-table-column
         prop="created_at"
         label="创建时间"
@@ -54,8 +55,12 @@
       <el-table-column label="操作" width="220" align="center">
         <template #default="scope">
           <el-button size="small" @click="viewCase(scope.row)">查看</el-button>
-          <el-button size="small" type="warning" @click="handleEditClick(scope.row)">编辑</el-button>
-          <el-button size="small" type="danger" @click="deleteCase(scope.row.case_id)">删除</el-button>
+          <el-button size="small" type="warning" @click="handleEditClick(scope.row)"
+            >编辑</el-button
+          >
+          <el-button size="small" type="danger" @click="deleteCase(scope.row.case_id)"
+            >删除</el-button
+          >
         </template>
       </el-table-column>
     </el-table>
@@ -92,8 +97,8 @@ import CaseForm from './CaseForm.vue'
 import { useRouter } from 'vue-router'
 
 // 当前用户信息
-const currentUserID = ref(sessionStorage.getItem('user_id'))
-const currentUserRole = ref(sessionStorage.getItem('role'))
+const currentUserID = ref(localStorage.getItem('user_id'))
+const currentUserRole = ref(localStorage.getItem('role'))
 
 // 表格与分页数据
 const page = ref(1)
@@ -115,8 +120,7 @@ const router = useRouter()
 
 // 初始化加载
 onMounted(() => {
-  Promise.all([loadLawyers(), loadBankCases()])
-    .catch(err => console.error('初始化失败:', err))
+  Promise.all([loadLawyers(), loadBankCases()]).catch((err) => console.error('初始化失败:', err))
 })
 
 // 加载律师列表（复用现有接口）
@@ -143,8 +147,8 @@ const loadBankCases = async () => {
         keyword: searchKeyword.value, // 传递搜索关键词
         ...(currentUserRole.value === 'admin' || currentUserRole.value === 'owner'
           ? { main_lawyer_id: selectedLawyerId.value }
-          : {})
-      }
+          : {}),
+      },
     })
     cases.value = res.data.items || []
     total.value = res.data.total || 0
@@ -172,13 +176,13 @@ const handleSearch = () => {
 
 // 查看案件详情
 const viewCase = (row) => {
-  router.push({
+  const routeData = router.resolve({
     path: `/main/cases/${row.case_id}`,
     query: {
-      from: '/main/cases/bank_cases' // 来源是银行案件页面
-    }
+      from: '/main/cases/bank_cases', // 来源是银行案件页面
+    },
   })
-
+  window.open(routeData.href, '_blank')
 }
 
 // 编辑案件
@@ -229,54 +233,56 @@ const handleExportClick = async () => {
     const response = await axios.get('http://127.0.0.1:8002/cases/export/bank_cases', {
       params: {
         user_id: currentUserID.value,
-        role: currentUserRole.value
+        role: currentUserRole.value,
       },
-      responseType: 'blob' // 告诉 axios 返回文件流
-    });
+      responseType: 'blob', // 告诉 axios 返回文件流
+    })
 
     // 2️⃣ 创建下载链接
     const blob = new Blob([response.data], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    });
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
 
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
+    const downloadUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = downloadUrl
 
     // 3️⃣ 动态生成文件名（使用当前时间）
-    const timestamp = new Date().toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).replace(/\D/g, '');
-    link.download = `银行案件数据_${timestamp}.xlsx`;
+    const timestamp = new Date()
+      .toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+      .replace(/\D/g, '')
+    link.download = `银行案件数据_${timestamp}.xlsx`
 
     // 4️⃣ 触发下载
-    link.click();
-    window.URL.revokeObjectURL(downloadUrl);
+    link.click()
+    window.URL.revokeObjectURL(downloadUrl)
 
-    ElMessage.success('Excel 文件导出成功 ✅');
+    ElMessage.success('Excel 文件导出成功 ✅')
   } catch (error) {
-    console.error('导出Excel失败：', error);
-    ElMessage.error('导出失败，请稍后重试 ❌');
+    console.error('导出Excel失败：', error)
+    ElMessage.error('导出失败，请稍后重试 ❌')
   }
-};
+}
 
 // 日期格式化（复用现有函数）
 const formatDate = (dateVal) => {
-  if (!dateVal) return '';
+  if (!dateVal) return ''
 
-  let timestamp;
+  let timestamp
 
   // 处理时间戳（数字类型）
   if (typeof dateVal === 'number') {
     // 处理秒级时间戳（如果是10位数字）
     if (dateVal.toString().length === 10) {
-      dateVal *= 1000;
+      dateVal *= 1000
     }
-    timestamp = dateVal;
+    timestamp = dateVal
   }
   // 处理字符串类型
   else if (typeof dateVal === 'string') {
@@ -287,30 +293,30 @@ const formatDate = (dateVal) => {
       // 尝试添加Z的情况（UTC时间）
       dateVal.replace(' ', 'T') + 'Z',
       // 尝试直接解析原始字符串
-      dateVal
-    ];
+      dateVal,
+    ]
 
     // 尝试各种格式，找到能正确解析的
     for (const fmt of formats) {
-      const tempDate = new Date(fmt);
+      const tempDate = new Date(fmt)
       if (!isNaN(tempDate.getTime())) {
-        timestamp = tempDate.getTime();
-        break;
+        timestamp = tempDate.getTime()
+        break
       }
     }
   }
   // 处理Date对象
   else if (dateVal instanceof Date) {
-    timestamp = dateVal.getTime();
+    timestamp = dateVal.getTime()
   }
 
   // 验证时间戳是否有效
   if (timestamp === undefined || isNaN(timestamp)) {
-    console.warn('无法解析的日期格式:', dateVal);
-    return '无效日期';
+    console.warn('无法解析的日期格式:', dateVal)
+    return '无效日期'
   }
 
-  const date = new Date(timestamp);
+  const date = new Date(timestamp)
 
   // 使用toLocaleString()同时显示日期和时间
   // 可以通过参数自定义格式，例如：
@@ -321,9 +327,9 @@ const formatDate = (dateVal) => {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: false // 24小时制
-  });
-};
+    hour12: false, // 24小时制
+  })
+}
 </script>
 
 <style scoped>
