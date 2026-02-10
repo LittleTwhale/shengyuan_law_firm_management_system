@@ -2,20 +2,20 @@
   <div class="case-detail">
     <el-page-header @back="goBack" title="返回" />
 
-    <h2 class="page-title">案件详情</h2>
+    <h2 class="page-title">业务详情</h2>
 
     <el-card class="detail-card" v-loading="loading">
-      <el-descriptions title="案件基本信息" :column="2" border>
-        <el-descriptions-item label="案件号">{{
+      <el-descriptions title="业务基本信息" :column="2" border>
+        <el-descriptions-item label="业务号">{{
           caseData.case_number || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="案件类别">{{
+        <el-descriptions-item label="业务类别">{{
           caseData.case_category || '-'
         }}</el-descriptions-item>
         <el-descriptions-item label="委托日期">{{
           formatDate(caseData.commission_date)
         }}</el-descriptions-item>
-        <el-descriptions-item label="案件来源">{{
+        <el-descriptions-item label="业务来源">{{
           caseData.case_source || '-'
         }}</el-descriptions-item>
         <el-descriptions-item label="介入阶段">{{ caseData.stage || '-' }}</el-descriptions-item>
@@ -318,7 +318,7 @@
         <el-descriptions-item label="收费方式">{{
           caseData.fee_method || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="案件收入">
+        <el-descriptions-item label="业务收入">
           {{ caseData.case_income ? `${caseData.case_income} 元` : '-' }}
         </el-descriptions-item>
         <el-descriptions-item label="风险比例">{{
@@ -392,7 +392,7 @@
 
       <el-divider />
 
-      <el-descriptions title="案件状态" :column="2" border>
+      <el-descriptions title="业务状态" :column="2" border>
         <el-descriptions-item label="审核状态">{{ caseData.review_status }}</el-descriptions-item>
         <el-descriptions-item label="审核人">{{
           caseData.reviewer?.real_name || '-'
@@ -422,7 +422,7 @@
 
       <el-divider />
 
-      <el-descriptions title="费用与执行信息" :column="2" border>
+      <el-descriptions title="执行信息" :column="2" border>
         <el-descriptions-item label="诉讼费缴费时间">{{
           formatDate(caseData.litigation_fee_payment_date)
         }}</el-descriptions-item>
@@ -456,7 +456,7 @@
 
       <el-divider />
 
-      <el-descriptions title="案件附件" border>
+      <el-descriptions title="业务附件" border>
         <el-descriptions-item label="附件列表" :column="1">
           <div class="attachment-list">
             <div v-if="attachments.length === 0 && !loadingAttachments" class="no-attachments">
@@ -559,15 +559,15 @@ const loadCaseDetail = async () => {
       String(mainLawyerId) !== String(currentUserId) &&
       String(assistantLawyerId) !== String(currentUserId)
     ) {
-      ElMessage.error('您没有权限查看此案件')
+      ElMessage.error('您没有权限查看此业务')
       await router.push('/main/cases')
     } else {
-      // 加载案件附件
+      // 加载业务附件
       await loadAttachments()
     }
   } catch (err) {
-    console.error('加载案件详情失败:', err)
-    ElMessage.error('加载案件详情失败')
+    console.error('加载业务详情失败:', err)
+    ElMessage.error('加载业务详情失败')
     await router.push('/main/cases')
   } finally {
     loading.value = false

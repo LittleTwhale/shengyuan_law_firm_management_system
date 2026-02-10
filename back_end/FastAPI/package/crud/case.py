@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import List, Optional, cast
 
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, extract
 from sqlalchemy.orm import Session, joinedload
 
 from ..models.case import Case,BankCase,CaseParty
@@ -38,6 +38,7 @@ def list_cases_by_user_role(
     keyword: Optional[str] = None,  # 关键词查询
     category: Optional[str] = None,  # 案件类型筛选
     main_lawyer_id: Optional[int] = None,    # 主办律师筛选
+    year: Optional[str] = None,  # 年份筛选
     sort_field: str = "created_at",  # 排序字段，默认按创建时间
     sort_dir: str = "desc"  # 排序方向，默认降序（最新在前）
 ) -> List[Case]:
@@ -52,6 +53,10 @@ def list_cases_by_user_role(
         joinedload(Case.execution_lawyer),
         joinedload(Case.execution_assistant),
     ).filter(Case.is_deleted == False)
+
+    if year:
+        # 使用 extract 提取委托日期的年份进行匹配
+        query = query.filter(extract('year', Case.commission_date) == year)
 
     # 角色与主办律师筛选逻辑
     if role not in ["admin", "owner"]:
@@ -102,12 +107,16 @@ def count_cases_by_user_role(
     role: str,
     keyword: Optional[str] = None,  # 关键词查询
     category: Optional[str] = None,  # 案件类型筛选
-    main_lawyer_id: Optional[int] = None  # 主办律师筛选
+    main_lawyer_id: Optional[int] = None,  # 主办律师筛选
+    year: Optional[str] = None  #  年份筛选
 ) -> int:
     """
     根据用户角色统计案件总数
     """
     query = db.query(Case).filter(Case.is_deleted == False)
+    if year:
+        query = query.filter(extract('year', Case.commission_date) == year)
+
     # 角色筛选
     if role not in ["admin", "owner"]:
         query = query.filter(

@@ -9,11 +9,11 @@
     class="custom-dialog"
   >
     <el-form :model="formData" :rules="formRules" ref="formRef" label-width="160px">
-      <!-- ================= 案件类别 ================= -->
-      <el-form-item label="案件类别" prop="case_category">
+      <!-- ================= 业务类别 ================= -->
+      <el-form-item label="业务类别" prop="case_category">
         <el-select
           v-model="formData.case_category"
-          placeholder="请选择案件类别"
+          placeholder="请选择业务类别"
           style="width: 100%"
         >
           <el-option label="民事案件" value="民事案件" />
@@ -712,7 +712,7 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="案件来源" prop="case_source">
+          <el-form-item label="业务来源" prop="case_source">
             <el-input v-model="formData.case_source" />
           </el-form-item>
         </el-col>
@@ -797,7 +797,7 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="案件地点" prop="location">
+          <el-form-item label="业务地点" prop="location">
             <el-input v-model="formData.location" />
           </el-form-item>
         </el-col>
@@ -892,7 +892,7 @@
           </el-form-item>
         </el-col>
         <el-col :span="8">
-          <el-form-item label="案件收入" prop="case_income">
+          <el-form-item label="业务收入" prop="case_income">
             <el-input-number v-model="formData.case_income" :precision="2" style="width: 100%" />
           </el-form-item>
         </el-col>
@@ -1032,7 +1032,7 @@
         <el-icon class="el-icon--upload"><upload-filled /></el-icon>
         <div class="el-upload__text">将文件拖到此处，或 <em>点击上传</em></div>
         <template #tip>
-          <div class="el-upload__tip">选择文件后，点击底部的“确定”按钮保存案件时会自动上传。</div>
+          <div class="el-upload__tip">选择文件后，点击底部的“确定”按钮保存业务时会自动上传。</div>
         </template>
       </el-upload>
 
@@ -1091,7 +1091,7 @@ const dialogVisible = computed({
   set: (val) => emit('update:visible', val),
 })
 
-const dialogTitle = computed(() => (props.caseId ? '编辑案件' : '新增案件'))
+const dialogTitle = computed(() => (props.caseId ? '编辑业务' : '新增业务'))
 const loading = ref(false)
 const formRef = ref(null)
 const rawFiles = ref([]) // 新上传的文件
@@ -1227,7 +1227,7 @@ const formData = reactive({
 })
 
 const formRules = {
-  case_category: [{ required: true, message: '请选择案件类别', trigger: 'change' }],
+  case_category: [{ required: true, message: '请选择业务类别', trigger: 'change' }],
   commission_date: [{ required: true, message: '请选择委托日期', trigger: 'change' }],
   main_lawyer_id: [{ required: true, message: '请选择主办律师', trigger: 'change' }],
   // 移除了原有的 client_name, client_id_number 的校验，改为行内校验
@@ -1403,7 +1403,7 @@ const fetchCaseDetail = async () => {
     await loadFormAttachments(props.caseId)
   } catch (err) {
     console.error(err)
-    ElMessage.error('加载案件数据失败')
+    ElMessage.error('加载业务数据失败')
   }
 }
 
@@ -1478,7 +1478,7 @@ watch(
         // 新增时默认添加一个空委托人
         addClient()
 
-        // 新增案件时，默认当前用户为主办律师
+        // 新增业务时，默认当前用户为主办律师
         if (props.currentUserId) {
           formData.main_lawyer_id = Number(props.currentUserId)
         }
@@ -1588,7 +1588,7 @@ const handleSubmit = async () => {
             ElMessage.success(`成功上传 ${rawFiles.value.length} 个附件`)
           } catch (uploadErr) {
             console.error('部分附件上传失败', uploadErr)
-            ElMessage.warning('案件已保存，但部分附件上传失败，请检查')
+            ElMessage.warning('业务已保存，但部分附件上传失败，请检查')
           }
         }
 

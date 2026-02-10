@@ -3,7 +3,7 @@
     <div class="header">
       <h2>业务管理</h2>
       <div class="action-buttons">
-        <el-button type="primary" @click="handleAddClick">新增案件</el-button>
+        <el-button type="primary" @click="handleAddClick">新增业务</el-button>
         <el-button type="warning" @click="showImportDialog = true">
           <el-icon><Upload /></el-icon>批量导入
         </el-button>
@@ -15,7 +15,7 @@
       <div class="toolbar-left">
         <el-input
           v-model="searchKeyword"
-          placeholder="请输入案件号或委托人"
+          placeholder="请输入业务号或委托人"
           clearable
           @clear="handleSearch"
           @keyup.enter="handleSearch"
@@ -23,7 +23,7 @@
         />
         <el-select
           v-model="selectedCategory"
-          placeholder="案件类别筛选"
+          placeholder="业务类别筛选"
           clearable
           @change="handleSearch"
           style="width: 200px; margin-right: 15px"
@@ -51,13 +51,29 @@
             :value="lawyer.id"
           />
         </el-select>
+
+        <el-date-picker
+          v-model="selectedYear"
+          type="year"
+          placeholder="选择年份"
+          value-format="YYYY"
+          style="width: 120px; margin-left: 15px"
+          @change="handleSearch"
+          clearable
+        />
       </div>
     </div>
 
-    <el-table :data="cases" border style="width: 100%" v-loading="tableLoading" @sort-change="handleSortChange">
-      <el-table-column prop="case_number" label="案件号" width="220" align="center" />
+    <el-table
+      :data="cases"
+      border
+      style="width: 100%"
+      v-loading="tableLoading"
+      @sort-change="handleSortChange"
+    >
+      <el-table-column prop="case_number" label="业务号" width="220" align="center" />
       <el-table-column prop="client_name" label="委托人" align="center" />
-      <el-table-column prop="case_category" label="案件类别" align="center" />
+      <el-table-column prop="case_category" label="业务类别" align="center" />
       <el-table-column prop="main_lawyer.real_name" label="主办律师" align="center" />
       <el-table-column prop="review_status" label="审核状态" align="center" />
       <el-table-column
@@ -67,31 +83,26 @@
         sortable="custom"
         :formatter="(row, column, cellValue) => formatDate(cellValue)"
       />
-      <el-table-column
-        label="操作"
-        width="300"
-        header-align="center"
-        align="left"
-      >
-      <template #default="scope">
-        <el-button size="small" @click="viewCase(scope.row)">查看</el-button>
-        <el-button size="small" type="warning" @click="handleEditClick(scope.row)">
-          编辑
-        </el-button>
-        <el-button size="small" type="danger" @click="deleteCase(scope.row.case_id)">
-          删除
-        </el-button>
-        <el-button
-          v-if="scope.row.review_status === '已审核'"
-          link
-          type="primary"
-          size="small"
-          @click="handleDownloadApproval(scope.row)"
-        >
-          <el-icon><Document /></el-icon>
-          下载审批表
-        </el-button>
-      </template>
+      <el-table-column label="操作" width="300" header-align="center" align="left">
+        <template #default="scope">
+          <el-button size="small" @click="viewCase(scope.row)">查看</el-button>
+          <el-button size="small" type="warning" @click="handleEditClick(scope.row)">
+            编辑
+          </el-button>
+          <el-button size="small" type="danger" @click="deleteCase(scope.row.case_id)">
+            删除
+          </el-button>
+          <el-button
+            v-if="scope.row.review_status === '已审核'"
+            link
+            type="primary"
+            size="small"
+            @click="handleDownloadApproval(scope.row)"
+          >
+            <el-icon><Document /></el-icon>
+            下载审批表
+          </el-button>
+        </template>
       </el-table-column>
     </el-table>
 
@@ -246,9 +257,11 @@ const caseCategories = ref([
   { label: '法律援助(刑事)', value: '法律援助(刑事)' },
 ])
 const selectedLawyerId = ref(null) // 选中的主办律师ID
+// 年份变量，默认为当前年份字符串
+const selectedYear = ref(new Date().getFullYear().toString())
 // 排序相关的响应式变量
 const currentSortField = ref('created_at') // 默认按创建时间排序
-const currentSortDir = ref('desc')         // 默认降序（最新的在前面）
+const currentSortDir = ref('desc') // 默认降序（最新的在前面）
 
 // -------------------------- 弹窗控制相关 --------------------------
 // 明确指定formMode的类型为'add'或'edit'
@@ -288,6 +301,7 @@ const loadCases = async () => {
         limit: pageSize.value,
         keyword: searchKeyword.value, // 搜索关键词
         category: selectedCategory.value, // 类别筛选
+        year: selectedYear.value || '', // 年份筛选
         sort_field: currentSortField.value,
         sort_dir: currentSortDir.value,
         ...(currentUserRole.value === 'admin' || currentUserRole.value === 'owner'

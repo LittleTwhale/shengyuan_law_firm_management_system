@@ -39,6 +39,7 @@ def get_cases(
     keyword: Optional[str] = None,  # 新增搜索关键词参数
     category: Optional[str] = None,  # 新增案件类别参数
     main_lawyer_id: Optional[int] = None,  # 新增主办律师参数
+    year: Optional[str] = None,  # 新增年份参数
     sort_field: Optional[str] = "created_at",  # 排序参数
     sort_dir: Optional[str] = "desc",  # 排序方式
     db: Session = Depends(get_db)
@@ -55,6 +56,7 @@ def get_cases(
         keyword=keyword,  # 传递给CRUD函数
         category=category,  # 传递给CRUD函数
         main_lawyer_id=main_lawyer_id,
+        year=year,
         sort_field=sort_field,
         sort_dir=sort_dir,
     )
@@ -65,6 +67,7 @@ def get_cases(
         keyword=keyword,  # 传递给统计函数
         category=category,  # 传递给统计函数
         main_lawyer_id=main_lawyer_id,
+        year=year,
     )
     cases_simple = [CaseSimpleOut.model_validate(c) for c in cases]
     return {"items": cases_simple, "total": total}
