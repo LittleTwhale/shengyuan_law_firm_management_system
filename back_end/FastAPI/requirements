@@ -12,3 +12,4 @@ python-jose[cryptography]
 openpyxl
 python-docx
 python-pptx
+docxtpl

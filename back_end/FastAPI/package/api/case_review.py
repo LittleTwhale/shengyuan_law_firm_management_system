@@ -1,22 +1,20 @@
 # api/case_review.py
 import os
 import tempfile
-from datetime import datetime
-
-from fastapi.responses import FileResponse
-from fastapi import BackgroundTasks
-from docx import Document
-from ..models.case import Case
-from fastapi import APIRouter, Depends, Query, HTTPException, status
-from sqlalchemy.orm import Session
 from typing import Optional
 
-from ..database.database import get_db
-from ..schemas.case import CasePageOut, CaseSimpleOut, CaseOut
-from ..crud.case_review import list_pending_cases, count_pending_cases, update_review_status, \
-    check_interest_conflict_for_case, replace_text_in_paragraph
+from docxtpl import DocxTemplate
+from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi import BackgroundTasks
+from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session, joinedload
 
 from ..core.config import TEMPLATE_DIR
+from ..crud.case_review import list_pending_cases, count_pending_cases, update_review_status, \
+    check_interest_conflict_for_case, get_case_approval_context
+from ..database.database import get_db
+from ..models.case import Case
+from ..schemas.case import CasePageOut, CaseSimpleOut, CaseOut
 
 router = APIRouter(
     prefix="/case_review",
@@ -94,63 +92,32 @@ def review_case(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.put("/{case_id}/force_review", response_model=CaseOut)
-def review_case(
-        case_id: int,
-        reviewer_id: int,
-        review_status: str,  # 接收"已审核"或"已拒绝"
-        role: Optional[str] = None,
-        db: Session = Depends(get_db)
-):
-    """
-    案件强制通过（不检测案件冲突）
-    """
-    # 验证管理员权限
-    if not role or role not in ["admin", "owner"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="无审核案件权限"
-        )
-
-    try:
-        updated_case = update_review_status(
-            db=db,
-            case_id=case_id,
-            review_status=review_status,
-            reviewer_id=reviewer_id
-        )
-        if not updated_case:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="案件不存在或已被删除"
-            )
-        return updated_case
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-
 
 @router.get("/{case_id}/approval_form", response_class=FileResponse)
 def generate_approval_form(
-    case_id: int,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+        case_id: int,
+        background_tasks: BackgroundTasks,
+        db: Session = Depends(get_db)
 ):
     """
     生成并下载案件审批表 (Word格式)
     """
-    # 1. 查询案件信息
-    case = db.query(Case).filter(Case.case_id == case_id).first()
+    # 1. 查询案件信息 (关键修改：使用 options(joinedload(...)) 预加载 parties)
+    # 如果不预加载，在 crud 函数中遍历 case.parties 时会触发 N+1 查询或报错
+    case = db.query(Case).options(
+        joinedload(Case.parties),
+        joinedload(Case.main_lawyer),
+        joinedload(Case.assistant_lawyer),
+        joinedload(Case.reviewer)
+    ).filter(Case.case_id == case_id).first()
+
     if not case:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="案件不存在"
         )
 
-    # 2. 校验状态 (仅已审核通过的案件可以生成审批表)
-    # 如果您希望"待审核"状态也能预览，可以注释掉这段
+    # 2. 校验状态
     if case.review_status != "已审核":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -165,62 +132,28 @@ def generate_approval_form(
             detail="服务器缺少审批表模板文件"
         )
 
-    # 4. 准备填充数据
-    # 获取律师真实姓名，如果关联对象为空则给空字符串
-    main_lawyer_name = case.main_lawyer.real_name if case.main_lawyer else ""
-    assistant_lawyer_name = case.assistant_lawyer.real_name if case.assistant_lawyer else ""
-
-
-    # 获取导出时间
-    export_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    context = {
-        "{{case_number}}": case.case_number or "",
-        "{{commission_date}}": str(case.commission_date) if case.commission_date else "",
-        "{{client_name}}": case.client_name or "",
-        "{{client_phone}}": case.client_phone or "",
-        "{{client_id_number}}": case.client_id_number or "",
-        "{{plaintiff}}": case.plaintiff or "",
-        "{{defendant}}": case.defendant or "",
-        "{{appellant_info}}":case.appellant_info or "",
-        "{{extra_appellant_info}}":case.extra_appellant_info or "",
-        "{{court}}": case.court or "",
-        "{{case_category}}": case.case_category or "",
-        "{{cause}}": case.cause or "",
-        "{{main_lawyer_name}}": main_lawyer_name,
-        "{{assistant_lawyer_name}}": assistant_lawyer_name,
-        "{{fee_method}}": case.fee_method or "",
-        "{{case_income}}": str(case.case_income) if case.case_income is not None else "0.00",
-        "{{details}}": case.details or "无",
-        "{{review_status}}": case.review_status or "",
-        "{{reviewer_name}}": case.reviewer.real_name or "",
-        "{{export_time}}": export_time,
-    }
-
     try:
-        doc = Document(template_path)
+        # 4. 获取填充数据 (调用 CRUD 中的新函数)
+        # 这个函数已经处理了 CaseParty 的分类聚合逻辑
+        context = get_case_approval_context(case)
 
-        # 5. 执行替换逻辑 (包含段落和表格)
-        # 替换段落中的文本
-        for paragraph in doc.paragraphs:
-            replace_text_in_paragraph(paragraph, context)
-
-        # 替换表格中的文本 (遍历所有表格、所有行、所有单元格)
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    for paragraph in cell.paragraphs:
-                        replace_text_in_paragraph(paragraph, context)
+        # 5. 渲染模板 (使用 docxtpl)
+        # docxtpl 会自动匹配 Word 中的 {{client_name}} 和 context 字典中的 key
+        tpl = DocxTemplate(template_path)
+        tpl.render(context)
 
         # 6. 保存到临时文件
-        # 使用 tempfile 创建临时文件，避免污染服务器目录
-        # delete=False 确保文件在关闭后暂时保留供下载，下载后由 background_tasks 删除
+        # 使用 tempfile 创建临时文件
         with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
-            doc.save(tmp.name)
+            tpl.save(tmp.name)
             tmp_path = tmp.name
 
-        # 7. 设置下载文件名 (使用 URL 编码避免中文乱码问题，FastAPI会自动处理)
+        # 7. 设置下载文件名
         filename = f"案件审批表_{case.case_number}.docx"
+
+        # 解决中文文件名在不同浏览器乱码的兼容性处理（可选，FastAPI通常处理得很好）
+        from urllib.parse import quote
+        encoded_filename = quote(filename)
 
         # 添加后台任务：响应发送后删除临时文件
         background_tasks.add_task(os.remove, tmp_path)
@@ -228,13 +161,19 @@ def generate_approval_form(
         return FileResponse(
             path=tmp_path,
             filename=filename,
-            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
+            }
         )
 
     except Exception as e:
-        # 如果生成过程中出错，记录日志并返回错误
         print(f"Generate document error: {e}")
+        # 如果临时文件已创建但在报错前未删除，尝试清理
+        if 'tmp_path' in locals() and os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="生成审批表失败，请联系管理员"
+            detail=f"生成审批表失败: {str(e)}"
         )

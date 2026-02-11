@@ -1,5 +1,6 @@
 # crud/case_review.py
-from typing import List, Optional, cast
+from datetime import datetime
+from typing import List, Optional, cast, Dict, Any
 
 from sqlalchemy import or_, func
 from sqlalchemy.orm import Session, joinedload
@@ -263,3 +264,112 @@ def replace_text_in_paragraph(paragraph, context):
     # 如果文本发生了变化，更新段落
     if current_text != paragraph.text:
         paragraph.text = current_text
+
+
+def get_case_approval_context(case: Case) -> Dict[str, Any]:
+    """
+    将 Case 对象转换为案件审批表模版所需的上下文 context
+    适配 CaseParty 数据结构
+    """
+
+    # 1. 初始化容器
+    clients = []  # 委托人列表
+    client_phones = []  # 委托人电话
+    client_ids = []  # 委托人证件号
+
+    plaintiffs = []  # 原告/申请人
+    defendants = []  # 被告/被申请人
+    appellants = []  # 上诉人
+    appellees = []  # 被上诉人
+
+    # 定义归类映射 (根据您实际存入数据库的 party_type 字符串进行调整)
+    # 假设数据库中存储的是 '原告', '申请人', '被告', '委托人' 等标准术语
+    type_map = {
+        'client': ['委托人'],
+        'plaintiff': ['原告', '申请人', ],
+        'defendant': ['被告', '被申请人',],
+        'appellant': ['上诉人'],
+        'appellee': ['被上诉人']
+    }
+
+    # 2. 遍历关联的当事人列表
+    # 确保 case.parties 已经被加载 (SQLAlchemy lazy load)
+    if case.parties:
+        for party in case.parties:
+            ptype = party.party_type.strip() if party.party_type else ""
+            name = party.name.strip() if party.name else ""
+
+            if not name:
+                continue
+
+            # --- 归类逻辑 ---
+            if ptype in type_map['client']:
+                clients.append(name)
+                if party.phone:
+                    client_phones.append(party.phone)
+                if party.id_number:
+                    client_ids.append(party.id_number)
+
+            elif ptype in type_map['plaintiff']:
+                plaintiffs.append(name)
+
+            elif ptype in type_map['defendant']:
+                defendants.append(name)
+
+            elif ptype in type_map['appellant']:
+                appellants.append(name)
+
+            elif ptype in type_map['appellee']:
+                appellees.append(name)
+
+    # 3. 拼接字符串 (处理多人情况)
+    # 使用顿号或逗号分隔
+    def join_str(str_list):
+        return "、".join(str_list) if str_list else ""
+
+    # 4. 构建模版上下文 (Key 必须与 docx 模版中的 {{key}} 对应)
+    context = {
+        # --- 替换旧字段逻辑 ---
+        "client_name": join_str(clients),
+        "client_phone": " ".join(client_phones),  # 电话通常用空格分隔更易读
+        "client_id_number": " ".join(client_ids),
+
+        "plaintiff": join_str(plaintiffs),
+        "defendant": join_str(defendants),
+
+        "appellant_info": join_str(appellants),  # 对应模版 {{appellant_info}}
+        "extra_appellant_info": join_str(appellees),  # 对应模版 {{extra_appellant_info}}
+
+        # --- 保持原有基础字段不变 ---
+        "case_number": case.case_number,
+        "commission_date": case.commission_date.strftime("%Y-%m-%d") if case.commission_date else "",
+        "court": case.court or "",
+        "case_category": case.case_category or "",
+        "cause": case.cause or "",
+        "main_lawyer_name": case.main_lawyer.real_name if case.main_lawyer else "",
+        "assistant_lawyer_name": case.assistant_lawyer.real_name if case.assistant_lawyer else "",
+        "fee_method": case.fee_method or "",
+        "case_income": str(case.case_income or 0),
+        "details": case.details or "无",
+
+        # 审核相关
+        "review_status": case.review_status or "",
+        "reviewer_name": case.reviewer.real_name if case.reviewer else "",
+
+        # 导出时间
+        "export_time": datetime.now().strftime("%Y-%m-%d"),
+    }
+
+    # 兜底：如果 CaseParty 没数据（旧数据），回退使用 Case 表字段
+    if not clients and case.client_name:
+        context["client_name"] = case.client_name
+        context["client_phone"] = case.client_phone
+        context["client_id_number"] = case.client_id_number
+
+    if not plaintiffs and case.plaintiff:
+        context["plaintiff"] = case.plaintiff
+
+    if not defendants and case.defendant:
+        context["defendant"] = case.defendant
+
+    return context
