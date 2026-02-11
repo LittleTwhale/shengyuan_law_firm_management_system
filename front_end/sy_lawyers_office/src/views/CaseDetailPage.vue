@@ -614,7 +614,7 @@ const partyPlaintiffs = computed(() => {
 const partyDefendants = computed(() => {
   if (!caseData.value.parties) return []
   return caseData.value.parties.filter((p) =>
-    ['被告', '被申请人', '被上诉人'].includes(p.party_type),
+    ['被告','被告人', '被申请人', '被上诉人'].includes(p.party_type),
   )
 })
 

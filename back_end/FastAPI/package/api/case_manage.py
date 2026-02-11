@@ -426,8 +426,8 @@ def check_interest_conflict(
     """
 
     # 定义阵营集合
-    SIDE_A = {'原告', '申请人', '上诉人'}
-    SIDE_B = {'被告', '被申请人', '被上诉人'}
+    side_a = {'原告', '申请人', '上诉人'}
+    side_b = {'被告', '被告人', '被申请人', '被上诉人'}
 
     input_parties = case_data.parties or []
 
@@ -456,10 +456,10 @@ def check_interest_conflict(
     found_side = None
     for p in input_parties:
         if p.name.strip() in new_client_names:
-            if p.party_type in SIDE_B:
+            if p.party_type in side_b:
                 found_side = "B"
                 break
-            elif p.party_type in SIDE_A:
+            elif p.party_type in side_a:
                 found_side = "A"
                 # 不 break，继续找看是否有更明确的 B 角色（极少见）
 
@@ -468,17 +468,17 @@ def check_interest_conflict(
     else:
         # 2.2 如果委托人没挂诉讼头衔，通过“其他人是谁”来反推
         # 如果列表里有被告，那委托人大概率是原告
-        has_side_b = any(p.party_type in SIDE_B for p in input_parties)
+        has_side_b = any(p.party_type in side_b for p in input_parties)
         if has_side_b:
             client_side = "A"
         else:
             # 如果列表里只有原告，且委托人名字不在其中，那委托人可能是被告（较少见，通常是被告委托）
-            has_side_a = any(p.party_type in SIDE_A for p in input_parties)
+            has_side_a = any(p.party_type in side_a for p in input_parties)
             if has_side_a:
                 client_side = "B"
 
     # 2.3 提取对手名字
-    target_opponent_types = SIDE_A if client_side == "B" else SIDE_B
+    target_opponent_types = side_a if client_side == "B" else side_b
     new_case_opponents = set()
 
     for p in input_parties:
@@ -569,7 +569,7 @@ def check_interest_conflict(
 
         # 3.1 确定历史客户的阵营
         has_host_as_defendant = any(
-            p.name in host_client_names and p.party_type in SIDE_B
+            p.name in host_client_names and p.party_type in side_b
             for p in all_case_parties
         )
         if has_host_as_defendant:
@@ -577,9 +577,9 @@ def check_interest_conflict(
 
         # 3.2 确定新委托人(在历史案件中)的阵营
         target_role_side = "Unknown"
-        if party_record.party_type in SIDE_A:
+        if party_record.party_type in side_a:
             target_role_side = "A"
-        elif party_record.party_type in SIDE_B:
+        elif party_record.party_type in side_b:
             target_role_side = "B"
 
         # 3.3 比较：如果阵营不同，且都不是未知，则判定冲突

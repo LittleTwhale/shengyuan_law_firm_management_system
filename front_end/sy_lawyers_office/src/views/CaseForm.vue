@@ -553,16 +553,18 @@
       <!-- 3. 被告/被申请人 (Defendant) -->
       <div class="party-section">
         <div class="party-section-header">
-          <span class="section-title">被告/被申请人/被上诉人</span>
+          <span class="section-title">被告/被告人/被申请人/被上诉人</span>
           <el-button type="warning" plain size="small" :icon="Plus" @click="addDefendant"
-            >添加被告/被申请人/被上诉人</el-button
+            >添加被告/被告人/被申请人/被上诉人</el-button
           >
         </div>
 
         <template v-for="(item, index) in formData.party_defendants" :key="'defendant_' + index">
           <div class="party-card defendant-card">
             <div class="party-card-header">
-              <span class="party-index-label"> 被告/被申请人/被上诉人 #{{ index + 1 }} </span>
+              <span class="party-index-label">
+                被告/被告人/被申请人/被上诉人 #{{ index + 1 }}
+              </span>
               <el-button
                 link
                 type="danger"
@@ -584,6 +586,7 @@
                   >
                     <el-select v-model="item.party_type">
                       <el-option label="被告" value="被告" />
+                      <el-option label="被告人" value="被告人" />
                       <el-option label="被申请人" value="被申请人" />
                       <el-option label="被上诉人" value="被上诉人" />
                     </el-select>
@@ -754,8 +757,8 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="审理法院" prop="court">
-            <el-input v-model="formData.court" />
+          <el-form-item :label="courtLabel" prop="court">
+            <el-input v-model="formData.court" :placeholder="'请输入' + courtLabel" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -1092,6 +1095,15 @@ const dialogVisible = computed({
 })
 
 const dialogTitle = computed(() => (props.caseId ? '编辑业务' : '新增业务'))
+const courtLabel = computed(() => {
+  if (formData.case_category === '仲裁案件') {
+    return '仲裁委员会'
+  } else if (formData.case_category === '刑事案件') {
+    return '审理机构'
+  }
+  // 默认为 '审理法院'
+  return '审理法院'
+})
 const loading = ref(false)
 const formRef = ref(null)
 const rawFiles = ref([]) // 新上传的文件
@@ -1154,7 +1166,7 @@ const formData = reactive({
   // 新增：前端分类管理的当事人列表
   party_clients: [], // 委托人
   party_plaintiffs: [], // 原告/申请人/上诉人
-  party_defendants: [], // 被告/被申请人/被上诉人
+  party_defendants: [], // 被告/被告人/被申请人/被上诉人
   party_third_parties: [], // 第三人
 
   // 旧字段保留（用于兼容，不直接绑定）
@@ -1249,8 +1261,13 @@ const removeClient = (index) => {
 }
 
 const addPlaintiff = () => {
+  let defaultType = '原告'
+  if (formData.case_category === '仲裁案件') {
+    defaultType = '申请人'
+  }
+
   formData.party_plaintiffs.push({
-    party_type: '原告', // 默认值
+    party_type: defaultType, // 默认值
     name: '',
     phone: '',
     id_number: '',
@@ -1263,8 +1280,15 @@ const removePlaintiff = (index) => {
 }
 
 const addDefendant = () => {
+  let defaultType = '被告'
+
+  if (formData.case_category === '刑事案件') {
+    defaultType = '被告人'
+  } else if (formData.case_category === '仲裁案件') {
+    defaultType = '被申请人'
+  }
   formData.party_defendants.push({
-    party_type: '被告', // 默认值
+    party_type: defaultType, // 默认值
     name: '',
     phone: '',
     id_number: '',
@@ -1337,7 +1361,7 @@ const fetchCaseDetail = async () => {
           formData.party_clients.push(p)
         } else if (['原告', '申请人', '上诉人'].includes(p.party_type)) {
           formData.party_plaintiffs.push(p)
-        } else if (['被告', '被申请人', '被上诉人'].includes(p.party_type)) {
+        } else if (['被告', '被告人', '被申请人', '被上诉人'].includes(p.party_type)) {
           formData.party_defendants.push(p)
         } else if (p.party_type === '第三人') {
           formData.party_third_parties.push(p)

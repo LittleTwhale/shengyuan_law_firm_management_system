@@ -76,7 +76,7 @@ def check_interest_conflict_for_case(db: Session, case_id: int):
 
     # 定义阵营集合
     side_a = {'原告', '申请人', '上诉人'}
-    side_b = {'被告', '被申请人', '被上诉人'}
+    side_b = {'被告', '被告人', '被申请人', '被上诉人'}
 
     # ---------------------------------------------------------
     # 2. 提取当前案件的委托人 (New Clients)
@@ -278,7 +278,7 @@ def get_case_approval_context(case: Case) -> Dict[str, Any]:
     client_ids = []  # 委托人证件号
 
     plaintiffs = []  # 原告/申请人
-    defendants = []  # 被告/被申请人
+    defendants = []  # 被告/被告人/被申请人
     appellants = []  # 上诉人
     appellees = []  # 被上诉人
 
@@ -287,7 +287,7 @@ def get_case_approval_context(case: Case) -> Dict[str, Any]:
     type_map = {
         'client': ['委托人'],
         'plaintiff': ['原告', '申请人', ],
-        'defendant': ['被告', '被申请人',],
+        'defendant': ['被告', '被告人','被申请人',],
         'appellant': ['上诉人'],
         'appellee': ['被上诉人']
     }
