@@ -1242,7 +1242,8 @@ const formRules = {
   case_category: [{ required: true, message: '请选择业务类别', trigger: 'change' }],
   commission_date: [{ required: true, message: '请选择委托日期', trigger: 'change' }],
   main_lawyer_id: [{ required: true, message: '请选择主办律师', trigger: 'change' }],
-  // 移除了原有的 client_name, client_id_number 的校验，改为行内校验
+  cause: [{ required: true, message: '请填写案由', trigger: 'blur' }],
+  fee_method: [{ required: true, message: '请填写收费方式', trigger: 'blur' }],
 }
 
 // 当事人操作方法

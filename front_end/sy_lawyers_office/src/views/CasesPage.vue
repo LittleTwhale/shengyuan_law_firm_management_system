@@ -83,14 +83,28 @@
         sortable="custom"
         :formatter="(row, column, cellValue) => formatDate(cellValue)"
       />
-      <el-table-column label="操作" width="300" header-align="center" align="left">
+      <el-table-column label="操作" width="380" header-align="center" align="left">
         <template #default="scope">
           <el-button size="small" @click="viewCase(scope.row)">查看</el-button>
-          <el-button size="small" type="warning" @click="handleEditClick(scope.row)">
+          <el-button
+            size="small"
+            type="warning"
+            :disabled="currentUserRole === 'user' && scope.row.review_status === '已审核'"
+            @click="handleEditClick(scope.row)"
+          >
             编辑
           </el-button>
-          <el-button size="small" type="danger" @click="deleteCase(scope.row.case_id)">
+          <el-button
+            size="small"
+            type="danger"
+            :disabled="currentUserRole === 'user' && scope.row.review_status === '已审核'"
+            @click="deleteCase(scope.row.case_id)"
+          >
             删除
+          </el-button>
+          <el-button size="small" type="primary" plain @click="handleUploadClick(scope.row)">
+            <el-icon><Upload /></el-icon>
+            上传附件
           </el-button>
           <el-button
             v-if="scope.row.review_status === '已审核'"
@@ -219,6 +233,60 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <el-dialog
+      title="上传附件"
+      v-model="uploadDialogVisible"
+      width="600px"
+      :close-on-click-modal="false"
+      destroy-on-close
+      @close="resetUploadDialog"
+      class="upload-dialog"
+    >
+      <div class="upload-container">
+        <div class="case-info-bar">
+          <el-icon><Document /></el-icon>
+          <span class="label">当前案件：</span>
+          <span class="value">{{ currentUploadCaseNumber }}</span>
+        </div>
+
+        <el-upload
+          ref="attachmentUploadRef"
+          class="upload-demo"
+          drag
+          action="#"
+          :auto-upload="false"
+          multiple
+          :on-change="handleAttachmentChange"
+          :on-remove="handleAttachmentRemove"
+          v-model:file-list="attachmentFileList"
+        >
+          <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+          <div class="el-upload__text">将文件拖到此处，或 <em>点击上传</em></div>
+          <template #tip>
+            <div class="el-upload__tip">
+              <p>1. 支持多文件同时上传</p>
+              <p>2. 单个文件建议不超过 50MB</p>
+            </div>
+          </template>
+        </el-upload>
+      </div>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="uploadDialogVisible = false">取消</el-button>
+          <el-button
+            type="primary"
+            @click="submitAttachments"
+            :loading="isUploadingAttachments"
+            :disabled="attachmentFileList.length === 0"
+          >
+            <el-icon v-if="!isUploadingAttachments"><Upload /></el-icon>
+            {{ isUploadingAttachments ? '正在上传...' : '开始上传' }}
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -228,7 +296,7 @@ import axios from 'axios'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import CaseForm from './CaseForm.vue' // 引入抽离的CaseForm组件
 import { useRouter } from 'vue-router'
-import { Check, Document, Loading, Upload } from '@element-plus/icons-vue'
+import { Check, Document, Loading, Upload, UploadFilled } from '@element-plus/icons-vue'
 
 // -------------------------- 当前用户数据 ----------------------------
 const currentUserID = ref(localStorage.getItem('user_id'))
@@ -582,6 +650,75 @@ const handleExportClick = async () => {
   }
 }
 
+// -------------------------- 独立上传附件逻辑 --------------------------
+const uploadDialogVisible = ref(false)
+const isUploadingAttachments = ref(false)
+const attachmentFileList = ref([])
+const currentUploadCaseId = ref(null)
+const currentUploadCaseNumber = ref('')
+
+// 1. 点击列表中的“上传附件”按钮
+const handleUploadClick = (row) => {
+  currentUploadCaseId.value = row.case_id
+  currentUploadCaseNumber.value = row.case_number
+  attachmentFileList.value = [] // 清空旧文件列表
+  uploadDialogVisible.value = true
+}
+
+// 2. 监听文件选择变化
+const handleAttachmentChange = (file, fileList) => {
+  attachmentFileList.value = fileList
+}
+
+// 3. 监听文件移除
+const handleAttachmentRemove = (file, fileList) => {
+  attachmentFileList.value = fileList
+}
+
+// 4. 重置弹窗状态
+const resetUploadDialog = () => {
+  attachmentFileList.value = []
+  isUploadingAttachments.value = false
+}
+
+// 5. 提交上传
+const submitAttachments = async () => {
+  if (attachmentFileList.value.length === 0) {
+    ElMessage.warning('请先选择要上传的文件')
+    return
+  }
+
+  isUploadingAttachments.value = true
+
+  try {
+    // 并行上传所有选中的文件
+    const uploadPromises = attachmentFileList.value.map((file) => {
+      const formData = new FormData()
+      formData.append('case_id', currentUploadCaseId.value)
+      formData.append('uploaded_by', currentUserID.value) // 使用当前登录用户ID
+      formData.append('file', file.raw) // 注意：ElementPlus 中要用 file.raw 获取原生文件对象
+
+      return axios.post('http://127.0.0.1:8002/attachments/', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+    })
+
+    // 等待所有上传完成
+    await Promise.all(uploadPromises)
+
+    ElMessage.success(`成功上传 ${attachmentFileList.value.length} 个附件`)
+    uploadDialogVisible.value = false
+
+    // 可选：如果需要在当前页面显示附件数量变化，这里可以刷新列表
+    // await loadCases()
+  } catch (error) {
+    console.error('附件上传失败:', error)
+    ElMessage.error('部分或全部附件上传失败，请重试')
+  } finally {
+    isUploadingAttachments.value = false
+  }
+}
+
 // -------------------------- 辅助工具函数 --------------------------
 // 日期格式化（将时间戳/ISO字符串转为本地日期）
 const formatDate = (dateVal) => {
@@ -900,5 +1037,58 @@ const handleDownloadApproval = async (row) => {
 
 .text-danger {
   color: #f56c6c;
+}
+
+/* 上传弹窗样式优化 */
+.upload-container {
+  padding: 0 10px;
+}
+
+.case-info-bar {
+  display: flex;
+  align-items: center;
+  background-color: #f0f9eb; /* 浅绿色背景 */
+  border: 1px solid #e1f3d8;
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  color: #67c23a;
+}
+
+.case-info-bar .el-icon {
+  font-size: 18px;
+  margin-right: 8px;
+}
+
+.case-info-bar .label {
+  font-weight: bold;
+  margin-right: 8px;
+}
+
+.case-info-bar .value {
+  font-family: monospace; /* 等宽字体显示案号更专业 */
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+}
+
+/* 调整 Element Upload 的默认间距 */
+.upload-demo {
+  text-align: center;
+}
+
+.el-upload__tip {
+  margin-top: 10px;
+  color: #909399;
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: left; /* 提示文字左对齐 */
+  background-color: #f4f4f5;
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+
+.el-upload__tip p {
+  margin: 0;
 }
 </style>
