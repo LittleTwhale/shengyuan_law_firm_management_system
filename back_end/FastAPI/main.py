@@ -8,6 +8,7 @@ from .package.api.user_profile import router as auth_user_router
 from .package.api.attachment import router as auth_attachment_router
 from .package.api.template import router as auth_template_router
 from .package.api.electronic_seal import router as auth_seal_router
+from .package.api.admin import router as auth_admin_router
 from .package.core.logger import logger
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -68,3 +69,6 @@ app.include_router(auth_template_router)
 
 # 注册电子印章路由
 app.include_router(auth_seal_router)
+
+# 注册细粒度权限管理路由
+app.include_router(auth_admin_router)

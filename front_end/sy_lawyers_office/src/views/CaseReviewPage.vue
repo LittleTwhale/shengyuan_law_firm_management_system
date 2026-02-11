@@ -297,6 +297,7 @@ const fetchPendingCases = async () => {
   try {
     const res = await axios.get(`${API_BASE}/case_review/pending`, {
       params: {
+        user_id: currentUserId.value,
         role: currentUserRole.value,
         skip: (page.value - 1) * pageSize.value,
         limit: pageSize.value,

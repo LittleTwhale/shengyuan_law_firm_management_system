@@ -53,6 +53,10 @@
         <el-menu-item index="/main/reminders">
           <el-icon><Bell /></el-icon> <span>事项提醒</span>
         </el-menu-item>
+        <el-menu-item index="/main/admin/settings" v-if="role === 'owner' ">
+          <el-icon><Setting /></el-icon>
+          <span>后台管理</span>
+        </el-menu-item>
       </el-menu>
 
       <!-- 右侧操作区（路由出口） -->
@@ -68,7 +72,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElNotification } from 'element-plus'
 import { useRouter } from 'vue-router'
 import axios from 'axios' // 引入axios
-import { Bell } from '@element-plus/icons-vue'
+import { Bell,Setting } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const currentUser = ref(localStorage.getItem('username'))
@@ -93,15 +97,17 @@ const checkUrgentReminders = async () => {
   try {
     // 查询未来3天内的事件
     const res = await axios.get('http://127.0.0.1:8002/user/profile/reminders', {
-      params: { user_id: userId, days: 3 }
+      params: { user_id: userId, days: 3 },
     })
 
     const urgentEvents = res.data
 
     if (urgentEvents.length > 0) {
       // 构建弹窗内容 HTML
-      const messageHtml = urgentEvents.map(e =>
-        `<div style="margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px dashed #eee;">
+      const messageHtml = urgentEvents
+        .map(
+          (e) =>
+            `<div style="margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px dashed #eee;">
            <span style="color: #f56c6c; font-weight: bold;">[${e.event_type}]</span>
            <span style="margin-left: 5px;">${e.event_date}</span>
            <div style="font-size: 12px; color: #666; margin-top: 4px;">
@@ -110,8 +116,9 @@ const checkUrgentReminders = async () => {
            <div style="font-size: 12px; color: #e6a23c;">
              剩余 ${e.days_remaining} 天
            </div>
-         </div>`
-      ).join('')
+         </div>`,
+        )
+        .join('')
 
       ElNotification({
         title: `有 ${urgentEvents.length} 个紧急事项即将到期`,
@@ -122,7 +129,7 @@ const checkUrgentReminders = async () => {
         customClass: 'center-notification',
         onClick: () => {
           router.push('/main/reminders') // 点击跳转到详情页
-        }
+        },
       })
     }
   } catch (error) {
@@ -149,7 +156,9 @@ onMounted(() => {
   /* 自定义背景和边框，使其更醒目 */
   background-color: #e1f4fa !important; /* 浅蓝色背景 */
   border-left: 8px solid #ff0008 !important; /* 强烈红色左侧边框 */
-  box-shadow: 0 6px 16px rgba(17, 220, 255, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.1) !important; /* 加重阴影和轻微描边 */
+  box-shadow:
+    0 6px 16px rgba(17, 220, 255, 0.4),
+    0 0 0 1px rgba(0, 0, 0, 0.1) !important; /* 加重阴影和轻微描边 */
   max-width: 450px;
   border-radius: 8px !important;
 }

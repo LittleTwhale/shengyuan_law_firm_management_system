@@ -1,9 +1,11 @@
 # crud/user.py
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
+
 from ..core.security import verify_password,hash_password
 from ..models.user import User
-from ..schemas.user import UserCreate
+from ..schemas.user import UserCreate, UserPermissionUpdate
 from typing import Optional, List, cast
 
 
@@ -113,3 +115,32 @@ def get_user_id_by_name(db: Session, real_name: str) -> Optional[int]:
     """通过姓名查询用户ID（假设无重名）"""
     user = db.query(User).filter(User.real_name == real_name).first()
     return user.id if user else None
+
+
+def update_user_permissions(db: Session, user_id: int, permissions: UserPermissionUpdate):
+    """更新用户的权限"""
+    # 1. 查询用户
+    db_user = db.query(User).filter(User.id == user_id).first()
+    if not db_user:
+        return None
+
+    # 2. 获取当前的权限字典 (如果为None则初始化为空字典)
+    current_permissions = db_user.permissions or {}
+
+    # 3. 更新权限
+    # 遍历传入的 permissions (exclude_unset=True 保证只更新前端传来的字段)
+    update_data = permissions.model_dump(exclude_unset=True)
+
+    for key, value in update_data.items():
+        current_permissions[key] = value
+
+    # 4. 显式重新赋值 (这对于触发 SQLAlchemy 的 JSON 字段更新很重要)
+    # 这是一个常见的坑：直接修改 JSON 内部属性可能不会被 ORM 检测到变化
+    db_user.permissions = dict(current_permissions)
+    flag_modified(db_user, "permissions")
+
+    # 5. 提交事务
+    db.add(db_user)  # 确保对象在 session 中
+    db.commit()
+    db.refresh(db_user)
+    return db_user

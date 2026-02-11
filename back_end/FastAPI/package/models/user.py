@@ -1,5 +1,5 @@
 # models/user.py
-from sqlalchemy import Column, Integer, String, Enum, DateTime, func
+from sqlalchemy import Column, Integer, String, Enum, DateTime, func, JSON
 from sqlalchemy.orm import relationship
 from ..database.database import Base
 
@@ -25,6 +25,9 @@ class User(Base):
 
     # 用户职位，可为空
     position = Column(String(50), nullable=True, comment="用户职位")
+
+    # 细粒度权限字段 (JSON类型)
+    permissions = Column(JSON, default={}, nullable=True, comment="用户细粒度权限配置")
 
     # 创建时间，默认为当前时间
     created_at = Column(DateTime, server_default=func.now(), comment="创建时间")

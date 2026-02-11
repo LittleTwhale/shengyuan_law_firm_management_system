@@ -14,6 +14,7 @@ from ..crud.case_review import list_pending_cases, count_pending_cases, update_r
     check_interest_conflict_for_case, get_case_approval_context
 from ..database.database import get_db
 from ..models.case import Case
+from ..models.user import User
 from ..schemas.case import CasePageOut, CaseSimpleOut, CaseOut
 
 router = APIRouter(
@@ -22,8 +23,31 @@ router = APIRouter(
 )
 
 
+# --- 辅助函数：权限检查 ---
+def check_review_permission(db: Session, user_id: int):
+    """
+    检查用户是否有权审核案件
+    逻辑：Role为Owner，或者 permissions['can_review_case'] 为 True
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=403, detail="用户不存在")
+
+    # 1. Owner 拥有最高权限
+    if user.role == 'owner':
+        return True
+
+    # 2. 检查细粒度权限
+    # user.permissions 可能为 None (旧数据) 或 字典
+    perms = user.permissions or {}
+    if perms.get('can_review_case', False) is True:
+        return True
+
+    raise HTTPException(status_code=403, detail="您没有审核案件的权限")
+
 @router.get("/pending", response_model=CasePageOut)
 def get_pending_cases(
+        user_id: int = Query(..., description="当前操作的用户ID"),
         role: Optional[str] = None,
         skip: int = Query(0, ge=0),
         limit: int = Query(10, ge=1, le=100),
@@ -57,8 +81,7 @@ def review_case(
     """
     审核案件（通过/拒绝，仅管理员可操作）
     """
-    if not role or role not in ["admin", "owner"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无审核案件权限")
+    check_review_permission(db, reviewer_id)
 
     # 1. 审核通过逻辑
     if review_status == "已审核":

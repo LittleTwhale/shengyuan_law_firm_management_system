@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from ..core.config import ELECTRONIC_SEAL_ROOT, SEAL_APPLICATION_ROOT
 from ..crud import electronic_seal as seal_crud  # 使用别名导入所有CRUD函数
 from ..database.database import get_db
+from ..models.user import User
 from ..schemas.electronic_seal import (
     ElectronicSealCreate, ElectronicSealOut, ElectronicSealUpdate,
     SealApplicationCreate, SealApplicationOut, SealApplicationSimpleOut,
@@ -29,16 +30,25 @@ def check_admin_permission(role: Optional[str]):
     if not role or role not in ["admin", "owner"]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限操作")
 
-# 授权用印审核人ID 列表
-AUTHORIZED_REVIEWER_IDS = [1, 2]
 
-def check_reviewer_permission(reviewer_id: int):
-    """检查用户ID是否为授权的用印审核人 """
-    if reviewer_id not in AUTHORIZED_REVIEWER_IDS:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="无权限进行用印审核操作，只有授权的管理员可以操作。"
-        )
+def check_seal_approval_permission(db: Session, reviewer_id: int):
+    """
+    检查用户是否有权审批印章申请
+    """
+    user = db.query(User).filter(User.id == reviewer_id).first()
+    if not user:
+        raise HTTPException(status_code=403, detail="操作用户不存在")
+
+    # 1. Owner 放行
+    if user.role == 'owner':
+        return True
+
+    # 2. 检查 can_approve_seal 权限
+    perms = user.permissions or {}
+    if perms.get('can_approve_seal', False) is True:
+        return True
+
+    raise HTTPException(status_code=403, detail="您没有审批印章的权限")
 
 
 # ------------------------------
@@ -249,7 +259,7 @@ def review_seal_application(
 ):
     """【管理员】审核用印申请（通过/拒绝）"""
     check_admin_permission(role)
-    check_reviewer_permission(reviewer_id)
+    check_seal_approval_permission(reviewer_id)
     try:
         reviewed = seal_crud.review_seal_application(
             db, application_id, review_in, reviewer_id
@@ -272,7 +282,7 @@ async def confirm_stamping_and_log(
 ):
     """【管理员】确认盖章完成，保存最终文件并记录坐标"""
     check_admin_permission(role)
-    check_reviewer_permission(reviewer_id)
+    check_seal_approval_permission(db,reviewer_id)
     try:
         # 1. 解析 JSON 字符串为 Pydantic 模型列表
         log_list_data = json.loads(log_data_json)

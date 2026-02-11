@@ -13,7 +13,6 @@
     </div>
 
     <el-tabs v-model="activeTab" class="seal-tabs" @tab-change="handleTabChange">
-
       <el-tab-pane label="印章库" name="seals" v-if="isAdmin">
         <el-table :data="sealList" border v-loading="loading.seals">
           <el-table-column prop="id" label="ID" width="60" />
@@ -30,11 +29,16 @@
           <el-table-column prop="name" label="印章名称" />
           <el-table-column prop="is_active" label="状态" width="100">
             <template #default="{ row }">
-              <el-tag :type="row.is_active ? 'success' : 'danger'">{{ row.is_active ? '启用' : '禁用' }}</el-tag>
+              <el-tag :type="row.is_active ? 'success' : 'danger'">{{
+                row.is_active ? '启用' : '禁用'
+              }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="created_at" label="上传时间"
-                           :formatter="(row, column, cellValue) => formatDate(cellValue)" />
+          <el-table-column
+            prop="created_at"
+            label="上传时间"
+            :formatter="(row, column, cellValue) => formatDate(cellValue)"
+          />
           <el-table-column label="操作" width="180">
             <template #default="{ row }">
               <el-button
@@ -61,8 +65,12 @@
             </template>
           </el-table-column>
           <el-table-column prop="apply_reason" label="用印原因" show-overflow-tooltip />
-          <el-table-column prop="created_at" label="申请时间"
-                           :formatter="(row, column, cellValue) => formatDate(cellValue)" width="160" />
+          <el-table-column
+            prop="created_at"
+            label="申请时间"
+            :formatter="(row, column, cellValue) => formatDate(cellValue)"
+            width="160"
+          />
           <el-table-column label="操作" width="300" fixed="right">
             <template #default="{ row }">
               <el-button
@@ -78,7 +86,7 @@
               <el-button
                 size="small"
                 type="danger"
-                style="margin-left: 10px;"
+                style="margin-left: 10px"
                 @click="deleteApplication(row)"
               >
                 删除
@@ -119,7 +127,7 @@
             action="#"
             :auto-upload="false"
             :limit="1"
-            :on-change="(file) => sealForm.file = file.raw"
+            :on-change="(file) => (sealForm.file = file.raw)"
             accept=".png,.jpg,.jpeg"
           >
             <el-button type="primary">点击上传图片</el-button>
@@ -129,7 +137,9 @@
       </el-form>
       <template #footer>
         <el-button @click="showCreateSealDialog = false">取消</el-button>
-        <el-button type="primary" @click="handleCreateSeal" :loading="loading.submitting">确定</el-button>
+        <el-button type="primary" @click="handleCreateSeal" :loading="loading.submitting"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
 
@@ -151,10 +161,11 @@
         </el-form-item>
         <el-form-item label="待盖章文件" required>
           <el-upload
-            ref="applyUploadRef"  action="#"
+            ref="applyUploadRef"
+            action="#"
             :auto-upload="false"
             :limit="1"
-            :on-change="(file) => applyForm.file = file.raw"
+            :on-change="(file) => (applyForm.file = file.raw)"
             accept=".pdf,.doc,.docx"
           >
             <el-button type="primary">上传文件</el-button>
@@ -164,16 +175,13 @@
       </el-form>
       <template #footer>
         <el-button @click="showApplyDialog = false">取消</el-button>
-        <el-button type="primary" @click="handleCreateApplication" :loading="loading.submitting">提交申请</el-button>
+        <el-button type="primary" @click="handleCreateApplication" :loading="loading.submitting"
+          >提交申请</el-button
+        >
       </template>
     </el-dialog>
 
-    <el-dialog
-      title="拒绝用印申请"
-      v-model="showRejectDialog"
-      width="400px"
-      destroy-on-close
-    >
+    <el-dialog title="拒绝用印申请" v-model="showRejectDialog" width="400px" destroy-on-close>
       <h3>申请详情</h3>
       <p><strong>申请人：</strong> {{ currentAuditRow?.applicant?.real_name }}</p>
       <p><strong>文件：</strong> {{ currentAuditRow?.original_file_name }}</p>
@@ -186,10 +194,11 @@
       </el-form>
       <template #footer>
         <el-button @click="showRejectDialog = false">取消</el-button>
-        <el-button type="danger" @click="handleReject" :loading="loading.submitting">确定拒绝</el-button>
+        <el-button type="danger" @click="handleReject" :loading="loading.submitting"
+          >确定拒绝</el-button
+        >
       </template>
     </el-dialog>
-
 
     <el-dialog
       title="盖章操作"
@@ -198,10 +207,16 @@
       class="audit-dialog"
       destroy-on-close
     >
-      <div class="audit-container" v-loading="loading.pdfProcessing" element-loading-text="正在处理PDF...">
-
+      <div
+        class="audit-container"
+        v-loading="loading.pdfProcessing"
+        element-loading-text="正在处理PDF..."
+      >
         <div class="pdf-workspace">
-          <div class="canvas-wrapper" :style="{ width: canvasWidth + 'px', height: canvasHeight + 'px' }">
+          <div
+            class="canvas-wrapper"
+            :style="{ width: canvasWidth + 'px', height: canvasHeight + 'px' }"
+          >
             <canvas ref="pdfCanvasRef"></canvas>
 
             <div
@@ -211,7 +226,7 @@
                 top: sealY + 'px',
                 width: sealWidth + 'px',
                 height: sealHeight + 'px',
-                backgroundImage: `url(${currentSealUrl})`
+                backgroundImage: `url(${currentSealUrl})`,
               }"
               @mousedown="startDrag"
             >
@@ -229,23 +244,39 @@
 
           <h3>盖章操作</h3>
           <div>
-            <el-alert title="请拖拽左侧印章到指定位置，并确认页码" type="info" :closable="false" style="margin-bottom: 10px;" />
+            <el-alert
+              title="请拖拽左侧印章到指定位置，并确认页码"
+              type="info"
+              :closable="false"
+              style="margin-bottom: 10px"
+            />
 
             <div class="pagination-controls">
               <el-button @click="changePage(-1)" :disabled="currentPage <= 1">上一页</el-button>
               <span>第 {{ currentPage }} / {{ totalPages }} 页</span>
-              <el-button @click="changePage(1)" :disabled="currentPage >= totalPages">下一页</el-button>
+              <el-button @click="changePage(1)" :disabled="currentPage >= totalPages"
+                >下一页</el-button
+              >
             </div>
 
-            <el-button type="primary" size="large" @click="confirmStamping" :loading="loading.stamping" style="width: 100%; margin-top: 20px;">
+            <el-button
+              type="primary"
+              size="large"
+              @click="confirmStamping"
+              :loading="loading.stamping"
+              style="width: 100%; margin-top: 20px"
+            >
               确认盖章并完成
             </el-button>
-            <el-button @click="showAuditDialog = false" style="width: 100%; margin-top: 10px; margin-left: 0;">取消/退出</el-button>
+            <el-button
+              @click="showAuditDialog = false"
+              style="width: 100%; margin-top: 10px; margin-left: 0"
+              >取消/退出</el-button
+            >
           </div>
         </div>
       </div>
     </el-dialog>
-
   </div>
 </template>
 
@@ -266,13 +297,17 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `/pdfjs/pdf.worker.min.mjs`
 const API_BASE = 'http://127.0.0.1:8002/electronic_seal'
 const currentUserId = parseInt(localStorage.getItem('user_id'))
 const currentUserRole = localStorage.getItem('role')
+const currentUserPermissions = ref({})
 const isAdmin = computed(() => ['admin', 'owner'].includes(currentUserRole))
-// 授权审核人ID 列表
-const AUTHORIZED_REVIEWER_IDS = [1, 2]
 
 // 判断用户是否为授权审核人的计算属性
 const canReview = computed(() => {
-  return currentUserId && AUTHORIZED_REVIEWER_IDS.includes(currentUserId)
+  // 1. Owner 永远有权限
+  if (currentUserRole === 'owner') return true
+
+  // 2. 检查权限字典中的开关
+  // 注意：后端返回的可能是 null 或 undefined，给予默认值 false
+  return currentUserPermissions.value?.can_approve_seal === true
 })
 
 const activeTab = ref(isAdmin.value ? 'seals' : 'my_applications')
@@ -282,7 +317,7 @@ const loading = reactive({
   pending: false,
   submitting: false,
   pdfProcessing: false,
-  stamping: false
+  stamping: false,
 })
 
 const sealList = ref([])
@@ -322,16 +357,30 @@ const sealWidth = ref(150)
 const sealHeight = ref(150)
 let isDragging = false
 let isResizing = false
-let startX = 0, startY = 0
+let startX = 0,
+  startY = 0
 
 // ==========================================
 // 1. 数据加载与管理
 // ==========================================
 onMounted(() => {
+  fetchUserProfile()
   fetchSeals()
   fetchMyApplications()
   if (isAdmin.value) fetchPendingApplications()
 })
+const fetchUserProfile = async () => {
+  try {
+    const res = await axios.get(`http://127.0.0.1:8002/user/profile/info`, {
+      params: { user_id: currentUserId },
+    })
+    // 如果 permissions 为空，给一个空对象防止报错
+    currentUserPermissions.value = res.data.permissions || {}
+  } catch (err) {
+    console.error('获取用户信息失败', err)
+    ElMessage.warning('无法获取用户权限信息，部分功能可能受限')
+  }
+}
 
 const resetApplyForm = () => {
   // 1. 重置表单数据
@@ -356,17 +405,23 @@ const fetchSeals = async () => {
   try {
     const res = await axios.get(`${API_BASE}/seals`)
     sealList.value = res.data
-    activeSeals.value = res.data.filter(s => s.is_active)
-  } catch (err) { console.error(err) }
+    activeSeals.value = res.data.filter((s) => s.is_active)
+  } catch (err) {
+    console.error(err)
+  }
   loading.seals = false
 }
 
 const fetchMyApplications = async () => {
   loading.applications = true
   try {
-    const res = await axios.get(`${API_BASE}/applications`, { params: { applicant_id: currentUserId } })
+    const res = await axios.get(`${API_BASE}/applications`, {
+      params: { applicant_id: currentUserId },
+    })
     myApplications.value = res.data
-  } catch (err) { console.error(err) }
+  } catch (err) {
+    console.error(err)
+  }
   loading.applications = false
 }
 
@@ -375,7 +430,9 @@ const fetchPendingApplications = async () => {
   try {
     const res = await axios.get(`${API_BASE}/applications`, { params: { status: '待审核' } })
     pendingApplications.value = res.data
-  } catch (err) { console.error(err) }
+  } catch (err) {
+    console.error(err)
+  }
   loading.pending = false
 }
 
@@ -398,13 +455,16 @@ const handleCreateSeal = async () => {
     await fetchSeals()
   } catch (err) {
     console.error(err)
-    ElMessage.error('上传失败') }
+    ElMessage.error('上传失败')
+  }
   loading.submitting = false
 }
 
 const toggleSealStatus = async (row) => {
   try {
-    await axios.put(`${API_BASE}/seals/${row.id}?role=${currentUserRole}`, { is_active: !row.is_active })
+    await axios.put(`${API_BASE}/seals/${row.id}?role=${currentUserRole}`, {
+      is_active: !row.is_active,
+    })
     await fetchSeals()
   } catch (err) {
     console.error(err)
@@ -413,7 +473,7 @@ const toggleSealStatus = async (row) => {
 }
 
 const deleteSeal = async (row) => {
-  if(!confirm('确定删除该印章吗？')) return
+  if (!confirm('确定删除该印章吗？')) return
   try {
     await axios.delete(`${API_BASE}/seals/${row.id}?role=${currentUserRole}`)
     await fetchSeals()
@@ -449,23 +509,22 @@ const downloadStampedFile = (id) => {
 }
 
 const deleteApplication = async (row) => {
-  const fileType = row.stamped_file_path ? '已盖章文件' : '原始文件';
-  const confirmMsg = `确定要删除申请ID ${row.id} 及其所有附件（包含${fileType}）吗？此操作不可逆。`;
+  const fileType = row.stamped_file_path ? '已盖章文件' : '原始文件'
+  const confirmMsg = `确定要删除申请ID ${row.id} 及其所有附件（包含${fileType}）吗？此操作不可逆。`
 
-  if(!confirm(confirmMsg)) return
+  if (!confirm(confirmMsg)) return
 
   try {
     //  调用 DELETE /applications/{application_id} 接口
     await axios.delete(`${API_BASE}/applications/${row.id}`, {
       params: {
         user_id: currentUserId,
-        role: currentUserRole
-      }
+        role: currentUserRole,
+      },
     })
 
     ElMessage.success('用印申请及所有附件已删除')
     await fetchMyApplications() // 重新加载我的申请列表
-
   } catch (err) {
     console.error(err)
     ElMessage.error(err.response?.data?.detail || '删除失败')
@@ -489,11 +548,15 @@ const handleReject = async () => {
   loading.submitting = true
   try {
     // 调用 PUT /applications/{application_id}/review 接口
-    await axios.put(`${API_BASE}/applications/${currentAuditRow.value.id}/review`, {
-      status: '已拒绝',
-      review_remark: auditRemark.value,
-      reviewer_id: currentUserId
-    }, { params: { reviewer_id: currentUserId, role: currentUserRole } })
+    await axios.put(
+      `${API_BASE}/applications/${currentAuditRow.value.id}/review`,
+      {
+        status: '已拒绝',
+        review_remark: auditRemark.value,
+        reviewer_id: currentUserId,
+      },
+      { params: { reviewer_id: currentUserId, role: currentUserRole } },
+    )
 
     ElMessage.success('已拒绝')
     showRejectDialog.value = false
@@ -524,7 +587,7 @@ const handleApproveAndStamp = async (row) => {
   try {
     // 1. 获取底图 PDF (ArrayBuffer)
     const response = await axios.get(`${API_BASE}/applications/${row.id}/preview_pdf`, {
-      responseType: 'arraybuffer'
+      responseType: 'arraybuffer',
     })
 
     // 2. 加载 PDF.js
@@ -535,7 +598,6 @@ const handleApproveAndStamp = async (row) => {
 
     // 3. 渲染第一页
     await renderPage(1)
-
   } catch (err) {
     console.error(err)
     ElMessage.error('加载文件失败，请检查文件格式')
@@ -560,7 +622,7 @@ const renderPage = async (num) => {
   // audit-dialog 的 body 高度是 (100vh - 60px)
   // audit-container 占据全部高度
   // pdf-workspace 占据全部高度，其 padding 是 20px (上下各 20px)
-  const workspaceHeight = window.innerHeight - 60 - (20 * 2); // 窗口高度 - header高度 - 上下padding
+  const workspaceHeight = window.innerHeight - 60 - 20 * 2 // 窗口高度 - header高度 - 上下padding
 
   // 3. 计算动态缩放比例
   // 我们希望 PDF 视图略小于可用高度，留出一定边距 (例如 40px)
@@ -568,11 +630,11 @@ const renderPage = async (num) => {
 
   // 4. 应用动态缩放
   // 同时检查宽度，确保它不会导致水平滚动条 (如果PDF页面很宽)
-  const availableWidth = window.innerWidth - 300 - (20 * 2) - 40; // 可用宽度
-  const widthScale = availableWidth / defaultViewport.width;
+  const availableWidth = window.innerWidth - 300 - 20 * 2 - 40 // 可用宽度
+  const widthScale = availableWidth / defaultViewport.width
 
   // 取高度和宽度缩放比例中较小的一个，确保 PDF 既能适应高度，又不会超过可用宽度
-  dynamicPdfScale = Math.min(dynamicPdfScale, widthScale);
+  dynamicPdfScale = Math.min(dynamicPdfScale, widthScale)
 
   // ------------------------------------------------------------------
   // 渲染部分
@@ -588,7 +650,7 @@ const renderPage = async (num) => {
 
   const renderContext = {
     canvasContext: context,
-    viewport: viewport
+    viewport: viewport,
   }
   await page.render(renderContext).promise
 }
@@ -661,14 +723,18 @@ const confirmStamping = async () => {
   loading.stamping = true
   try {
     // 1. 获取原 PDF ArrayBuffer
-    const pdfBytes = await axios.get(`${API_BASE}/applications/${currentAuditRow.value.id}/preview_pdf`, {
-      responseType: 'arraybuffer'
-    }).then(res => res.data)
+    const pdfBytes = await axios
+      .get(`${API_BASE}/applications/${currentAuditRow.value.id}/preview_pdf`, {
+        responseType: 'arraybuffer',
+      })
+      .then((res) => res.data)
 
     // 2. 获取印章图片 ArrayBuffer
-    const sealBytes = await axios.get(currentSealUrl.value, {
-      responseType: 'arraybuffer'
-    }).then(res => res.data)
+    const sealBytes = await axios
+      .get(currentSealUrl.value, {
+        responseType: 'arraybuffer',
+      })
+      .then((res) => res.data)
 
     // 3. 使用 pdf-lib 加载 PDF
     const pdfDocLib = await PDFDocument.load(pdfBytes)
@@ -697,20 +763,24 @@ const confirmStamping = async () => {
     // 6. 保存生成新的 PDF
     const pdfDataUri = await pdfDocLib.save()
     const blob = new Blob([pdfDataUri], { type: 'application/pdf' })
-    const file = new File([blob], `stamped_${currentAuditRow.value.original_file_name}.pdf`, { type: 'application/pdf' })
+    const file = new File([blob], `stamped_${currentAuditRow.value.original_file_name}.pdf`, {
+      type: 'application/pdf',
+    })
 
     // 7. 准备上传数据
     const fd = new FormData()
     fd.append('stamped_file', file)
 
     // 构造日志数据
-    const logData = [{
-      page_number: currentPage.value,
-      x: pdfX,
-      y: pdfY,
-      width: pdfSealWidth,
-      height: pdfSealHeight
-    }]
+    const logData = [
+      {
+        page_number: currentPage.value,
+        x: pdfX,
+        y: pdfY,
+        width: pdfSealWidth,
+        height: pdfSealHeight,
+      },
+    ]
     fd.append('log_data_json', JSON.stringify(logData))
 
     fd.append('reviewer_id', currentUserId)
@@ -723,7 +793,6 @@ const confirmStamping = async () => {
     ElMessage.success('盖章完成，申请状态已更新为“已通过”')
     showAuditDialog.value = false
     await fetchPendingApplications()
-
   } catch (err) {
     console.error(err)
     ElMessage.error('盖章合成或上传失败: ' + (err.response?.data?.detail || err.message))
@@ -787,7 +856,7 @@ const getStatusType = (status) => {
 
 .canvas-wrapper {
   position: relative;
-  box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
   background: white;
 }
 
