@@ -38,6 +38,10 @@
           <i class="el-icon-bank_cases"></i>
           <span>银行案件</span>
         </el-menu-item>
+        <el-menu-item index="/main/finance">
+          <i class="el-icon-finance"></i>
+          <span>财务管理</span>
+        </el-menu-item>
         <el-menu-item index="/main/document_template">
           <i class="el-icon-document-template"></i>
           <span>文书模板</span>

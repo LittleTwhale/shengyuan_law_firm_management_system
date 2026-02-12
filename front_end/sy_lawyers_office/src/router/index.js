@@ -11,6 +11,7 @@ import DocumentPage from '@/views/DocumentPage.vue'
 import ElectronicSealPage from '@/views/ElectronicSealPage.vue'
 import EventReminderPage from '@/views/EventReminderPage.vue'
 import SystemSettingPage from '@/views/SystemSettingPage.vue'
+import FinancePage from '@/views/FinancePage.vue'
 import { ElMessage } from 'element-plus'
 
 const routes = [
@@ -34,6 +35,7 @@ const routes = [
       { path: 'user_profile', component: UserProfilePage },
       { path: 'document_template', component: DocumentPage },
       { path: 'electronic_seal', component: ElectronicSealPage },
+      { path: 'finance', component: FinancePage },
       { path: 'reminders', component: EventReminderPage },
       {
         path: 'admin/settings',

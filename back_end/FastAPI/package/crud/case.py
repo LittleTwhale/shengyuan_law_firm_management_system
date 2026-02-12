@@ -6,6 +6,7 @@ from sqlalchemy import func, or_, extract
 from sqlalchemy.orm import Session, joinedload
 
 from ..models.case import Case,BankCase,CaseParty
+from ..models.finance import CaseFinance
 from ..schemas.case import CaseCreate, CaseUpdate
 
 
@@ -324,6 +325,14 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
     new_case = Case(**case_data, case_number=available_case_number)
     db.add(new_case)
     db.flush()  # 刷新以获取 new_case.case_id
+
+    # 案件创建时，自动建立一对一的财务关联，初始金额为0
+    new_finance = CaseFinance(
+        case_id=new_case.case_id,
+        contract_amount=0,  # 初始为0，由财务后续修改
+        remarks="案件创建自动初始化"
+    )
+    db.add(new_finance)
 
     # 保存当事人列表
     if case_in.parties:

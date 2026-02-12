@@ -90,6 +90,8 @@ class Case(Base):
     execution_assistant = relationship("User", back_populates="execution_assistant_cases",
                                        foreign_keys="Case.execution_assistant_id")
     reviewer = relationship("User", foreign_keys="Case.reviewer_id")
+    # 财务信息
+    finance = relationship("CaseFinance", back_populates="case", uselist=False, cascade="all, delete-orphan")
 
     # 银行案件细节
     bank_case_details = relationship("BankCase", back_populates="case", uselist=False, cascade="all, delete-orphan")

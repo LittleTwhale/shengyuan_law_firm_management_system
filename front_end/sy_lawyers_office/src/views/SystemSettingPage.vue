@@ -50,6 +50,18 @@
               </template>
             </el-table-column>
 
+            <el-table-column label="财务管理权" width="150" align="center">
+              <template #default="{ row }">
+                <el-switch
+                  v-model="row.permissions.finance_manage"
+                  :disabled="row.id === 1"
+                  @change="updatePermission(row, 'finance_manage')"
+                  active-text="开启"
+                  style="--el-switch-on-color: #13ce66"
+                />
+              </template>
+            </el-table-column>
+
             <el-table-column label="最后更新时间" min-width="180">
               <template #default="{ row }">
                 {{ row.updated_at || '-' }}
@@ -101,6 +113,7 @@ const fetchUsers = async () => {
         can_review_case: false,
         can_approve_seal: false,
         can_access_admin: false,
+        finance_manage: false,
       },
     }))
   } catch (err) {
