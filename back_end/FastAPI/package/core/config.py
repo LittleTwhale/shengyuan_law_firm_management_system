@@ -15,7 +15,7 @@ DATABASE_URL = f"mysql+pymysql://newuser:{db_password}@localhost:3306/shengyuan_
 # JWT配置
 SECRET_KEY = os.getenv("SECRET_KEY")  # JWT秘钥
 ALGORITHM = "HS256"  # 加密算法
-ACCESS_TOKEN_EXPIRE_MINUTES = 60  # token过期时间（分钟）
+ACCESS_TOKEN_EXPIRE_MINUTES = 300  # token过期时间（分钟）
 
 # 附件根目录
 CASE_ATTACHMENT_ROOT = os.path.join("D:\\", "syls", "database", "attachments")  # 自动处理路径分隔符（兼容Windows/Linux）

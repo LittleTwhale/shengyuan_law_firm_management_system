@@ -30,7 +30,7 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
         )
 
     # 设置 token 过期时间，例如 1 小时
-    access_token_expires = timedelta(minutes=60)
+    access_token_expires = timedelta(minutes=300)
 
     # 生成 JWT token
     access_token = create_access_token(
