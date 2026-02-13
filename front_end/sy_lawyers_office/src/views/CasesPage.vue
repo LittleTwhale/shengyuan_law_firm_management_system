@@ -318,11 +318,12 @@ const caseCategories = ref([
   { label: '银行案件', value: '银行案件' },
   { label: '刑事案件', value: '刑事案件' },
   { label: '行政案件', value: '行政案件' },
-  { label: '非诉案件', value: '非诉案件' },
+  { label: '非诉业务', value: '非诉业务' },
   { label: '仲裁案件', value: '仲裁案件' },
   { label: '法律顾问业务', value: '法律顾问业务' },
   { label: '法律援助(民事)', value: '法律援助(民事)' },
   { label: '法律援助(刑事)', value: '法律援助(刑事)' },
+  { label: '法律援助(行政)', value: '法律援助(行政)' },
 ])
 const selectedLawyerId = ref(null) // 选中的主办律师ID
 // 年份变量，默认为当前年份字符串

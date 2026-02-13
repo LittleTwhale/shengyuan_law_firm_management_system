@@ -181,13 +181,13 @@ const initData = async () => {
   }
 }
 
-// 初始化带顶部数值的柱状图（替换原 initChart 函数）
+// 初始化带顶部数值的柱状图
 const initChart = () => {
   if (chartInstance.value) {
     chartInstance.value.dispose();
   }
 
-  // 使用 ref 获取容器（原代码用 querySelector，改用 ref 更符合 Vue 规范）
+  // 使用 ref 获取容器
   chartInstance.value = echarts.init(chartContainer.value);
 
   // 1. 处理数据：确保案件都显示，无数据则为0
@@ -195,12 +195,13 @@ const initChart = () => {
     "民事案件",
     "银行案件",
     "刑事案件",
-    "非诉案件",
+    "非诉业务",
     "行政案件",
     "仲裁案件",
     "法律顾问业务",
     "法律援助(民事)",
-    "法律援助(刑事)"
+    "法律援助(刑事)",
+    "法律援助(行政)",
   ];
   const chartData = caseCategories.map((category) => {
     return stats.value.category_stats[category] || 0; // 无数据时默认0
