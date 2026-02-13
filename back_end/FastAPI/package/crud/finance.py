@@ -160,7 +160,8 @@ class CRUDFinance:
         ).all()
         if missing_cases:
             for case in missing_cases:
-                db.add(CaseFinance(case_id=case.case_id))
+                initial_amount = case.case_income if case.case_income else 0
+                db.add(CaseFinance(case_id=case.case_id, contract_amount=initial_amount))
             db.commit()
 
         # 2. 构建基础查询
@@ -216,7 +217,12 @@ class CRUDFinance:
         finance = db.query(CaseFinance).filter(CaseFinance.case_id == case_id).first()
         if not finance:
             # 懒加载：如果还没有财务记录，则创建一个空的
-            finance = CaseFinance(case_id=case_id)
+            case = db.query(Case).filter(Case.case_id == case_id).first()
+            initial_amount = 0
+            if case and case.case_income:
+                initial_amount = case.case_income
+
+            finance = CaseFinance(case_id=case_id, contract_amount=initial_amount)
             db.add(finance)
             db.commit()
             db.refresh(finance)
