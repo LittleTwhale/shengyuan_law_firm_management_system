@@ -194,7 +194,7 @@ def convert_word_to_pdf(input_path: str) -> Optional[str]:
     try:
         subprocess.run(
             [
-                r"D:\Down\LibreOffice\program\soffice.exe",
+                r"C:\Program Files\LibreOffice\program\soffice.exe",
                 "--headless",
                 "--convert-to", "pdf",
                 "--outdir", os.path.dirname(input_path),

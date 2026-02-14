@@ -62,6 +62,18 @@
               </template>
             </el-table-column>
 
+            <el-table-column label="党建资料管理" width="150" align="center">
+              <template #default="{ row }">
+                <el-switch
+                  v-model="row.permissions.party_admin"
+                  :disabled="row.id === 1"
+                  @change="updatePermission(row, 'party_admin')"
+                  active-text="开启"
+                  style="--el-switch-on-color: #13ce66"
+                />
+              </template>
+            </el-table-column>
+
             <el-table-column label="最后更新时间" min-width="180">
               <template #default="{ row }">
                 {{ row.updated_at || '-' }}
@@ -114,6 +126,7 @@ const fetchUsers = async () => {
         can_approve_seal: false,
         can_access_admin: false,
         finance_manage: false,
+        party_admin: false,
       },
     }))
   } catch (err) {

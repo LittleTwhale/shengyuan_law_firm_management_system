@@ -12,6 +12,8 @@ import ElectronicSealPage from '@/views/ElectronicSealPage.vue'
 import EventReminderPage from '@/views/EventReminderPage.vue'
 import SystemSettingPage from '@/views/SystemSettingPage.vue'
 import FinancePage from '@/views/FinancePage.vue'
+import PartyBuildingPage from '@/views/PartyBuildingPage.vue'
+import PartyMaterialDetail from '@/views/PartyMaterialDetail.vue'
 import { ElMessage } from 'element-plus'
 
 const routes = [
@@ -36,6 +38,8 @@ const routes = [
       { path: 'document_template', component: DocumentPage },
       { path: 'electronic_seal', component: ElectronicSealPage },
       { path: 'finance', component: FinancePage },
+      { path: 'party_building', component: PartyBuildingPage },
+      { path: 'party_building/detail/:id', component: PartyMaterialDetail },
       { path: 'reminders', component: EventReminderPage },
       {
         path: 'admin/settings',

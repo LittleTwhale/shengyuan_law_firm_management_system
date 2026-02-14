@@ -50,6 +50,10 @@
           <i class="el-icon-electronic-seal"></i>
           <span>电子用印</span>
         </el-menu-item>
+        <el-menu-item index="/main/party_building">
+          <i class="el-icon-electronic-seal"></i>
+          <span>党建资料</span>
+        </el-menu-item>
         <el-menu-item index="/main/user_profile">
           <i class="el-icon-user-profile"></i>
           <span>个人信息</span>
@@ -57,7 +61,7 @@
         <el-menu-item index="/main/reminders">
           <el-icon><Bell /></el-icon> <span>事项提醒</span>
         </el-menu-item>
-        <el-menu-item index="/main/admin/settings" v-if="role === 'owner' ">
+        <el-menu-item index="/main/admin/settings" v-if="role === 'owner'">
           <el-icon><Setting /></el-icon>
           <span>后台管理</span>
         </el-menu-item>
@@ -76,7 +80,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElNotification } from 'element-plus'
 import { useRouter } from 'vue-router'
 import axios from 'axios' // 引入axios
-import { Bell,Setting } from '@element-plus/icons-vue'
+import { Bell, Setting } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const currentUser = ref(localStorage.getItem('username'))

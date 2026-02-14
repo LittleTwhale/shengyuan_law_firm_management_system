@@ -10,6 +10,8 @@ from .package.api.template import router as auth_template_router
 from .package.api.electronic_seal import router as auth_seal_router
 from .package.api.admin import router as auth_admin_router
 from .package.api.finance import router as auth_finance_router
+from .package.api.party_building_api import router as auth_party_building_router
+from .package.core.config import PARTY_IMAGE_ROOT
 from .package.core.logger import logger
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -46,6 +48,8 @@ app.add_middleware(
 
 # 静态文件挂载
 app.mount("/templates", StaticFiles(directory="FastAPI/static/template"), name="templates")
+# 挂载党建图片目录
+app.mount("/static_resources/party_images", StaticFiles(directory=PARTY_IMAGE_ROOT), name="party_images")
 
 # 注册登录路由
 app.include_router(auth_login_router)
@@ -76,3 +80,6 @@ app.include_router(auth_admin_router)
 
 # 注册财务管理路由
 app.include_router(auth_finance_router)
+
+# 注册党建管理路由
+app.include_router(auth_party_building_router)

@@ -34,3 +34,9 @@ TEMPLATE_DIR = os.path.join("FastAPI", "static", "template")
 
 # 日志存储根目录
 LOG_ROOT = os.path.join("D:\\", "syls", "database", "logs")
+
+# 党建附件存储路径
+PARTY_FILE_ROOT = os.path.join("D:\\", "syls", "database", "party_building_attachments")
+
+# 党建富文本图片存储路径
+PARTY_IMAGE_ROOT = os.path.join("D:\\", "syls", "database", "party_building_rich_text_images")
