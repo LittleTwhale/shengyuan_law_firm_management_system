@@ -13,3 +13,8 @@ openpyxl
 python-docx
 python-pptx
 docxtpl
+PyPDF2
+reportlab
+paddlepaddle -i https://pypi.tuna.tsinghua.edu.cn/simple
+paddleocr
+pdfplumber

@@ -14,6 +14,7 @@ import SystemSettingPage from '@/views/SystemSettingPage.vue'
 import FinancePage from '@/views/FinancePage.vue'
 import PartyBuildingPage from '@/views/PartyBuildingPage.vue'
 import PartyMaterialDetail from '@/views/PartyMaterialDetail.vue'
+import VolumesPage from '@/views/VolumesPage.vue'
 import { ElMessage } from 'element-plus'
 
 const routes = [
@@ -41,6 +42,7 @@ const routes = [
       { path: 'party_building', component: PartyBuildingPage },
       { path: 'party_building/detail/:id', component: PartyMaterialDetail },
       { path: 'reminders', component: EventReminderPage },
+      { path: 'volumes', component: VolumesPage, meta: { title: '电子卷宗中心' } },
       {
         path: 'admin/settings',
         component: SystemSettingPage,

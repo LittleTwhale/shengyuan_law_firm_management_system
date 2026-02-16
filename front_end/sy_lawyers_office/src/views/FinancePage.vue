@@ -62,7 +62,7 @@
         <div class="toolbar-left">
           <el-input
             v-model="queryParams.keyword"
-            placeholder="搜索案件号/委托人"
+            placeholder="搜索业务号/委托人"
             class="filter-item search-input"
             clearable
             prefix-icon="Search"
@@ -127,7 +127,7 @@
         class="custom-table"
         :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: '600' }"
       >
-        <el-table-column prop="case.case_number" label="案件号" width="200" fixed>
+        <el-table-column prop="case.case_number" label="业务号" width="200" fixed>
           <template #default="{ row }">
             <el-link
               v-if="row.case"
@@ -341,7 +341,7 @@
             </div>
           </div>
           <el-descriptions :column="2" border class="custom-descriptions">
-            <el-descriptions-item label="案件号">{{
+            <el-descriptions-item label="业务号">{{
               currentFinance.case ? currentFinance.case.case_number : '-'
             }}</el-descriptions-item>
             <el-descriptions-item label="委托人">{{
@@ -1204,7 +1204,7 @@ const handleExport = async () => {
   try {
     // 1. 构造完整的查询参数，与后端 FinanceStatsQuery 对应
     const postBody = {
-      // 关键词搜索 (如案件号、委托人)
+      // 关键词搜索 (如业务号、委托人)
       keyword: queryParams.keyword || null,
 
       // 年份筛选

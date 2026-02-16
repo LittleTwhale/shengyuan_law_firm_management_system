@@ -1,4 +1,4 @@
-# package/api/party_building.py
+# api/party_building.py
 
 import os
 import shutil

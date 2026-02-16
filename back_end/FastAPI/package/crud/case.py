@@ -1,4 +1,5 @@
 # crud/case.py
+import os
 from datetime import datetime
 from typing import List, Optional, cast
 
@@ -6,7 +7,8 @@ from sqlalchemy import func, or_, extract
 from sqlalchemy.orm import Session, joinedload
 
 from ..models.case import Case,BankCase,CaseParty
-from ..models.finance import CaseFinance
+from ..models.electronic_volume_model import CaseVolume, VolumeFile
+from ..models.finance_model import CaseFinance
 from ..schemas.case import CaseCreate, CaseUpdate
 
 
@@ -553,17 +555,62 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
 
 def delete_case(db: Session, case_id: int) -> bool:
     """
-    删除案件（逻辑删除）
+    删除案件（逻辑删除 Case，但在物理上清理关联的卷宗文件和财务数据）
     """
     case = db.query(Case).filter(Case.case_id == case_id, Case.is_deleted == False).first()
     if not case:
         return False
 
-    # 在案件号前添加删除标记和唯一ID
+    # =========================================================
+    # 1. 清理电子卷宗 (数据库记录 + 物理文件)
+    # =========================================================
+    # 查询该案件下的所有卷册
+    volumes = db.query(CaseVolume).filter(CaseVolume.case_id == case_id).all()
+
+    for volume in volumes:
+        # A. 删除卷册合并的 PDF (如果有)
+        if volume.merged_file_path and os.path.exists(volume.merged_file_path):
+            try:
+                os.remove(volume.merged_file_path)
+            except OSError as e:
+                print(f"删除合并卷宗文件失败: {e}")
+
+        # B. 删除卷内文件
+        # 注意：这里需要查询 VolumeFile，因为 CaseVolume 和 VolumeFile 配置了 cascade，
+        # 直接 db.delete(volume) 会删数据库记录，但不会删磁盘文件，所以我们要手动遍历。
+        files = db.query(VolumeFile).filter(VolumeFile.volume_id == volume.id).all()
+        for file_obj in files:
+            if file_obj.file_path and os.path.exists(file_obj.file_path):
+                try:
+                    os.remove(file_obj.file_path)
+                except OSError as e:
+                    print(f"删除物理文件失败: {file_obj.file_path}, 错误: {e}")
+
+            # 手动删除文件记录 (或者依赖 volume 的 cascade)
+            db.delete(file_obj)
+
+        # C. 删除卷册记录
+        db.delete(volume)
+
+    # =========================================================
+    # 2. 清理财务数据
+    # =========================================================
+    if case.finance:
+        # 由于你在 finance_model.py 中配置了 cascade="all, delete-orphan"
+        # 删除 CaseFinance 会自动级联删除 Records, Invoices, Withdrawals
+        db.delete(case.finance)
+
+    # =========================================================
+    # 3. 案件本身的逻辑删除处理 (原逻辑)
+    # =========================================================
+    # 在案件号前添加删除标记和唯一ID，防止将来复用案号冲突
     if not case.case_number.startswith("[已删除]"):
         case.case_number = f"[已删除]{case.case_number}-ID{case_id}"
 
     case.is_deleted = True
+
+    # 提交事务
+    # SQLAlchemy 会在一个事务中执行上述所有的 delete 和 update
     db.commit()
     return True
 

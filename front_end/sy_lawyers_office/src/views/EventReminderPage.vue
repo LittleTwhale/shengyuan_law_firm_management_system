@@ -27,7 +27,7 @@
         </template>
       </el-table-column>
       <el-table-column prop="event_date" label="截止/开庭日期" width="150" align="center" />
-      <el-table-column prop="case_number" label="案件号" width="220" />
+      <el-table-column prop="case_number" label="业务号" width="220" />
       <el-table-column prop="client_name" label="委托人" />
       <el-table-column label="操作" width="120" align="center">
         <template #default="scope">

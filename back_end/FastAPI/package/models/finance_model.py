@@ -1,4 +1,4 @@
-# models/finance.py
+# models/finance_model.py
 from sqlalchemy import Column, Integer, String, DECIMAL, Date, Text, ForeignKey, DateTime, func
 from sqlalchemy.orm import relationship
 

@@ -9,8 +9,9 @@ from .package.api.attachment import router as auth_attachment_router
 from .package.api.template import router as auth_template_router
 from .package.api.electronic_seal import router as auth_seal_router
 from .package.api.admin import router as auth_admin_router
-from .package.api.finance import router as auth_finance_router
+from .package.api.finance_api import router as auth_finance_router
 from .package.api.party_building_api import router as auth_party_building_router
+from .package.api.electronic_volume_api import router as auth_electronic_volume_router
 from .package.core.config import PARTY_IMAGE_ROOT
 from .package.core.logger import logger
 
@@ -83,3 +84,6 @@ app.include_router(auth_finance_router)
 
 # 注册党建管理路由
 app.include_router(auth_party_building_router)
+
+# 注册电子卷宗路由
+app.include_router(auth_electronic_volume_router)

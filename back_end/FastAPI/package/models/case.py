@@ -92,7 +92,9 @@ class Case(Base):
     reviewer = relationship("User", foreign_keys="Case.reviewer_id")
     # 财务信息
     finance = relationship("CaseFinance", back_populates="case", uselist=False, cascade="all, delete-orphan")
-
+    # 电子卷宗关联
+    volumes = relationship("CaseVolume", back_populates="case", cascade="all, delete-orphan",
+                           order_by="CaseVolume.sort_order")
     # 银行案件细节
     bank_case_details = relationship("BankCase", back_populates="case", uselist=False, cascade="all, delete-orphan")
     # 当事人

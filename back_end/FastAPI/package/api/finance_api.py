@@ -1,5 +1,4 @@
-# api/finance.py
-from typing import List
+# api/finance_api.py
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -7,10 +6,10 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from ..database.database import get_db
-from ..models.finance import CaseFinance
+from ..models.finance_model import CaseFinance
 from ..models.user import User
 from ..models.case import Case
-from ..schemas.finance import (
+from ..schemas.finance_schema import (
     FinanceStatsQuery,
     FinanceStatsResponse,
     CaseFinanceResponse,
@@ -20,7 +19,7 @@ from ..schemas.finance import (
     InvoiceRecordCreate,
     InvoiceRecordResponse, CaseFinancePagination, LawyerWithdrawalResponse, LawyerWithdrawalCreate
 )
-from ..crud.finance import finance as crud_finance
+from ..crud.finance_crud import finance as crud_finance
 # 依赖
 from .deps import get_current_active_user
 

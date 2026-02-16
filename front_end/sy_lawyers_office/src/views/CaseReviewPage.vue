@@ -171,7 +171,7 @@ const showConflictDialog = (conflicts, caseId, caseNumber) => {
         </ul>
       </div>
       <p style="margin-top: 15px; font-size: 13px; color: #909399;">
-        提示：点击案件号可新窗口打开详情。确认"强制通过"将忽略此冲突。
+        提示：点击业务号可新窗口打开详情。确认"强制通过"将忽略此冲突。
       </p>
     </div>`
 

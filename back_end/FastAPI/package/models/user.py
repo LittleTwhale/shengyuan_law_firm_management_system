@@ -47,3 +47,6 @@ class User(Base):
 
     # 用户作为执行助理律师的案件
     execution_assistant_cases = relationship("Case", back_populates="execution_assistant", foreign_keys="Case.execution_assistant_id")
+
+    # 用户上传的卷宗文件
+    uploaded_volume_files = relationship("VolumeFile", back_populates="uploader")

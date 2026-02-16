@@ -1,4 +1,4 @@
-# crud/finance.py
+# crud/finance_crud.py
 from io import BytesIO
 from typing import List, Dict, Any
 
@@ -8,9 +8,9 @@ from sqlalchemy import func, or_, extract
 from sqlalchemy.orm import Session, joinedload
 
 from ..models.case import Case
-from ..models.finance import CaseFinance, FinancialRecord, InvoiceRecord, LawyerWithdrawal
+from ..models.finance_model import CaseFinance, FinancialRecord, InvoiceRecord, LawyerWithdrawal
 from ..models.user import User
-from ..schemas.finance import (
+from ..schemas.finance_schema import (
     FinancialRecordCreate,
     InvoiceRecordCreate,
     CaseFinanceUpdate,

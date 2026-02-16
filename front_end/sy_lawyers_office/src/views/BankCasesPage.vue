@@ -12,7 +12,7 @@
       <div class="toolbar-left">
         <el-input
           v-model="searchKeyword"
-          placeholder="请输入案件号或委托银行"
+          placeholder="请输入业务号或委托银行"
           clearable
           @clear="handleSearch"
           @keyup.enter="handleSearch"
@@ -40,7 +40,7 @@
 
     <!-- 案件表格：委托人列改为委托银行 -->
     <el-table :data="cases" border style="width: 100%" v-loading="tableLoading">
-      <el-table-column prop="case_number" label="案件号" width="220" align="center" />
+      <el-table-column prop="case_number" label="业务号" width="220" align="center" />
       <el-table-column prop="client_name" label="委托银行" align="center" />
       <!-- 修改此处label -->
       <el-table-column prop="case_category" label="案件类别" align="center" />

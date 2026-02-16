@@ -74,6 +74,18 @@
               </template>
             </el-table-column>
 
+            <el-table-column label="电子卷宗管理" width="150" align="center">
+              <template #default="{ row }">
+                <el-switch
+                  v-model="row.permissions.volume_manage"
+                  :disabled="row.id === 1"
+                  @change="updatePermission(row, 'volume_manage')"
+                  active-text="开启"
+                  style="--el-switch-on-color: #13ce66"
+                />
+              </template>
+            </el-table-column>
+
             <el-table-column label="最后更新时间" min-width="180">
               <template #default="{ row }">
                 {{ row.updated_at || '-' }}
@@ -127,6 +139,7 @@ const fetchUsers = async () => {
         can_access_admin: false,
         finance_manage: false,
         party_admin: false,
+        volume_manage: false,
       },
     }))
   } catch (err) {

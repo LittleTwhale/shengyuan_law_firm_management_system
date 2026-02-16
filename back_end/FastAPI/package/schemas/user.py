@@ -50,6 +50,8 @@ class UserPermissionUpdate(BaseModel):
     can_approve_seal: Optional[bool] = Field(None, description="是否允许审批印章")
     can_access_admin: Optional[bool] = Field(None, description="是否允许访问后台管理")
     finance_manage: Optional[bool] = Field(None, description="是否拥有财务管理权(查看所有、录入、修改)")
+    party_admin: Optional[bool] = Field(None, description="是否允许管理党建资料")
+    volume_manage: Optional[bool] = Field(None, description="是否允许管理全部电子卷宗")
 
     # 支持任意动态字段
     class Config:

@@ -40,3 +40,9 @@ PARTY_FILE_ROOT = os.path.join("D:\\", "syls", "database", "party_building_attac
 
 # 党建富文本图片存储路径
 PARTY_IMAGE_ROOT = os.path.join("D:\\", "syls", "database", "party_building_rich_text_images")
+
+# 电子卷宗文件存储路径
+ELECTRONIC_VOLUME_ROOT = os.path.join("D:\\", "syls", "database", "electronic_volumes")
+
+# 合并后的电子卷宗 PDF 存储路径
+PDF_VOLUME_ROOT = os.path.join("D:\\", "syls", "database", "pdf_volumes")

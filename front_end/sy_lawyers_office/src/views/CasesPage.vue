@@ -168,7 +168,7 @@
           </el-button>
           <template #tip>
             <div class="el-upload__tip text-danger">
-              请确保Excel表头包含：案件号、委托日期、委托人、案件类别、主办律师
+              请确保Excel表头包含：业务号、委托日期、委托人、案件类别、主办律师
             </div>
           </template>
         </el-upload>
@@ -218,7 +218,7 @@
         border
         style="width: 100%; margin-top: 15px"
       >
-        <el-table-column prop="case_number" label="案件号/行号" width="150"></el-table-column>
+        <el-table-column prop="case_number" label="业务号/行号" width="150"></el-table-column>
         <el-table-column prop="reason" label="失败原因"></el-table-column>
       </el-table>
 
@@ -497,7 +497,7 @@ const handleFormSubmit = async (submittedData) => {
           message += conflictRes.data.details
             .map(
               (c) =>
-                `案件号：${c.case_number}（主办律师：${c.other_lawyer_name || c.other_lawyer_id}）`,
+                `业务号：${c.case_number}（主办律师：${c.other_lawyer_name || c.other_lawyer_id}）`,
             )
             .join('\n')
 
@@ -919,7 +919,7 @@ const handleDownloadErrorLog = () => {
     `失败条数: ${result.value.failed_cases.length}`,
     '\n失败详情:',
     ...result.value.failed_cases.map(
-      (item, index) => `${index + 1}. 案件号/行号: ${item.case_number} - 原因: ${item.reason}`,
+      (item, index) => `${index + 1}. 业务号/行号: ${item.case_number} - 原因: ${item.reason}`,
     ),
   ].join('\n')
 

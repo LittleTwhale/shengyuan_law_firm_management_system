@@ -1,0 +1,1194 @@
+<template>
+  <div class="case-volume-panel" v-loading="globalLoading">
+    <div class="panel-layout">
+      <div class="volume-sidebar">
+        <div class="sidebar-header">
+          <span>卷宗目录</span>
+          <el-button
+            v-if="canEdit"
+            type="primary"
+            link
+            icon="Plus"
+            size="small"
+            @click="openCreateVolumeDialog"
+            >新建</el-button
+          >
+        </div>
+
+        <el-scrollbar>
+          <div
+            v-for="vol in volumes"
+            :key="vol.id"
+            class="volume-item"
+            :class="{ active: currentVolumeId === vol.id }"
+            @click="selectVolume(vol)"
+          >
+            <div class="vol-icon">
+              <el-icon><Folder /></el-icon>
+            </div>
+            <div class="vol-info">
+              <div class="vol-name" :title="vol.name">{{ vol.name }}</div>
+
+              <div v-if="vol.physical_location" class="vol-location" :title="vol.physical_location">
+                <el-icon><Location /></el-icon> {{ vol.physical_location }}
+              </div>
+
+              <div class="vol-meta">
+                <el-tag size="small" type="info" effect="plain"
+                  >{{ vol.files ? vol.files.length : 0 }} 份</el-tag
+                >
+                <el-tag
+                  v-if="vol.merged_file_path"
+                  size="small"
+                  type="success"
+                  effect="dark"
+                  style="transform: scale(0.8)"
+                  >已合并</el-tag
+                >
+              </div>
+            </div>
+            <div class="vol-actions" v-if="canEdit">
+              <el-dropdown trigger="click" @command="(cmd) => handleVolumeCommand(cmd, vol)">
+                <el-icon class="action-icon"><MoreFilled /></el-icon>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="edit_info">编辑信息</el-dropdown-item>
+                    <el-dropdown-item command="delete" style="color: #f56c6c"
+                      >删除卷宗</el-dropdown-item
+                    >
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
+          </div>
+
+          <el-empty v-if="volumes.length === 0" description="暂无卷宗册" :image-size="60">
+            <el-button v-if="canEdit" type="primary" size="small" @click="openCreateVolumeDialog"
+              >立即创建</el-button
+            >
+          </el-empty>
+        </el-scrollbar>
+      </div>
+
+      <div class="file-content">
+        <div v-if="currentVolumeId" class="content-wrapper">
+          <div class="toolbar">
+            <div class="toolbar-left">
+              <h3 class="current-title">{{ currentVolume?.name }}</h3>
+
+              <el-tag
+                v-if="currentVolume?.physical_location"
+                type="info"
+                effect="plain"
+                size="small"
+                style="margin-right: 10px"
+              >
+                <el-icon style="vertical-align: middle; margin-right: 4px"><Location /></el-icon>
+                存放于: {{ currentVolume.physical_location }}
+              </el-tag>
+
+              <el-tag type="warning" effect="plain" v-if="!canEdit">仅查看模式</el-tag>
+
+              <el-radio-group v-model="viewMode" size="small" style="margin-left: 20px">
+                <el-radio-button label="list">列表排序</el-radio-button>
+                <el-radio-button label="group">按分类分组</el-radio-button>
+              </el-radio-group>
+
+              <div v-if="viewMode === 'list' && canEdit" class="drag-tip">
+                <el-icon><Rank /></el-icon> 提示：按住图标即可拖拽排序
+              </div>
+            </div>
+            <div class="toolbar-right">
+              <el-tooltip content="刷新当前列表数据" placement="top">
+                <el-button icon="Refresh" style="width: 40px" @click="refreshCurrentVolume"
+                  >刷新</el-button
+                >
+              </el-tooltip>
+
+              <template v-if="canEdit">
+                <el-button
+                  type="primary"
+                  :icon="Upload"
+                  @click="showUploadDialog = true"
+                  style="width: 100px"
+                  >上传文件</el-button
+                >
+                <el-button
+                  type="success"
+                  :icon="Connection"
+                  style="width: 110px"
+                  :loading="merging"
+                  @click="handleMergeVolume"
+                  >生成电子卷宗</el-button
+                >
+              </template>
+
+              <el-tooltip content="在线预览已合并的电子卷宗" placement="top">
+                <el-button
+                  v-if="currentVolume?.merged_file_path"
+                  type="primary"
+                  style="width: 90px"
+                  :icon="View"
+                  plain
+                  @click="previewMergedFile"
+                  >预览全卷</el-button
+                >
+              </el-tooltip>
+
+              <el-tooltip content="下载包含目录和所有文件的完整PDF" placement="top">
+                <el-button
+                  v-if="currentVolume?.merged_file_path"
+                  type="warning"
+                  style="width: 110px"
+                  :icon="Download"
+                  plain
+                  @click="downloadMergedFile"
+                  >下载全卷PDF</el-button
+                >
+              </el-tooltip>
+            </div>
+          </div>
+
+          <el-table
+            v-if="viewMode === 'list'"
+            ref="dragTableRef"
+            :data="fileList"
+            row-key="id"
+            stripe
+            style="width: 100%; margin-top: 10px"
+            height="calc(100vh - 300px)"
+          >
+            <el-table-column width="40" align="center" v-if="canEdit">
+              <template #default>
+                <el-icon class="drag-handle" style="cursor: move; color: #909399; font-size: 16px"
+                  ><Rank
+                /></el-icon>
+              </template>
+            </el-table-column>
+
+            <el-table-column label="序号" type="index" width="60" align="center" />
+
+            <el-table-column label="文件名" min-width="200" show-overflow-tooltip>
+              <template #default="{ row }">
+                <div class="file-name-cell">
+                  <el-icon v-if="isPdf(row.file_type)" style="color: #f56c6c"><Document /></el-icon>
+                  <el-icon v-else-if="isImage(row.file_type)" style="color: #409eff"
+                    ><Picture
+                  /></el-icon>
+                  <el-icon v-else style="color: #909399"><DocumentCopy /></el-icon>
+                  <span class="fname" @click="handlePreview(row)">{{ row.file_name }}</span>
+                  <el-tag
+                    v-if="row.ocr_content"
+                    type="success"
+                    size="small"
+                    effect="plain"
+                    round
+                    style="transform: scale(0.8); margin-left: 5px"
+                    >OCR</el-tag
+                  >
+                </div>
+                <div v-if="row.summary" class="row-summary">{{ row.summary }}</div>
+              </template>
+            </el-table-column>
+
+            <el-table-column prop="category" label="分类" width="120" align="center">
+              <template #default="{ row }">
+                <el-tag size="small" effect="light">{{ row.category || '未分类' }}</el-tag>
+              </template>
+            </el-table-column>
+
+            <el-table-column label="标签" width="120">
+              <template #default="{ row }">
+                <div class="tags-cell">
+                  <el-tag v-for="t in row.tags || []" :key="t" size="small" type="info">{{
+                    t
+                  }}</el-tag>
+                </div>
+              </template>
+            </el-table-column>
+
+            <el-table-column prop="sort_order" label="排序权重" width="80" align="center" />
+
+            <el-table-column label="全卷页码" width="100" align="center">
+              <template #default="{ row }">
+                <span v-if="row.page_start" class="page-badge">
+                  P{{ row.page_start }} - P{{ row.page_end }}
+                </span>
+                <span v-else style="color: #ccc">-</span>
+              </template>
+            </el-table-column>
+
+            <el-table-column prop="uploader_name" label="上传人" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag size="small" type="info" effect="plain">{{
+                  row.uploader_name || '未知'
+                }}</el-tag>
+              </template>
+            </el-table-column>
+
+            <el-table-column prop="created_at" label="上传时间" width="160" align="center">
+              <template #default="{ row }">
+                {{ formatTime(row.created_at) }}
+              </template>
+            </el-table-column>
+
+            <el-table-column label="操作" width="220" align="center" fixed="right">
+              <template #default="{ row }">
+                <el-button link type="primary" size="small" @click="handlePreview(row)"
+                  >预览</el-button
+                >
+                <el-button link type="primary" size="small" @click="handleDownload(row)"
+                  >下载</el-button
+                >
+                <el-button
+                  v-if="canEdit"
+                  link
+                  type="warning"
+                  size="small"
+                  @click="openEditDialog(row)"
+                  >编辑</el-button
+                >
+                <el-button
+                  v-if="canEdit"
+                  link
+                  type="danger"
+                  size="small"
+                  @click="handleDeleteFile(row)"
+                  >删除</el-button
+                >
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <el-scrollbar
+            v-else
+            height="calc(100vh - 300px)"
+            class="grouped-view"
+            style="margin-top: 10px"
+          >
+            <el-collapse v-model="activeNames">
+              <el-collapse-item v-for="(files, cat) in groupedFiles" :key="cat" :name="cat">
+                <template #title>
+                  <div class="group-header">
+                    <el-icon><FolderOpened /></el-icon>
+                    <span class="cat-name">{{ cat }}</span>
+                    <el-tag size="small" round>{{ files.length }} 份</el-tag>
+                  </div>
+                </template>
+
+                <el-table :data="files" :show-header="true" size="small" border>
+                  <el-table-column label="排序" prop="sort_order" width="60" align="center" />
+                  <el-table-column label="文件名" min-width="200">
+                    <template #default="{ row }">
+                      <div class="file-name-cell">
+                        <span class="fname" @click="handlePreview(row)">{{ row.file_name }}</span>
+                        <el-tag
+                          v-if="row.ocr_content"
+                          type="success"
+                          size="small"
+                          effect="plain"
+                          round
+                          style="transform: scale(0.8)"
+                          >OCR</el-tag
+                        >
+                      </div>
+                      <div v-if="row.summary" class="row-summary">{{ row.summary }}</div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="标签">
+                    <template #default="{ row }">
+                      <el-tag
+                        v-for="t in row.tags || []"
+                        :key="t"
+                        size="small"
+                        style="margin-right: 4px"
+                        >{{ t }}</el-tag
+                      >
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="全卷页码" width="100" align="center">
+                    <template #default="{ row }">
+                      <span v-if="row.page_start" class="page-badge"
+                        >P{{ row.page_start }}-{{ row.page_end }}</span
+                      >
+                    </template>
+                  </el-table-column>
+
+                  <el-table-column prop="uploader_name" label="上传人" width="100" align="center">
+                    <template #default="{ row }">
+                      <el-tag size="small" type="info" effect="plain">{{
+                        row.uploader_name || '未知'
+                      }}</el-tag>
+                    </template>
+                  </el-table-column>
+
+                  <el-table-column prop="created_at" label="上传时间" width="150" align="center">
+                    <template #default="{ row }">
+                      {{ formatTime(row.created_at) }}
+                    </template>
+                  </el-table-column>
+
+                  <el-table-column label="操作" width="180" align="center">
+                    <template #default="{ row }">
+                      <el-button link type="primary" size="small" @click="handlePreview(row)"
+                        >预览</el-button
+                      >
+                      <el-button link type="primary" size="small" @click="handleDownload(row)"
+                        >下载</el-button
+                      >
+                      <el-button
+                        v-if="canEdit"
+                        link
+                        type="warning"
+                        size="small"
+                        @click="openEditDialog(row)"
+                        >编辑</el-button
+                      >
+                      <el-button
+                        v-if="canEdit"
+                        link
+                        type="danger"
+                        size="small"
+                        @click="handleDeleteFile(row)"
+                        >删除</el-button
+                      >
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </el-collapse-item>
+            </el-collapse>
+
+            <el-empty v-if="Object.keys(groupedFiles).length === 0" description="暂无文件" />
+          </el-scrollbar>
+        </div>
+
+        <el-empty v-else description="请选择左侧卷宗册查看详情" />
+      </div>
+    </div>
+
+    <BatchUploadDialog
+      v-if="currentVolumeId"
+      v-model:visible="showUploadDialog"
+      :volume-id="currentVolumeId"
+      :base-sort-order="maxSortOrder"
+      @success="refreshCurrentVolume"
+    />
+
+    <el-dialog
+      v-model="volDialogVisible"
+      :title="volDialogTitle"
+      width="450px"
+      destroy-on-close
+      append-to-body
+    >
+      <el-form :model="volForm" label-width="90px" @submit.prevent>
+        <el-form-item label="卷宗名称" required>
+          <el-input
+            v-model="volForm.name"
+            placeholder="如正卷、副卷、卷一、卷二"
+            @keyup.enter="submitVolumeForm"
+          />
+        </el-form-item>
+        <el-form-item label="存放位置">
+          <el-input
+            v-model="volForm.physical_location"
+            placeholder="纸质卷宗存放位置"
+            @keyup.enter="submitVolumeForm"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="volDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitVolumeForm" :loading="volFormLoading"
+          >确定</el-button
+        >
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="editDialogVisible"
+      title="编辑文件信息"
+      width="500px"
+      destroy-on-close
+      append-to-body
+    >
+      <el-form :model="editForm" label-width="80px">
+        <el-form-item label="文件名">
+          <el-input v-model="editForm.file_name" />
+        </el-form-item>
+        <el-form-item label="分类">
+          <el-select v-model="editForm.category" style="width: 100%">
+            <el-option v-for="opt in categoryOptions" :key="opt" :label="opt" :value="opt" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="排序权重">
+          <el-input-number v-model="editForm.sort_order" :min="0" controls-position="right" />
+          <div class="form-tip">数字越小越靠前，用于合并PDF时的顺序</div>
+        </el-form-item>
+        <el-form-item label="标签">
+          <div class="tag-editor">
+            <el-tag
+              v-for="(tag, i) in editForm.tags"
+              :key="i"
+              closable
+              @close="editForm.tags.splice(i, 1)"
+              >{{ tag }}</el-tag
+            >
+            <el-input
+              v-model="tempEditTag"
+              size="small"
+              style="width: 80px; margin-left: 5px"
+              placeholder="+ Tag"
+              @keyup.enter="addEditTag"
+              @blur="addEditTag"
+            />
+          </div>
+        </el-form-item>
+        <el-form-item label="摘要备注">
+          <el-input v-model="editForm.summary" type="textarea" :rows="3" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitEdit" :loading="submitting">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="previewVisible" title="文件预览" width="80%" top="5vh" destroy-on-close>
+      <div
+        class="preview-box"
+        v-loading="previewLoading"
+        element-loading-text="如果是Word文档，正在转换格式，请稍候..."
+      >
+        <iframe
+          v-if="previewUrl && previewType === 'pdf'"
+          :src="previewUrl"
+          class="preview-frame"
+        ></iframe>
+        <img
+          v-else-if="previewUrl && previewType === 'image'"
+          :src="previewUrl"
+          class="preview-img"
+        />
+        <div v-else class="preview-error">无法预览此文件，请下载查看</div>
+      </div>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup>
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  Document,
+  DocumentCopy,
+  Folder,
+  FolderOpened,
+  MoreFilled,
+  Picture,
+  Rank,
+  Location,
+  Upload,
+  Download,
+  Connection,
+  View,
+} from '@element-plus/icons-vue'
+import request from '@/utils/request'
+import BatchUploadDialog from '@/components/BatchUploadDialog.vue'
+import Sortable from 'sortablejs'
+
+// Props
+const props = defineProps({
+  caseId: {
+    type: [Number, String],
+    required: true,
+  },
+})
+
+// State
+const globalLoading = ref(false)
+const volumes = ref([])
+const currentVolumeId = ref(null)
+const currentVolume = ref(null)
+const fileList = ref([])
+
+// Permission State
+const canEdit = ref(false)
+
+// UI State
+const showUploadDialog = ref(false)
+const merging = ref(false)
+const viewMode = ref('list')
+const activeNames = ref([])
+
+// --- 新增：卷宗 新建/编辑 State ---
+const volDialogVisible = ref(false)
+const volDialogTitle = ref('')
+const volFormLoading = ref(false)
+const volForm = ref({
+  id: null,
+  name: '',
+  physical_location: '',
+})
+
+// File Edit State
+const editDialogVisible = ref(false)
+const submitting = ref(false)
+const tempEditTag = ref('')
+const editForm = ref({
+  id: null,
+  file_name: '',
+  category: '',
+  sort_order: 0,
+  tags: [],
+  summary: '',
+})
+const categoryOptions = ['证据材料', '法律文书', '起诉/答辩状', '笔录资料', '备考表', '其他材料']
+
+// Preview State
+const previewVisible = ref(false)
+const previewUrl = ref('')
+const previewType = ref('pdf')
+const previewLoading = ref(false)
+
+// Drag Sort State
+const dragTableRef = ref(null)
+let sortableInstance = null
+
+// Init
+onMounted(async () => {
+  await fetchPermissions()
+  await loadVolumes()
+})
+
+// 监听 caseId 变化
+watch(
+  () => props.caseId,
+  () => {
+    currentVolumeId.value = null
+    fileList.value = []
+    loadVolumes()
+  },
+)
+
+const maxSortOrder = computed(() => {
+  if (!fileList.value || fileList.value.length === 0) return 0
+  return fileList.value.reduce((acc, cur) => {
+    return (cur.sort_order || 0) > acc ? cur.sort_order : acc
+  }, 0)
+})
+
+const groupedFiles = computed(() => {
+  const groups = {}
+  categoryOptions.forEach((c) => (groups[c] = []))
+  groups['其他'] = []
+
+  fileList.value.forEach((file) => {
+    const cat = file.category || '其他'
+    if (!groups[cat]) groups[cat] = []
+    groups[cat].push(file)
+  })
+
+  Object.keys(groups).forEach((k) => {
+    if (groups[k].length === 0) delete groups[k]
+    else {
+      groups[k].sort((a, b) => a.sort_order - b.sort_order)
+    }
+  })
+  return groups
+})
+
+watch(groupedFiles, (val) => {
+  activeNames.value = Object.keys(val)
+})
+
+const initSortable = () => {
+  if (!dragTableRef.value || !canEdit.value) return
+
+  const el = dragTableRef.value.$el.querySelector('.el-table__body-wrapper tbody')
+  if (!el) return
+
+  if (sortableInstance) sortableInstance.destroy()
+
+  sortableInstance = Sortable.create(el, {
+    handle: '.drag-handle',
+    animation: 150,
+    ghostClass: 'sortable-ghost',
+    onEnd: async ({ newIndex, oldIndex }) => {
+      if (newIndex === oldIndex) return
+
+      const targetRow = fileList.value.splice(oldIndex, 1)[0]
+      fileList.value.splice(newIndex, 0, targetRow)
+
+      const updates = fileList.value.map((item, index) => ({
+        id: item.id,
+        sort_order: (index + 1) * 10,
+      }))
+
+      try {
+        await request.post('/electronic_volumes/files/batch_sort', updates)
+        ElMessage.success('排序更新成功')
+        fileList.value.forEach((item, index) => {
+          item.sort_order = (index + 1) * 10
+        })
+      } catch (err) {
+        console.error(err)
+        ElMessage.error('排序保存失败')
+        await refreshCurrentVolume()
+      }
+    },
+  })
+}
+
+watch(
+  [() => viewMode.value, () => fileList.value],
+  async ([mode, list]) => {
+    if (mode === 'list' && list.length > 0) {
+      await nextTick()
+      initSortable()
+    }
+  },
+  { flush: 'post' },
+)
+
+watch(currentVolumeId, () => {
+  if (sortableInstance) {
+    sortableInstance.destroy()
+    sortableInstance = null
+  }
+})
+
+// --- 权限逻辑 ---
+const fetchPermissions = async () => {
+  const userId = localStorage.getItem('user_id')
+  if (!userId) return
+
+  try {
+    const caseRes = await request.get(`/cases/${props.caseId}`)
+    const caseInfo = caseRes.data
+
+    const userRes = await request.get(`/user/profile/info?user_id=${userId}`)
+    const userInfo = userRes.data
+
+    const isSuper =
+      userInfo.role === 'owner' || (userInfo.permissions && userInfo.permissions.volume_manage)
+
+    const lawyerFields = [
+      caseInfo.main_lawyer,
+      caseInfo.assistant_lawyer,
+      caseInfo.execution_lawyer,
+      caseInfo.execution_assistant,
+    ]
+    const relatedLawyerIds = lawyerFields
+      .map((lawyer) => lawyer?.id)
+      .filter((id) => id !== undefined && id !== null)
+      .map(String)
+
+    const isRelated = relatedLawyerIds.includes(String(userId))
+    const isApproved = caseInfo.review_status === '已审核'
+
+    canEdit.value = (isSuper || isRelated) && isApproved
+  } catch (err) {
+    console.error('权限获取失败', err)
+    canEdit.value = false
+  }
+}
+
+// --- 卷宗册逻辑 ---
+const loadVolumes = async () => {
+  if (!props.caseId) return
+  globalLoading.value = true
+  try {
+    const res = await request.get(`/electronic_volumes/case/${props.caseId}`)
+    volumes.value = res.data
+    if (!currentVolumeId.value && volumes.value.length > 0) {
+      selectVolume(volumes.value[0])
+    }
+  } catch (err) {
+    console.error(err)
+    ElMessage.error('加载卷宗列表失败')
+  } finally {
+    globalLoading.value = false
+  }
+}
+
+const selectVolume = (vol) => {
+  currentVolumeId.value = vol.id
+  currentVolume.value = vol
+  fileList.value = vol.files || []
+  fileList.value.sort((a, b) => a.sort_order - b.sort_order)
+}
+
+const refreshCurrentVolume = async () => {
+  if (!currentVolumeId.value) return
+  try {
+    const res = await request.get(`/electronic_volumes/${currentVolumeId.value}`)
+    currentVolume.value = res.data
+    fileList.value = res.data.files || []
+    fileList.value.sort((a, b) => a.sort_order - b.sort_order)
+
+    const idx = volumes.value.findIndex((v) => v.id === currentVolumeId.value)
+    if (idx !== -1) {
+      volumes.value[idx] = res.data
+    }
+  } catch (err) {
+    console.error(err)
+  }
+}
+
+// --- 新增：卷宗增改逻辑 ---
+const openCreateVolumeDialog = () => {
+  volForm.value = { id: null, name: '', physical_location: '' }
+  volDialogTitle.value = '新建卷宗'
+  volDialogVisible.value = true
+}
+
+const openEditVolumeDialog = (vol) => {
+  volForm.value = {
+    id: vol.id,
+    name: vol.name,
+    physical_location: vol.physical_location,
+  }
+  volDialogTitle.value = '编辑卷宗信息'
+  volDialogVisible.value = true
+}
+
+const submitVolumeForm = async () => {
+  if (!volForm.value.name) {
+    ElMessage.warning('请输入卷宗名称')
+    return
+  }
+
+  volFormLoading.value = true
+  try {
+    if (volForm.value.id) {
+      // 更新
+      await request.put(`/electronic_volumes/${volForm.value.id}`, {
+        name: volForm.value.name,
+        physical_location: volForm.value.physical_location,
+      })
+      ElMessage.success('更新成功')
+    } else {
+      // 新建
+      await request.post('/electronic_volumes/', {
+        case_id: props.caseId,
+        name: volForm.value.name,
+        physical_location: volForm.value.physical_location,
+        sort_order: 0,
+      })
+      ElMessage.success('创建成功')
+    }
+    volDialogVisible.value = false
+    await loadVolumes()
+
+    // 如果是编辑当前选中的，更新显示
+    if (volForm.value.id && currentVolumeId.value === volForm.value.id && currentVolume.value) {
+      currentVolume.value.name = volForm.value.name
+      currentVolume.value.physical_location = volForm.value.physical_location
+    }
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('操作失败')
+  } finally {
+    volFormLoading.value = false
+  }
+}
+
+const handleVolumeCommand = async (cmd, vol) => {
+  if (cmd === 'edit_info') {
+    // 替换了原来的 'rename'
+    openEditVolumeDialog(vol)
+  } else if (cmd === 'delete') {
+    try {
+      await ElMessageBox.confirm('确定要删除该卷宗及其所有文件吗？此操作不可恢复！', '警告', {
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      })
+      await request.delete(`/electronic_volumes/${vol.id}`)
+      ElMessage.success('删除成功')
+      currentVolumeId.value = null
+      currentVolume.value = null
+      fileList.value = []
+      await loadVolumes()
+    } catch (e) {
+      console.error(e)
+    }
+  }
+}
+
+// --- 文件操作逻辑 ---
+
+const openEditDialog = (row) => {
+  editForm.value = JSON.parse(JSON.stringify(row))
+  if (!editForm.value.tags) editForm.value.tags = []
+  tempEditTag.value = ''
+  editDialogVisible.value = true
+}
+
+const addEditTag = () => {
+  const val = tempEditTag.value.trim()
+  if (val && !editForm.value.tags.includes(val)) {
+    editForm.value.tags.push(val)
+  }
+  tempEditTag.value = ''
+}
+
+const submitEdit = async () => {
+  submitting.value = true
+  try {
+    await request.put(`/electronic_volumes/files/${editForm.value.id}`, {
+      file_name: editForm.value.file_name,
+      category: editForm.value.category,
+      sort_order: editForm.value.sort_order,
+      tags: editForm.value.tags,
+      summary: editForm.value.summary,
+    })
+    ElMessage.success('更新成功')
+    editDialogVisible.value = false
+    await refreshCurrentVolume()
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('更新失败')
+  } finally {
+    submitting.value = false
+  }
+}
+
+const handleDeleteFile = async (row) => {
+  try {
+    await ElMessageBox.confirm('确定删除该文件吗？', '提示', { type: 'warning' })
+    await request.delete(`/electronic_volumes/files/${row.id}`)
+    ElMessage.success('删除成功')
+    await refreshCurrentVolume()
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('删除失败')
+  }
+}
+
+const downloadBlob = async (url, filename) => {
+  try {
+    ElMessage.info('正在请求下载...')
+    const res = await request.get(url, {
+      responseType: 'blob',
+      timeout: 60000,
+    })
+    const blob = new Blob([res.data], {
+      type: res.headers['content-type'] || 'application/octet-stream',
+    })
+    const link = document.createElement('a')
+    const href = window.URL.createObjectURL(blob)
+    link.href = href
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(href)
+    ElMessage.success('下载已开始')
+  } catch (err) {
+    console.error('下载失败', err)
+    ElMessage.error('下载失败，请检查网络或权限')
+  }
+}
+
+const handleDownload = async (row) => {
+  const url = `/electronic_volumes/files/${row.id}/download`
+  await downloadBlob(url, row.file_name)
+}
+
+const handleMergeVolume = async () => {
+  if (!fileList.value.length) return ElMessage.warning('卷宗为空，无法合并')
+
+  merging.value = true
+  try {
+    ElMessage.info('正在后台进行格式转换与合并，请耐心等待...')
+    const res = await request.post(`/electronic_volumes/${currentVolumeId.value}/merge`)
+    ElMessage.success('电子卷宗生成成功！')
+    currentVolume.value = res.data
+    await loadVolumes()
+  } catch (err) {
+    ElMessage.error(err.response?.data?.detail || '合并失败')
+  } finally {
+    merging.value = false
+  }
+}
+
+const previewMergedFile = async () => {
+  if (!currentVolume.value?.merged_file_path) return
+
+  previewLoading.value = true
+  previewVisible.value = true
+  // 这里强制设为 pdf，因为合并后的文件一定是 PDF
+  previewType.value = 'pdf'
+
+  try {
+    const res = await request.get(`/electronic_volumes/${currentVolumeId.value}/preview_merged`, {
+      responseType: 'blob',
+    })
+
+    const blob = new Blob([res.data], { type: 'application/pdf' })
+    previewUrl.value = window.URL.createObjectURL(blob)
+  } catch (err) {
+    console.error(err)
+    ElMessage.error('预览加载失败，文件可能不存在')
+    previewVisible.value = false
+  } finally {
+    previewLoading.value = false
+  }
+}
+
+const downloadMergedFile = async () => {
+  if (!currentVolume.value?.merged_file_path) return
+  const url = `/electronic_volumes/${currentVolumeId.value}/download_merged`
+  const filename = `${currentVolume.value.name}_全卷.pdf`
+  await downloadBlob(url, filename)
+}
+
+const handlePreview = async (row) => {
+  previewLoading.value = true
+  previewVisible.value = true
+  try {
+    const res = await request.get(`/electronic_volumes/files/${row.id}/preview`, {
+      responseType: 'blob',
+    })
+    const blob = new Blob([res.data], { type: res.headers['content-type'] })
+    previewUrl.value = window.URL.createObjectURL(blob)
+
+    if (res.headers['content-type'].includes('image')) {
+      previewType.value = 'image'
+    } else {
+      previewType.value = 'pdf'
+    }
+  } catch (err) {
+    console.error(err)
+    ElMessage.error('预览失败或文件正在转换中')
+    previewVisible.value = false
+  } finally {
+    previewLoading.value = false
+  }
+}
+
+const isPdf = (type) => type?.includes('pdf')
+const isImage = (type) => type?.includes('image')
+const formatTime = (val) => {
+  if (!val) return ''
+  return new Date(val).toLocaleString()
+}
+</script>
+
+<style scoped>
+.case-volume-panel {
+  height: 100%;
+  background: #fff;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+}
+.panel-layout {
+  display: flex;
+  height: 100%;
+}
+/* Sidebar Styles */
+.volume-sidebar {
+  width: 240px;
+  border-right: 1px solid #e4e7ed;
+  background-color: #f8f9fa;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar-header {
+  height: 50px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 15px;
+  border-bottom: 1px solid #ebeef5;
+  font-weight: bold;
+  color: #303133;
+}
+.volume-item {
+  display: flex;
+  align-items: flex-start; /* 调整对齐 */
+  padding: 12px 15px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid #f0f2f5;
+}
+.volume-item:hover {
+  background-color: #ecf5ff;
+}
+.volume-item.active {
+  background-color: #d9ecff;
+  border-right: 3px solid #409eff;
+}
+.vol-icon {
+  font-size: 20px;
+  color: #e6a23c;
+  margin-right: 10px;
+  margin-top: 2px; /* 图标微调 */
+}
+.vol-info {
+  flex: 1;
+  overflow: hidden;
+}
+.vol-name {
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 新增位置信息样式 */
+.vol-location {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vol-meta {
+  display: flex;
+  gap: 5px;
+}
+.vol-actions {
+  opacity: 0;
+  transition: opacity 0.2s;
+  margin-left: 5px;
+}
+.volume-item:hover .vol-actions {
+  opacity: 1;
+}
+
+/* Content Styles */
+.file-content {
+  flex: 1;
+  padding: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.content-wrapper {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #ebeef5;
+}
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.current-title {
+  margin: 0;
+  font-size: 18px;
+  color: #303133;
+}
+.file-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fname {
+  cursor: pointer;
+  color: #606266;
+  font-weight: 500;
+}
+.fname:hover {
+  color: #409eff;
+  text-decoration: underline;
+}
+.page-badge {
+  background: #f0f9eb;
+  color: #67c23a;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* Preview Styles */
+.preview-box {
+  width: 100%;
+  height: 70vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #f2f2f2;
+}
+.preview-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+.preview-img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.row-summary {
+  font-size: 12px;
+  color: #909399;
+  margin-left: 24px;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tags-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: bold;
+  font-size: 14px;
+  margin-left: 10px;
+}
+.cat-name {
+  color: #303133;
+}
+.form-tip {
+  font-size: 12px;
+  color: #999;
+  line-height: 1.2;
+}
+.tag-editor {
+  border: 1px solid #dcdfe6;
+  padding: 5px;
+  border-radius: 4px;
+  min-height: 32px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.drag-tip {
+  margin-left: 15px;
+  font-size: 12px;
+  color: #909399;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sortable-ghost {
+  opacity: 0.8;
+  color: #fff !important;
+  background: #409eff !important;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+</style>

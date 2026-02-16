@@ -30,6 +30,10 @@
           <i class="el-icon-check"></i>
           <span>业务审核</span>
         </el-menu-item>
+        <el-menu-item index="/main/volumes">
+          <el-icon><Collection /></el-icon>
+          <span>电子卷宗</span>
+        </el-menu-item>
         <el-menu-item index="/main/lawyers" v-if="role === 'owner' || role === 'admin'">
           <i class="el-icon-user"></i>
           <span>人员管理</span>
@@ -80,7 +84,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElNotification } from 'element-plus'
 import { useRouter } from 'vue-router'
 import axios from 'axios' // 引入axios
-import { Bell, Setting } from '@element-plus/icons-vue'
+import { Bell, Setting, Collection } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const currentUser = ref(localStorage.getItem('username'))
