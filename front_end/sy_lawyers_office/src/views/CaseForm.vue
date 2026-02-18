@@ -20,7 +20,8 @@
           <el-option label="银行案件" value="银行案件" />
           <el-option label="刑事案件" value="刑事案件" />
           <el-option label="行政案件" value="行政案件" />
-          <el-option label="仲裁案件" value="仲裁案件" />
+          <el-option label="劳动仲裁" value="劳动仲裁" />
+          <el-option label="商事仲裁" value="商事仲裁" />
           <el-option label="非诉业务" value="非诉业务" />
           <el-option label="法律顾问业务" value="法律顾问业务" />
           <el-option label="法律援助(民事)" value="法律援助(民事)" />

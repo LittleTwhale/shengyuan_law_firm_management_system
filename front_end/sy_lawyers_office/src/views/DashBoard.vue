@@ -83,7 +83,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElNotification } from 'element-plus'
 import { useRouter } from 'vue-router'
-import axios from 'axios' // 引入axios
+import axios from 'axios'
 import { Bell, Setting, Collection } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -93,21 +93,31 @@ const role = localStorage.getItem('role')
 
 // 登出
 const handleLogout = () => {
+  const userId = localStorage.getItem('user_id')
+  if (userId) {
+    localStorage.removeItem(`has_shown_urgent_reminder_${userId}`)
+  }
+
   localStorage.removeItem('token')
   localStorage.removeItem('username')
   localStorage.removeItem('role')
   localStorage.removeItem('userId')
+  localStorage.removeItem('user_id')
   router.push('/')
   ElMessage.info('已退出登录')
 }
 
-// 新增：检查紧急提醒
+// 检查紧急提醒
 const checkUrgentReminders = async () => {
   const userId = localStorage.getItem('user_id')
   if (!userId) return
 
+  const reminderKey = `has_shown_urgent_reminder_${userId}`
+  if (localStorage.getItem(reminderKey)) {
+    return
+  }
+
   try {
-    // 查询未来7天内的事件
     const res = await axios.get('http://127.0.0.1:8002/user/profile/reminders', {
       params: { user_id: userId, days: 7 },
     })
@@ -115,35 +125,46 @@ const checkUrgentReminders = async () => {
     const urgentEvents = res.data
 
     if (urgentEvents.length > 0) {
-      // 构建弹窗内容 HTML
-      const messageHtml = urgentEvents
-        .map(
-          (e) =>
-            `<div style="margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px dashed #eee;">
-           <span style="color: #f56c6c; font-weight: bold;">[${e.event_type}]</span>
-           <span style="margin-left: 5px;">${e.event_date}</span>
-           <div style="font-size: 12px; color: #666; margin-top: 4px;">
-             ${e.case_number} (${e.client_name})
-           </div>
-           <div style="font-size: 12px; color: #e6a23c;">
-             剩余 ${e.days_remaining} 天
-           </div>
-         </div>`,
-        )
-        .join('')
+      // 构建更高级卡片式结构
+      const messageHtml = `
+        <div class="urgent-wrapper">
+          ${urgentEvents
+            .map(
+              (e) => `
+                <div class="urgent-card">
+                  <div class="urgent-header">
+                    <span class="urgent-type">${e.event_type}</span>
+                    <span class="urgent-date">${e.event_date}</span>
+                  </div>
+                  <div class="urgent-body">
+                    <div class="urgent-case">${e.case_number}</div>
+                    <div class="urgent-client">${e.client_name}</div>
+                  </div>
+                  <div class="urgent-footer">
+                    剩余 <span class="urgent-days">${e.days_remaining}</span> 天
+                  </div>
+                </div>
+              `,
+            )
+            .join('')}
+        </div>
+      `
 
       ElNotification({
-        title: `有 ${urgentEvents.length} 个紧急事项即将到期`,
+        title: `⚠ 紧急事项提醒（${urgentEvents.length}）`,
         dangerouslyUseHTMLString: true,
-        message: `<div style="max-height: 300px; overflow-y: auto;">${messageHtml}</div>`,
-        duration: 0, // 设置为 0 则不会自动关闭
+        message: messageHtml,
+        duration: 0,
         type: 'warning',
-        customClass: 'center-notification',
+        customClass: 'urgent-notification',
+        showClose: true,
         onClick: () => {
-          router.push('/main/reminders') // 点击跳转到详情页
+          router.push('/main/reminders')
         },
       })
     }
+
+    localStorage.setItem(reminderKey, 'true')
   } catch (error) {
     console.error('检查提醒失败', error)
   }
@@ -155,30 +176,100 @@ onMounted(() => {
 </script>
 
 <style>
-/* 非作用域样式：用于强制 ElNotification 居中和突出显示 */
-.center-notification {
-  /* 居中定位  */
+/* 优化后的通知整体样式 */
+.urgent-notification {
   position: fixed !important;
   top: 50% !important;
   left: 50% !important;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) scale(1);
   margin: 0 !important;
   z-index: 3000 !important;
 
-  /* 自定义背景和边框，使其更醒目 */
-  background-color: #e1f4fa !important; /* 浅蓝色背景 */
-  border-left: 8px solid #ff0008 !important; /* 强烈红色左侧边框 */
-  box-shadow:
-    0 6px 16px rgba(17, 220, 255, 0.4),
-    0 0 0 1px rgba(0, 0, 0, 0.1) !important; /* 加重阴影和轻微描边 */
-  max-width: 450px;
-  border-radius: 8px !important;
+  background: linear-gradient(135deg, #ffffff, #f5f9ff) !important;
+  border: none !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15) !important;
+  max-width: 520px;
+  padding: 20px 24px !important;
+  animation: fadeInScale 0.3s ease;
 }
 
-/* 确保通知体内的文字颜色正常 */
-.center-notification .el-notification__title,
-.center-notification .el-notification__content {
-  color: #333;
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.urgent-wrapper {
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.urgent-card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  border: 1px solid #eef2f7;
+  transition: all 0.25s ease;
+}
+
+.urgent-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(22, 93, 255, 0.15);
+}
+
+.urgent-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.urgent-type {
+  background: #ffecec;
+  color: #f56c6c;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.urgent-date {
+  font-size: 12px;
+  color: #909399;
+}
+
+.urgent-body {
+  margin-bottom: 8px;
+}
+
+.urgent-case {
+  font-weight: 600;
+  font-size: 14px;
+  color: #303133;
+}
+
+.urgent-client {
+  font-size: 13px;
+  color: #606266;
+}
+
+.urgent-footer {
+  font-size: 12px;
+  color: #e6a23c;
+}
+
+.urgent-days {
+  font-size: 14px;
+  font-weight: bold;
+  color: #f56c6c;
 }
 </style>
 

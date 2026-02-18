@@ -1,6 +1,5 @@
 <template>
   <div class="user-profile-page">
-
     <el-card class="profile-card" v-loading="loading">
       <!-- 基本信息 -->
       <div class="profile-basic">
@@ -68,7 +67,12 @@
       <!-- 修改密码 -->
       <div class="change-password">
         <h3>修改密码</h3>
-        <el-form :model="passwordForm" :rules="passwordRules" ref="passwordFormRef" label-width="120px">
+        <el-form
+          :model="passwordForm"
+          :rules="passwordRules"
+          ref="passwordFormRef"
+          label-width="120px"
+        >
           <el-form-item label="旧密码" prop="oldPassword">
             <el-input v-model="passwordForm.oldPassword" type="password" />
           </el-form-item>
@@ -104,12 +108,12 @@ const stats = ref({
   main_case_count: 0,
   total_income: 0,
   category_stats: {},
-  review_case_count: 0
+  review_case_count: 0,
 })
 const passwordForm = ref({
   oldPassword: '',
   newPassword: '',
-  confirmPassword: ''
+  confirmPassword: '',
 })
 const passwordFormRef = ref(null)
 const chartInstance = ref(null)
@@ -123,12 +127,10 @@ const isAdmin = computed(() => ['admin', 'owner'].includes(currentUserRole))
 
 // 表单验证规则
 const passwordRules = {
-  oldPassword: [
-    { required: true, message: '请输入旧密码', trigger: 'blur' }
-  ],
+  oldPassword: [{ required: true, message: '请输入旧密码', trigger: 'blur' }],
   newPassword: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, max: 20, message: '密码长度需为6~20位', trigger: 'blur' }
+    { min: 6, max: 20, message: '密码长度需为6~20位', trigger: 'blur' },
   ],
   confirmPassword: [
     { required: true, message: '请确认新密码', trigger: 'blur' },
@@ -140,9 +142,9 @@ const passwordRules = {
           callback()
         }
       },
-      trigger: 'blur'
-    }
-  ]
+      trigger: 'blur',
+    },
+  ],
 }
 
 // 独立获取统计数据的方法
@@ -151,8 +153,8 @@ const fetchStats = async () => {
     const statsRes = await axios.get(`http://127.0.0.1:8002/user/profile/case-statistics`, {
       params: {
         user_id: currentUserId,
-        year: selectedYear.value
-      }
+        year: selectedYear.value,
+      },
     })
     stats.value = statsRes.data
     // 数据更新后重新渲染图表
@@ -168,11 +170,12 @@ const initData = async () => {
   try {
     loading.value = true
     // 获取用户基本信息
-    const userRes = await axios.get(`http://127.0.0.1:8002/user/profile/info?user_id=${currentUserId}`)
+    const userRes = await axios.get(
+      `http://127.0.0.1:8002/user/profile/info?user_id=${currentUserId}`,
+    )
     userInfo.value = userRes.data
 
     await fetchStats()
-
   } catch (err) {
     console.error('加载个人信息失败:', err)
     ElMessage.error('加载个人信息失败')
@@ -184,43 +187,44 @@ const initData = async () => {
 // 初始化带顶部数值的柱状图
 const initChart = () => {
   if (chartInstance.value) {
-    chartInstance.value.dispose();
+    chartInstance.value.dispose()
   }
 
   // 使用 ref 获取容器
-  chartInstance.value = echarts.init(chartContainer.value);
+  chartInstance.value = echarts.init(chartContainer.value)
 
   // 1. 处理数据：确保案件都显示，无数据则为0
   const caseCategories = [
-    "民事案件",
-    "银行案件",
-    "刑事案件",
-    "非诉业务",
-    "行政案件",
-    "仲裁案件",
-    "法律顾问业务",
-    "法律援助(民事)",
-    "法律援助(刑事)",
-    "法律援助(行政)",
-  ];
+    '民事案件',
+    '银行案件',
+    '刑事案件',
+    '非诉业务',
+    '行政案件',
+    '劳动仲裁',
+    '商事仲裁',
+    '法律顾问业务',
+    '法律援助(民事)',
+    '法律援助(刑事)',
+    '法律援助(行政)',
+  ]
   const chartData = caseCategories.map((category) => {
-    return stats.value.category_stats[category] || 0; // 无数据时默认0
-  });
+    return stats.value.category_stats[category] || 0 // 无数据时默认0
+  })
 
   // 2. 基础柱状图配置（重点：添加 label 实现顶部数值显示）
   const option = {
     tooltip: {
-      trigger: "axis",
-      axisPointer: { type: "shadow" }, // 鼠标悬浮时显示阴影指示器
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' }, // 鼠标悬浮时显示阴影指示器
     },
     grid: {
-      left: "3%",
-      right: "4%",
-      bottom: "3%",
+      left: '3%',
+      right: '4%',
+      bottom: '3%',
       containLabel: true, // 确保坐标轴标签不被截断
     },
     xAxis: {
-      type: "category",
+      type: 'category',
       data: caseCategories,
       axisLabel: {
         interval: 0, // 强制显示所有x轴标签
@@ -228,52 +232,52 @@ const initChart = () => {
       },
     },
     yAxis: {
-      type: "value",
-      name: "案件数量",
+      type: 'value',
+      name: '案件数量',
       min: 0, // y轴最小值设为0，避免数据偏差
     },
     series: [
       {
-        name: "案件数量",
-        type: "bar", // 基础柱状图类型（无需3D依赖）
+        name: '案件数量',
+        type: 'bar', // 基础柱状图类型（无需3D依赖）
         data: chartData,
-        barWidth: "50%", // 柱子宽度，避免过宽或过窄
+        barWidth: '50%', // 柱子宽度，避免过宽或过窄
         // 3. 柱子样式：渐变色（保留原视觉效果）
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: "#165DFF" },
-            { offset: 1, color: "#4080FF" },
+            { offset: 0, color: '#165DFF' },
+            { offset: 1, color: '#4080FF' },
           ]),
         },
         // 4. 顶部显示数值（核心需求）
         label: {
           show: true, // 启用标签
-          position: "top", // 数值在柱子顶部
+          position: 'top', // 数值在柱子顶部
           fontSize: 14,
-          color: "#333", // 数值颜色
-          fontWeight: "bold",
+          color: '#333', // 数值颜色
+          fontWeight: 'bold',
         },
         // 鼠标悬浮时高亮
         emphasis: {
-          focus: "series",
+          focus: 'series',
           itemStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: "#0E48D8" },
-              { offset: 1, color: "#2A6FFF" },
+              { offset: 0, color: '#0E48D8' },
+              { offset: 1, color: '#2A6FFF' },
             ]),
           },
         },
       },
     ],
-  };
+  }
 
-  chartInstance.value.setOption(option);
+  chartInstance.value.setOption(option)
 
   // 响应窗口 resize
-  window.addEventListener("resize", () => {
-    chartInstance.value.resize();
-  });
-};
+  window.addEventListener('resize', () => {
+    chartInstance.value.resize()
+  })
+}
 
 // 修改密码
 const handleChangePassword = async () => {
@@ -284,7 +288,7 @@ const handleChangePassword = async () => {
       await axios.put('http://127.0.0.1:8002/user/profile/change-password', {
         user_id: currentUserId,
         old_password: passwordForm.value.oldPassword,
-        new_password: passwordForm.value.newPassword
+        new_password: passwordForm.value.newPassword,
       })
 
       ElMessage.success('密码修改成功，请重新登录')
@@ -292,7 +296,7 @@ const handleChangePassword = async () => {
       passwordForm.value = {
         oldPassword: '',
         newPassword: '',
-        confirmPassword: ''
+        confirmPassword: '',
       }
       // 跳转到登录页
       localStorage.clear()
@@ -319,7 +323,10 @@ onMounted(() => {
   margin-top: 15px;
 }
 
-.profile-basic, .profile-stats, .profile-chart, .change-password {
+.profile-basic,
+.profile-stats,
+.profile-chart,
+.change-password {
   margin-bottom: 30px;
 }
 
@@ -358,7 +365,7 @@ h3 {
 }
 
 .stat-value {
-  color: #165DFF;
+  color: #165dff;
   font-size: 24px;
   font-weight: bold;
 }

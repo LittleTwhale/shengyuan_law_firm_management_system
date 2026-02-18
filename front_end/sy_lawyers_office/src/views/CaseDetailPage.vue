@@ -374,6 +374,9 @@
             <el-descriptions-item :label="courtLabel">
               {{ caseData.court || '-' }}
             </el-descriptions-item>
+            <el-descriptions-item label="案号">
+              {{ caseData.case_code || '-' }}
+            </el-descriptions-item>
             <el-descriptions-item label="立案日">{{
               formatDate(caseData.filing_date)
             }}</el-descriptions-item>

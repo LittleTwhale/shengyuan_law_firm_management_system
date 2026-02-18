@@ -230,7 +230,7 @@
       </div>
     </div>
 
-    <div class="party-section" >
+    <div class="party-section">
       <div class="party-section-header">
         <span class="section-title">第三人</span>
         <el-button color="#6d14d7" plain size="small" :icon="Plus" @click="addThirdParty">
@@ -706,7 +706,7 @@ const formData = inject('caseFormData')
 
 // 计算审理机构标签
 const courtLabel = computed(() => {
-  if (formData.case_category === '仲裁案件') {
+  if (formData.case_category === '劳动仲裁' || formData.case_category === '商事仲裁') {
     return '仲裁委员会'
   } else if (formData.case_category === '刑事案件') {
     return '审理机构'
@@ -732,7 +732,7 @@ const removeClient = (index) => {
 
 const addPlaintiff = () => {
   let defaultType = '原告'
-  if (formData.case_category === '仲裁案件') {
+  if (formData.case_category === '劳动仲裁' || formData.case_category === '商事仲裁') {
     defaultType = '申请人'
   }
 
@@ -754,7 +754,7 @@ const addDefendant = () => {
 
   if (formData.case_category === '刑事案件') {
     defaultType = '被告人'
-  } else if (formData.case_category === '仲裁案件') {
+  } else if (formData.case_category === '劳动仲裁' || formData.case_category === '商事仲裁') {
     defaultType = '被申请人'
   }
   formData.party_defendants.push({

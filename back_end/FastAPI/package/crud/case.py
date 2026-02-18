@@ -287,7 +287,8 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
     type_map = {
         "民事案件": "民字",
         "刑事案件": "刑字",
-        "仲裁案件": "仲字",
+        "劳动仲裁": "劳仲字",
+        "商事仲裁": "商仲字",
         "行政案件": "行字",
         "非诉业务": "非诉字",
         "法律顾问业务": "法顾字",
@@ -364,7 +365,8 @@ def _find_reusable_case_number(db: Session, case_type: str, year: int) -> str:
     type_map = {
         "民事案件": "民字",
         "刑事案件": "刑字",
-        "仲裁案件": "仲字",
+        "劳动仲裁": "劳仲字",
+        "商事仲裁": "商仲字",
         "行政案件": "行字",
         "非诉业务": "非诉字",
         "法律顾问业务": "法顾字",
@@ -513,7 +515,8 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
         type_map = {
             "民事案件": "民字",
             "刑事案件": "刑字",
-            "仲裁案件": "仲字",
+            "劳动仲裁": "劳仲字",
+            "商事仲裁": "商仲字",
             "行政案件": "行字",
             "非诉业务": "非诉字",
             "法律顾问业务": "法顾字",
