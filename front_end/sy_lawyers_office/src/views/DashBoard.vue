@@ -107,9 +107,9 @@ const checkUrgentReminders = async () => {
   if (!userId) return
 
   try {
-    // 查询未来3天内的事件
+    // 查询未来7天内的事件
     const res = await axios.get('http://127.0.0.1:8002/user/profile/reminders', {
-      params: { user_id: userId, days: 3 },
+      params: { user_id: userId, days: 7 },
     })
 
     const urgentEvents = res.data
