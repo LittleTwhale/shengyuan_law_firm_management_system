@@ -1,15 +1,22 @@
 # crud/case.py
+import json
 import os
 from datetime import datetime
-from typing import List, Optional, cast
+from io import BytesIO
+from typing import List
+from typing import Optional, cast
 
-from sqlalchemy import func, or_, extract
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment
+from sqlalchemy import func
+from sqlalchemy import or_, extract
 from sqlalchemy.orm import Session, joinedload
 
-from ..models.case import Case,BankCase,CaseParty
+from ..models.case import Case, CaseParty, BankCase
 from ..models.electronic_volume_model import CaseVolume, VolumeFile
 from ..models.finance_model import CaseFinance
 from ..schemas.case import CaseCreate, CaseUpdate
+from ..schemas.case import CaseExportQuery
 
 
 def get_case_by_id(db: Session, case_id: int) -> Optional[Case]:
@@ -154,6 +161,7 @@ def list_bank_cases_by_user_role(
     limit: int = 100,
     keyword: Optional[str] = None,  # 新增
     main_lawyer_id: Optional[int] = None,    # 主办律师筛选
+    year: Optional[str] = None,
     sort_field: str = "created_at",  # 排序字段，默认按创建时间
     sort_dir: str = "desc"  # 排序方向，默认降序（最新在前）
 ) -> List[Case]:
@@ -188,6 +196,9 @@ def list_bank_cases_by_user_role(
             (Case.case_number.like(f"%{keyword}%")) |
             (Case.client_name.like(f"%{keyword}%"))
         )
+    # 委托年份筛选
+    if year:
+        query = query.filter(extract('year', Case.commission_date) == year)
 
     # 排序逻辑
     if sort_field == "created_at":
@@ -212,7 +223,8 @@ def count_bank_cases_by_user_role(
     user_id: int,
     role: str,
     keyword: Optional[str] = None,  # 新增
-    main_lawyer_id: Optional[int] = None
+    main_lawyer_id: Optional[int] = None,
+    year: Optional[str] = None
 ) -> int:
     """
     根据用户角色统计案件总数
@@ -237,6 +249,10 @@ def count_bank_cases_by_user_role(
             (Case.case_number.like(f"%{keyword}%")) |
             (Case.client_name.like(f"%{keyword}%"))
         )
+
+    # 委托年份筛选
+    if year:
+        query = query.filter(extract('year', Case.commission_date) == year)
 
     return query.count()
 
@@ -765,3 +781,304 @@ def get_upcoming_events(db: Session, user_id: int, days: int = 30) -> List[dict]
     # 按剩余天数排序，紧迫的在前
     events.sort(key=lambda x: x['days_remaining'])
     return events
+
+
+def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: CaseExportQuery) -> BytesIO:
+    """
+    导出业务数据为Excel文件 (支持动态生成Sheet)
+    """
+    # 1. 基础查询与预加载
+    query = db.query(Case).options(
+        joinedload(Case.main_lawyer),
+        joinedload(Case.assistant_lawyer),
+        joinedload(Case.execution_lawyer),
+        joinedload(Case.execution_assistant),
+        joinedload(Case.parties),
+        joinedload(Case.bank_case_details)
+    ).filter(Case.is_deleted == False)
+
+    # 权限控制
+    if role not in ["admin", "owner"]:
+        query = query.filter(
+            or_(
+                Case.main_lawyer_id == user_id,
+                Case.assistant_lawyer_id == user_id,
+                Case.execution_lawyer_id == user_id,
+                Case.execution_assistant_id == user_id
+            )
+        )
+
+    # 2. 动态筛选条件
+    if query_params.keyword:
+        query = query.filter(
+            or_(
+                Case.case_number.like(f"%{query_params.keyword}%"),
+                Case.client_name.like(f"%{query_params.keyword}%")
+            )
+        )
+    if query_params.case_category:
+        query = query.filter(Case.case_category == query_params.case_category)
+    if query_params.main_lawyer_id:
+        query = query.filter(Case.main_lawyer_id == query_params.main_lawyer_id)
+
+    # 时间筛选逻辑：只有未传入起止日期才对年份进行筛选
+    if query_params.start_date or query_params.end_date:
+        if query_params.start_date:
+            query = query.filter(Case.commission_date >= query_params.start_date)
+        if query_params.end_date:
+            query = query.filter(Case.commission_date <= query_params.end_date)
+    elif query_params.year:
+        query = query.filter(extract('year', Case.commission_date) == query_params.year)
+
+    # 按照创建时间倒序获取所有数据
+    cases = query.order_by(Case.created_at.desc()).all()
+
+    # 3. 创建 Excel 及 Sheet (动态生成)
+    wb = Workbook()
+
+    # 移除默认的空Sheet，防止出现多余的空标签页
+    if "Sheet" in wb.sheetnames:
+        wb.remove(wb["Sheet"])
+
+    ws_standard = None
+    ws_bank = None
+
+    # 根据筛选条件决定需要生成哪些Sheet
+    if query_params.case_category == "银行案件":
+        ws_bank = wb.create_sheet(title="银行案件")
+    elif query_params.case_category and query_params.case_category != "银行案件":
+        ws_standard = wb.create_sheet(title="常规案件")
+    else:
+        # 没有指定类型（导出全部），两个Sheet都生成
+        ws_standard = wb.create_sheet(title="常规案件")
+        ws_bank = wb.create_sheet(title="银行案件")
+
+    # ---------------- 表头定义 ----------------
+    base_headers_part1 = ["案件ID", "案件号", "委托日期", "案件类别"]
+
+    # 使用统一的当事人详情列取代原来拆分的当事人类别列
+    party_headers = ["当事人详情"]
+
+    base_headers_part2 = [
+        "案件来源", "收费方式", "风险比例", "案件收入",
+        "付款到期日", "案由", "介入阶段", "代理权限", "审理法院", "开庭时间", "立案日", "结案时间",
+        "案件地点", "案件详情", "主办律师", "助理律师", "执行主办律师", "执行助理律师", "案件审核状态",
+        "是否重大", "是否纸质卷宗", "是否解除", "是否笔录", "是否保全", "保全开始日", "保全终止日",
+        "案号", "结案状态", "结案方式", "诉讼费缴费时间", "诉讼费缴费金额", "诉讼费退费时间", "诉讼费退费金额",
+        "申请执行日", "调解到期日", "执行到期日", "创建时间", "更新时间"
+    ]
+
+    # 银行案件特有字段 (BankCase)
+    bank_specific_headers = [
+        "支行名称", "抵/质押物信息", "抵押物位置", "客户经理", "贷款类型", "贷款账号",
+        "贷款本金", "诉讼标的金额(含利息)", "信用卡违约金", "借款日", "到期日", "诉讼时效", "收案日期",
+        "取材料人", "诉前催收情况", "盖章日", "材料提交法院日", "承办法官", "裁判时间", "裁判方式",
+        "裁判摘要", "支持律师费金额", "被告支付律师费金额", "是否还清", "是否有二审/再审",
+        "执行案号", "执行立案时间", "执行法官", "借款人工作单位", "是否为恢复执行", "收取执行材料时间",
+        "执行材料提交法院时间", "执行本金金额", "执行律师费金额", "财产调查情况", "网络查控财产情况",
+        "承办人执行方案", "法院执行措施", "查封冻结时间", "拍卖程序", "拍卖变卖成交价",
+        "执行和解内容", "终本时间", "终本原因", "终结执行时间", "恢复执行时间", "还清时间",
+        "执行回款总金额", "执行回款来源", "执行和解跟进及回款额", "扣划跟进及回款额", "调解案件履行跟踪情况"
+    ]
+
+    # 组合表头 (判空安全)
+    if ws_standard:
+        ws_standard.append(base_headers_part1 + party_headers + base_headers_part2)
+    if ws_bank:
+        ws_bank.append(base_headers_part1 + party_headers + base_headers_part2 + bank_specific_headers)
+
+    # 设置表头样式 (只处理存在的Sheet)
+    for ws in [ws for ws in [ws_standard, ws_bank] if ws is not None]:
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    # ---------------- 辅助函数 ----------------
+    def format_date(d):
+        return d.strftime("%Y-%m-%d") if d else ""
+
+    def format_datetime(dt):
+        return dt.strftime("%Y-%m-%d %H:%M:%S") if dt else ""
+
+    def format_bool(b):
+        return "是" if b else "否"
+
+    def format_decimal(d):
+        return float(d) if d is not None else 0.0
+
+    def format_json(j):
+        if not j: return ""
+        try:
+            return json.dumps(j, ensure_ascii=False)
+        except:
+            return str(j)
+
+    # 格式化当事人详情为带换行的字符串
+    def format_parties(parties):
+        if not parties:
+            return ""
+        party_strs = []
+        for p in parties:
+            info = f"[{p.party_type}] {p.name}"
+            details = []
+            if p.phone: details.append(f"电话: {p.phone}")
+            if p.id_number: details.append(f"证件: {p.id_number}")
+            if p.legal_representative: details.append(f"法定代表人: {p.legal_representative}")
+            if p.address: details.append(f"地址: {p.address}")
+
+            if details:
+                info += f" ({' | '.join(details)})"
+            party_strs.append(info)
+
+        return "\n".join(party_strs)
+
+    # ---------------- 填充数据 ----------------
+    for case in cases:
+        parties_detail_str = format_parties(case.parties)
+
+        base_data_part1 = [
+            case.case_id,
+            case.case_number,
+            format_date(case.commission_date),
+            case.case_category
+        ]
+
+        base_data_part2 = [
+            case.case_source or "",
+            case.fee_method or "",
+            case.risk_ratio or "",
+            format_decimal(case.case_income),
+            format_date(case.payment_due_date),
+            case.cause or "",
+            case.stage or "",
+            case.agency_power or "",
+            case.court or "",
+            format_date(case.hearing_date),
+            format_date(case.filing_date),
+            format_date(case.closing_date),
+            case.location or "",
+            case.details or "",
+            case.main_lawyer.real_name if case.main_lawyer else "",
+            case.assistant_lawyer.real_name if case.assistant_lawyer else "",
+            case.execution_lawyer.real_name if case.execution_lawyer else "",
+            case.execution_assistant.real_name if case.execution_assistant else "",
+            case.review_status,
+            format_bool(case.is_major),
+            format_bool(case.has_paper_file),
+            format_bool(case.is_dismissed),
+            format_bool(case.has_record),
+            format_bool(case.has_preservation),
+            format_date(case.preservation_start),
+            format_date(case.preservation_end),
+            case.case_code or "",
+            case.closing_status or "",
+            case.closing_method or "",
+            format_date(case.litigation_fee_payment_date),
+            format_decimal(case.litigation_fee_payment_amount),
+            format_date(case.litigation_fee_refund_date),
+            format_decimal(case.litigation_fee_refund_amount),
+            format_date(case.execution_application_date),
+            format_date(case.mediation_due_date),
+            format_date(case.execution_due_date),
+            format_datetime(case.created_at),
+            format_datetime(case.updated_at)
+        ]
+
+        # 写入银行案件
+        if case.case_category == "银行案件" and ws_bank:
+            bank = case.bank_case_details
+            bank_specific_data = [
+                bank.branch_name if bank else "",
+                bank.collateral_info if bank else "",
+                bank.collateral_location if bank else "",
+                bank.account_manager if bank else "",
+                bank.loan_type if bank else "",
+                bank.loan_account if bank else "",
+                format_decimal(bank.loan_principal if bank else 0),
+                format_decimal(bank.litigation_target_amount if bank else 0),
+                format_decimal(bank.credit_card_penalty if bank else 0),
+                format_date(bank.loan_date if bank else None),
+                format_date(bank.loan_due_date if bank else None),
+                format_date(bank.statute_of_limitations if bank else None),
+                format_date(bank.case_acceptance_date if bank else None),
+                bank.material_fetcher if bank else "",
+                bank.pre_litigation_collection if bank else "",
+                format_date(bank.seal_date if bank else None),
+                format_date(bank.material_submission_date if bank else None),
+                bank.handling_judge if bank else "",
+                format_date(bank.judgment_date if bank else None),
+                bank.judgment_method if bank else "",
+                bank.judgment_summary if bank else "",
+                format_decimal(bank.lawyer_fee_supported if bank else 0),
+                format_decimal(bank.defendant_paid_lawyer_fee if bank else 0),
+                format_bool(bank.is_settled if bank else False),
+                format_bool(bank.has_second_instance_or_retrial if bank else False),
+                bank.execution_case_number if bank else "",
+                format_date(bank.execution_filing_date if bank else None),
+                bank.execution_judge if bank else "",
+                bank.borrower_work_unit if bank else "",
+                format_bool(bank.is_execution_recovery if bank else False),
+                format_date(bank.execution_material_receipt_date if bank else None),
+                format_date(bank.execution_material_submission_date if bank else None),
+                format_decimal(bank.execution_principal if bank else 0),
+                format_decimal(bank.execution_lawyer_fee if bank else 0),
+                bank.property_investigation if bank else "",
+                bank.network_control_status if bank else "",
+                bank.execution_plan if bank else "",
+                bank.court_execution_measures if bank else "",
+                format_date(bank.seizure_freeze_date if bank else None),
+                bank.auction_status if bank else "",
+                format_decimal(bank.auction_deal_price if bank else 0),
+                bank.execution_settlement_content if bank else "",
+                format_date(bank.procedure_termination_date if bank else None),
+                bank.termination_reason if bank else "",
+                format_date(bank.execution_conclusion_date if bank else None),
+                format_date(bank.execution_recovery_date if bank else None),
+                format_date(bank.payoff_date if bank else None),
+                format_decimal(bank.execution_collection_amount if bank else 0),
+                bank.collection_source if bank else "",
+                format_json(bank.execution_settlement_log if bank else None),
+                format_json(bank.deduction_log if bank else None),
+                bank.mediation_tracking if bank else ""
+            ]
+            row_data = base_data_part1 + [parties_detail_str] + base_data_part2 + bank_specific_data
+            ws_bank.append(row_data)
+            ws_bank.cell(row=ws_bank.max_row, column=5).alignment = Alignment(wrap_text=True, vertical="center")
+
+        # 写入常规案件
+        elif case.case_category != "银行案件" and ws_standard:
+            row_data = base_data_part1 + [parties_detail_str] + base_data_part2
+            ws_standard.append(row_data)
+            ws_standard.cell(row=ws_standard.max_row, column=5).alignment = Alignment(wrap_text=True, vertical="center")
+
+    # ---------------- 自适应列宽逻辑 ----------------
+    def auto_fit_columns(worksheet):
+        for col in worksheet.columns:
+            max_length = 0
+            col_letter = col[0].column_letter
+
+            for col_cell in col:
+                if col_cell.value is not None:
+                    # 如果是当事人详情列(E列)，给定一个固定宽度而不是自适应，以便换行效果更好
+                    if col_letter == 'E':
+                        max_length = 45
+                        continue
+
+                    cell_len = sum(2 if ord(c) > 255 else 1.2 for c in str(col_cell.value))
+                    if cell_len > max_length:
+                        max_length = cell_len
+
+            adjusted_width = min(max_length + 2, 60)
+            worksheet.column_dimensions[col_letter].width = adjusted_width
+
+    # 对存在的Sheet应用列宽自适应
+    if ws_standard:
+        auto_fit_columns(ws_standard)
+    if ws_bank:
+        auto_fit_columns(ws_bank)
+
+    # 5. 保存到内存并返回
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer

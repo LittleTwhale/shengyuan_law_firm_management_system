@@ -7,7 +7,6 @@
       </div>
     </div>
 
-    <!-- 搜索区 -->
     <div class="toolbar">
       <div class="toolbar-left">
         <el-input
@@ -19,14 +18,13 @@
           style="width: 250px; margin-right: 15px"
         />
 
-        <!-- 管理员专属：主办律师筛选 -->
         <el-select
           v-if="currentUserRole === 'admin' || currentUserRole === 'owner'"
           v-model="selectedLawyerId"
           placeholder="主办律师筛选"
           clearable
           @change="handleSearch"
-          style="width: 200px"
+          style="width: 200px; margin-right: 15px"
         >
           <el-option
             v-for="lawyer in lawyers"
@@ -35,14 +33,22 @@
             :value="lawyer.id"
           />
         </el-select>
+
+        <el-date-picker
+          v-model="selectedYear"
+          type="year"
+          placeholder="选择年份"
+          value-format="YYYY"
+          style="width: 120px"
+          @change="handleSearch"
+          clearable
+        />
       </div>
     </div>
 
-    <!-- 案件表格：委托人列改为委托银行 -->
     <el-table :data="cases" border style="width: 100%" v-loading="tableLoading">
       <el-table-column prop="case_number" label="业务号" width="220" align="center" />
       <el-table-column prop="client_name" label="委托银行" align="center" />
-      <!-- 修改此处label -->
       <el-table-column prop="case_category" label="案件类别" align="center" />
       <el-table-column prop="main_lawyer.real_name" label="主办律师" align="center" />
       <el-table-column prop="review_status" label="审核状态" align="center" />
@@ -52,20 +58,43 @@
         align="center"
         :formatter="(row, column, cellValue) => formatDate(cellValue)"
       />
-      <el-table-column label="操作" width="220" align="center">
+      <el-table-column label="操作" width="380" header-align="center" align="left">
         <template #default="scope">
           <el-button size="small" @click="viewCase(scope.row)">查看</el-button>
-          <el-button size="small" type="warning" @click="handleEditClick(scope.row)"
+          <el-button
+            size="small"
+            type="warning"
+            :disabled="currentUserRole === 'user' && scope.row.review_status === '已审核'"
+            @click="handleEditClick(scope.row)"
             >编辑</el-button
           >
-          <el-button size="small" type="danger" @click="deleteCase(scope.row.case_id)"
+          <el-button
+            size="small"
+            type="danger"
+            :disabled="currentUserRole === 'user' && scope.row.review_status === '已审核'"
+            @click="deleteCase(scope.row.case_id)"
             >删除</el-button
           >
+
+          <el-button size="small" type="primary" plain @click="handleUploadClick(scope.row)">
+            <el-icon><Upload /></el-icon>
+            上传附件
+          </el-button>
+
+          <el-button
+            v-if="scope.row.review_status === '已审核'"
+            link
+            type="primary"
+            size="small"
+            @click="handleDownloadApproval(scope.row)"
+          >
+            <el-icon><Document /></el-icon>
+            下载审批表
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <!-- 分页组件 -->
     <el-pagination
       background
       layout="prev, pager, next, jumper, ->, total"
@@ -76,7 +105,6 @@
       style="margin-top: 16px; text-align: right"
     />
 
-    <!-- 编辑案件弹窗（复用现有CaseForm组件） -->
     <CaseForm
       v-model:visible="showFormDialog"
       :lawyers="lawyers"
@@ -86,6 +114,129 @@
       :current-user-role="currentUserRole"
       @submit="handleFormSubmit"
     />
+
+    <el-dialog
+      title="上传附件"
+      v-model="uploadDialogVisible"
+      width="600px"
+      :close-on-click-modal="false"
+      destroy-on-close
+      @close="resetUploadDialog"
+      class="upload-dialog"
+    >
+      <div class="upload-container">
+        <div class="case-info-bar">
+          <el-icon><Document /></el-icon>
+          <span class="label">当前案件：</span>
+          <span class="value">{{ currentUploadCaseNumber }}</span>
+        </div>
+
+        <el-upload
+          ref="attachmentUploadRef"
+          class="upload-demo"
+          drag
+          action="#"
+          :auto-upload="false"
+          multiple
+          :on-change="handleAttachmentChange"
+          :on-remove="handleAttachmentRemove"
+          v-model:file-list="attachmentFileList"
+        >
+          <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+          <div class="el-upload__text">将文件拖到此处，或 <em>点击上传</em></div>
+          <template #tip>
+            <div class="el-upload__tip">
+              <p>1. 支持多文件同时上传</p>
+              <p>2. 单个文件建议不超过 50MB</p>
+            </div>
+          </template>
+        </el-upload>
+      </div>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="uploadDialogVisible = false">取消</el-button>
+          <el-button
+            type="primary"
+            @click="submitAttachments"
+            :loading="isUploadingAttachments"
+            :disabled="attachmentFileList.length === 0"
+          >
+            <el-icon v-if="!isUploadingAttachments"><Upload /></el-icon>
+            {{ isUploadingAttachments ? '正在上传...' : '开始上传' }}
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      title="导出银行案件数据"
+      v-model="showExportDialog"
+      width="550px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="exportForm" label-width="110px">
+        <el-form-item label="搜索关键词">
+          <el-input v-model="exportForm.keyword" placeholder="按业务号/委托银行搜索" clearable />
+        </el-form-item>
+
+        <el-form-item
+          label="主办律师"
+          v-if="currentUserRole === 'admin' || currentUserRole === 'owner'"
+        >
+          <el-select
+            v-model="exportForm.main_lawyer_id"
+            placeholder="全部律师"
+            clearable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="lawyer in lawyers"
+              :key="lawyer.id"
+              :label="lawyer.real_name"
+              :value="lawyer.id"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="委托日期区间">
+          <el-date-picker
+            v-model="exportForm.dateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+            clearable
+          />
+          <div class="form-tip text-muted">
+            提示：若设置了精确的日期区间，下方的年份筛选将自动失效。
+          </div>
+        </el-form-item>
+
+        <el-form-item label="指定年份">
+          <el-date-picker
+            v-model="exportForm.year"
+            type="year"
+            placeholder="选择年份"
+            value-format="YYYY"
+            style="width: 100%"
+            clearable
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showExportDialog = false">取消</el-button>
+          <el-button type="primary" :loading="isExporting" @click="submitExport">
+            <el-icon v-if="!isExporting"><Download /></el-icon>
+            {{ isExporting ? '生成并导出中...' : '确认导出' }}
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -95,6 +246,8 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import CaseForm from './CaseForm.vue'
 import { useRouter } from 'vue-router'
+// 导入需要的图标
+import { Document, Upload, UploadFilled, Download } from '@element-plus/icons-vue'
 
 // 当前用户信息
 const currentUserID = ref(localStorage.getItem('user_id'))
@@ -108,6 +261,8 @@ const cases = ref([])
 const tableLoading = ref(false)
 const searchKeyword = ref('') // 搜索关键词
 const selectedLawyerId = ref(null) // 选中的主办律师ID
+// 年份变量，默认为当前年份字符串
+const selectedYear = ref(new Date().getFullYear().toString())
 
 // 弹窗控制
 const showFormDialog = ref(false)
@@ -123,7 +278,7 @@ onMounted(() => {
   Promise.all([loadLawyers(), loadBankCases()]).catch((err) => console.error('初始化失败:', err))
 })
 
-// 加载律师列表（复用现有接口）
+// 加载律师列表
 const loadLawyers = async () => {
   try {
     const res = await axios.get('http://127.0.0.1:8002/cases/users/lawyers')
@@ -134,7 +289,7 @@ const loadLawyers = async () => {
   }
 }
 
-// 核心：加载银行案件列表（调用新增的bank_cases接口）
+// 加载银行案件列表
 const loadBankCases = async () => {
   tableLoading.value = true
   try {
@@ -144,7 +299,8 @@ const loadBankCases = async () => {
         role: currentUserRole.value,
         skip: (page.value - 1) * pageSize.value,
         limit: pageSize.value,
-        keyword: searchKeyword.value, // 传递搜索关键词
+        keyword: searchKeyword.value,
+        year: selectedYear.value || '', // 增加年份筛选
         ...(currentUserRole.value === 'admin' || currentUserRole.value === 'owner'
           ? { main_lawyer_id: selectedLawyerId.value }
           : {}),
@@ -179,7 +335,7 @@ const viewCase = (row) => {
   const routeData = router.resolve({
     path: `/main/cases/${row.case_id}`,
     query: {
-      from: '/main/cases/bank_cases', // 来源是银行案件页面
+      from: '/main/cases/bank_cases',
     },
   })
   window.open(routeData.href, '_blank')
@@ -219,35 +375,164 @@ const deleteCase = async (caseId) => {
   try {
     await axios.delete(`http://127.0.0.1:8002/cases/case_delete/${caseId}`)
     ElMessage.success('删除案件成功')
-    await loadBankCases() // 刷新列表
+    await loadBankCases()
   } catch (err) {
     console.error('删除案件失败:', err)
     ElMessage.error('删除案件失败，请重试')
   }
 }
 
-// -------------------------- 导出Excel表格 --------------------------
-const handleExportClick = async () => {
+// -------------------------- 下载审批表 --------------------------
+const handleDownloadApproval = async (row) => {
   try {
-    // 1️⃣ 发起请求到后端接口
-    const response = await axios.get('http://127.0.0.1:8002/cases/export/bank_cases', {
+    ElMessage.info('正在生成审批表，请稍候...')
+
+    const response = await axios.get(
+      `http://127.0.0.1:8002/case_review/${row.case_id}/approval_form`,
+      {
+        responseType: 'blob',
+      },
+    )
+
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    })
+
+    const link = document.createElement('a')
+    link.href = window.URL.createObjectURL(blob)
+    link.download = `案件审批表_${row.case_number}.docx`
+
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(link.href)
+
+    ElMessage.success('下载成功')
+  } catch (error) {
+    console.error('下载审批表失败:', error)
+    ElMessage.error('下载审批表失败，请稍后重试')
+  }
+}
+
+// -------------------------- 独立上传附件逻辑 --------------------------
+const uploadDialogVisible = ref(false)
+const isUploadingAttachments = ref(false)
+const attachmentFileList = ref([])
+const currentUploadCaseId = ref(null)
+const currentUploadCaseNumber = ref('')
+
+// 点击列表中的“上传附件”按钮
+const handleUploadClick = (row) => {
+  currentUploadCaseId.value = row.case_id
+  currentUploadCaseNumber.value = row.case_number
+  attachmentFileList.value = [] // 清空旧文件列表
+  uploadDialogVisible.value = true
+}
+
+// 监听文件选择变化
+const handleAttachmentChange = (file, fileList) => {
+  attachmentFileList.value = fileList
+}
+
+// 监听文件移除
+const handleAttachmentRemove = (file, fileList) => {
+  attachmentFileList.value = fileList
+}
+
+// 重置弹窗状态
+const resetUploadDialog = () => {
+  attachmentFileList.value = []
+  isUploadingAttachments.value = false
+}
+
+// 提交上传
+const submitAttachments = async () => {
+  if (attachmentFileList.value.length === 0) {
+    ElMessage.warning('请先选择要上传的文件')
+    return
+  }
+
+  isUploadingAttachments.value = true
+
+  try {
+    const uploadPromises = attachmentFileList.value.map((file) => {
+      const formData = new FormData()
+      formData.append('case_id', currentUploadCaseId.value)
+      formData.append('uploaded_by', currentUserID.value)
+      formData.append('file', file.raw)
+
+      return axios.post('http://127.0.0.1:8002/attachments/', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+    })
+
+    await Promise.all(uploadPromises)
+
+    ElMessage.success(`成功上传 ${attachmentFileList.value.length} 个附件`)
+    uploadDialogVisible.value = false
+  } catch (error) {
+    console.error('附件上传失败:', error)
+    ElMessage.error('部分或全部附件上传失败，请重试')
+  } finally {
+    isUploadingAttachments.value = false
+  }
+}
+
+// -------------------------- 导出Excel表格 (弹窗模式) --------------------------
+const showExportDialog = ref(false)
+const isExporting = ref(false)
+
+// 导出表单数据
+const exportForm = reactive({
+  keyword: '',
+  main_lawyer_id: null,
+  year: '',
+  dateRange: [],
+})
+
+// 打开导出弹窗，同步当前的筛选状态
+const handleExportClick = () => {
+  exportForm.keyword = searchKeyword.value || ''
+  exportForm.main_lawyer_id = selectedLawyerId.value || null
+  exportForm.year = selectedYear.value || ''
+  exportForm.dateRange = []
+  showExportDialog.value = true
+}
+
+// 确认导出
+const submitExport = async () => {
+  try {
+    isExporting.value = true
+
+    // 构建符合后端的 CaseExportQuery 的 payload
+    // 注意这里强制锁定 case_category: '银行案件'
+    const payload = {
+      keyword: exportForm.keyword || null,
+      case_category: '银行案件',
+      main_lawyer_id: exportForm.main_lawyer_id || null,
+      year: exportForm.year || null,
+      start_date:
+        exportForm.dateRange && exportForm.dateRange.length === 2 ? exportForm.dateRange[0] : null,
+      end_date:
+        exportForm.dateRange && exportForm.dateRange.length === 2 ? exportForm.dateRange[1] : null,
+    }
+
+    // 调用与总库一样的 export 接口
+    const response = await axios.post('http://127.0.0.1:8002/cases/export', payload, {
       params: {
         user_id: currentUserID.value,
         role: currentUserRole.value,
       },
-      responseType: 'blob', // 告诉 axios 返回文件流
+      responseType: 'blob',
     })
 
-    // 2️⃣ 创建下载链接
     const blob = new Blob([response.data], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     })
-
     const downloadUrl = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = downloadUrl
 
-    // 3️⃣ 动态生成文件名（使用当前时间）
     const timestamp = new Date()
       .toLocaleString('zh-CN', {
         year: 'numeric',
@@ -259,44 +544,33 @@ const handleExportClick = async () => {
       .replace(/\D/g, '')
     link.download = `银行案件数据_${timestamp}.xlsx`
 
-    // 4️⃣ 触发下载
     link.click()
     window.URL.revokeObjectURL(downloadUrl)
 
     ElMessage.success('Excel 文件导出成功 ✅')
+    showExportDialog.value = false
   } catch (error) {
     console.error('导出Excel失败：', error)
-    ElMessage.error('导出失败，请稍后重试 ❌')
+    ElMessage.error('导出失败，请检查网络或稍后重试 ❌')
+  } finally {
+    isExporting.value = false
   }
 }
 
-// 日期格式化（复用现有函数）
+// 日期格式化
 const formatDate = (dateVal) => {
   if (!dateVal) return ''
 
   let timestamp
 
-  // 处理时间戳（数字类型）
   if (typeof dateVal === 'number') {
-    // 处理秒级时间戳（如果是10位数字）
     if (dateVal.toString().length === 10) {
       dateVal *= 1000
     }
     timestamp = dateVal
-  }
-  // 处理字符串类型
-  else if (typeof dateVal === 'string') {
-    // 尝试多种常见格式转换
-    const formats = [
-      // 尝试不添加Z的情况（本地时间）
-      dateVal.replace(' ', 'T'),
-      // 尝试添加Z的情况（UTC时间）
-      dateVal.replace(' ', 'T') + 'Z',
-      // 尝试直接解析原始字符串
-      dateVal,
-    ]
+  } else if (typeof dateVal === 'string') {
+    const formats = [dateVal.replace(' ', 'T'), dateVal.replace(' ', 'T') + 'Z', dateVal]
 
-    // 尝试各种格式，找到能正确解析的
     for (const fmt of formats) {
       const tempDate = new Date(fmt)
       if (!isNaN(tempDate.getTime())) {
@@ -304,13 +578,10 @@ const formatDate = (dateVal) => {
         break
       }
     }
-  }
-  // 处理Date对象
-  else if (dateVal instanceof Date) {
+  } else if (dateVal instanceof Date) {
     timestamp = dateVal.getTime()
   }
 
-  // 验证时间戳是否有效
   if (timestamp === undefined || isNaN(timestamp)) {
     console.warn('无法解析的日期格式:', dateVal)
     return '无效日期'
@@ -318,8 +589,6 @@ const formatDate = (dateVal) => {
 
   const date = new Date(timestamp)
 
-  // 使用toLocaleString()同时显示日期和时间
-  // 可以通过参数自定义格式，例如：
   return date.toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
@@ -327,7 +596,7 @@ const formatDate = (dateVal) => {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: false, // 24小时制
+    hour12: false,
   })
 }
 </script>
@@ -340,5 +609,65 @@ const formatDate = (dateVal) => {
   margin-bottom: 16px;
   padding-bottom: 8px;
   border-bottom: 1px solid #eee;
+}
+
+/* 上传弹窗样式优化 */
+.upload-container {
+  padding: 0 10px;
+}
+
+.case-info-bar {
+  display: flex;
+  align-items: center;
+  background-color: #f0f9eb;
+  border: 1px solid #e1f3d8;
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  color: #67c23a;
+}
+
+.case-info-bar .el-icon {
+  font-size: 18px;
+  margin-right: 8px;
+}
+
+.case-info-bar .label {
+  font-weight: bold;
+  margin-right: 8px;
+}
+
+.case-info-bar .value {
+  font-family: monospace;
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+}
+
+.upload-demo {
+  text-align: center;
+}
+
+.el-upload__tip {
+  margin-top: 10px;
+  color: #909399;
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: left;
+  background-color: #f4f4f5;
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+
+.el-upload__tip p {
+  margin: 0;
+}
+
+/* 表单辅助提示文字 */
+.form-tip.text-muted {
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.4;
+  margin-top: 4px;
 }
 </style>

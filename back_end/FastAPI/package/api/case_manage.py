@@ -1,7 +1,7 @@
 # api/case_manage.py
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import StreamingResponse
-from sqlalchemy import or_
+from collections import defaultdict
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -10,12 +10,12 @@ from decimal import Decimal
 from ..database.database import get_db
 from ..models.case import Case, CaseParty
 from ..schemas.user import UserOut
-from ..schemas.case import CaseOut, CasePageOut, CaseSimpleOut, CaseCreate, CaseUpdate
+from ..schemas.case import CaseOut, CasePageOut, CaseSimpleOut, CaseCreate, CaseUpdate, CaseExportQuery
 
 from ..crud.user import get_all_lawyers, get_user_id_by_name
 from ..crud.case import list_cases_by_user_role, get_case_by_id, count_cases_by_user_role, create_case, update_case, \
     delete_case, export_cases_by_user_role, list_bank_cases_by_user_role, count_bank_cases_by_user_role, \
-    export_bank_cases_by_user_role, split_with_separators
+    export_bank_cases_by_user_role, split_with_separators, export_cases_to_excel
 
 from io import BytesIO
 from urllib.parse import quote
@@ -81,6 +81,7 @@ def get_bank_cases(
     limit: int = 100,
     keyword: Optional[str] = None,  # 新增搜索关键词参数
     main_lawyer_id: Optional[int] = None,
+    year: Optional[str] = None,
     sort_field: Optional[str] = "created_at",  # 排序参数
     sort_dir: Optional[str] = "desc",  # 排序方式
     db: Session = Depends(get_db)
@@ -96,6 +97,7 @@ def get_bank_cases(
         limit=limit,
         keyword=keyword,
         main_lawyer_id=main_lawyer_id,
+        year=year,
         sort_field=sort_field,
         sort_dir=sort_dir,
     )
@@ -105,255 +107,34 @@ def get_bank_cases(
         role=role,
         keyword=keyword,  # 传递给统计函数
         main_lawyer_id=main_lawyer_id,
+        year=year,
     )
     cases_simple = [CaseSimpleOut.model_validate(c) for c in cases]
     return {"items": cases_simple, "total": total}
 
 
 # 5️⃣ 导出案件表格
-@router.get("/export/all", response_class=StreamingResponse)
+@router.post("/export", response_class=StreamingResponse)
 def export_cases(
         user_id: int,
         role: str,
+        query: CaseExportQuery,
         db: Session = Depends(get_db)
 ):
-    """导出案件数据为Excel"""
-    # 1. 获取数据
-    cases = export_cases_by_user_role(db, user_id, role)
-    if not cases:
-        raise HTTPException(status_code=404, detail="无符合条件的案件数据")
+    """
+    根据筛选条件导出案件明细 (支持分Sheet导出普通案件和银行案件)
+    """
+    excel_io = export_cases_to_excel(db, user_id, role, query)
 
-    # 2. 创建Excel
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "案件列表"
-
-    # 3. 设置表头
-    headers = [
-        "案件ID", "案件号", "委托日期", "委托人", "委托人身份证号/单位税号", "委托人电话",
-        "案件类别", "案件来源", "收费方式", "风险比例", "案件收入",
-        "付款到期日", "案由", "介入阶段", "原告/申请人/侦察机关/检察院", "上诉人或第三人",
-        "被上诉人", "被告(人)", "代理权限", "审理法院", "开庭时间", "立案日",
-        "结案时间", "案件地点", "案件详情",
-        "主办律师", "助理律师", "执行主办律师", "执行助理律师",
-        "案件审核状态", "是否重大", "是否纸质卷宗", "是否解除", "是否笔录", "是否保全",
-        "是否删除", "保全开始日", "保全终止日",
-        "案号", "结案状态", "结案方式",
-        "诉讼费缴费时间", "诉讼费缴费金额", "诉讼费退费时间", "诉讼费退费金额",
-        "申请执行日", "调解到期日", "执行到期日",
-        "创建时间", "更新时间"
-    ]
-    ws.append(headers)
-
-    # 4. 设置表头样式
-    for cell in ws[1]:
-        cell.font = Font(bold=True)
-        cell.alignment = Alignment(horizontal="center")
-
-    # 5. 填充数据
-    for case in cases:
-        ws.append([
-            case.case_id,
-            case.case_number,
-            case.commission_date.strftime("%Y-%m-%d") if case.commission_date else "",
-            case.client_name,
-            case.client_id_number or "",
-            case.client_phone or "",
-            case.case_category,
-            case.case_source or "",
-            case.fee_method or "",
-            case.risk_ratio or "",
-            str(case.case_income or 0),
-            case.payment_due_date.strftime("%Y-%m-%d") if case.payment_due_date else "",
-            case.cause or "",
-            case.stage or "",
-            case.plaintiff or "",
-            case.appellant_info or "",
-            case.extra_appellant_info or "",
-            case.defendant or "",
-            case.agency_power or "",
-            case.court or "",
-            case.hearing_date.strftime("%Y-%m-%d") if case.hearing_date else "",
-            case.filing_date.strftime("%Y-%m-%d") if case.filing_date else "",
-            case.closing_date.strftime("%Y-%m-%d") if case.closing_date else "",
-            case.location or "",
-            case.details or "",
-            case.main_lawyer.real_name if case.main_lawyer else "",
-            case.assistant_lawyer.real_name if case.assistant_lawyer else "",
-            case.execution_lawyer.real_name if case.execution_lawyer else "",
-            case.execution_assistant.real_name if case.execution_assistant else "",
-            case.review_status,
-            "是" if case.is_major else "否",
-            "是" if case.has_paper_file else "否",
-            "是" if case.is_dismissed else "否",
-            "是" if case.has_record else "否",
-            "是" if case.has_preservation else "否",
-            "是" if case.is_deleted else "否",
-            case.preservation_start.strftime("%Y-%m-%d") if case.preservation_start else "",
-            case.preservation_end.strftime("%Y-%m-%d") if case.preservation_end else "",
-            case.case_code or "",
-            case.closing_status or "",
-            case.closing_method or "",
-            case.litigation_fee_payment_date.strftime("%Y-%m-%d") if case.litigation_fee_payment_date else "",
-            str(case.litigation_fee_payment_amount or 0),
-            case.litigation_fee_refund_date.strftime("%Y-%m-%d") if case.litigation_fee_refund_date else "",
-            str(case.litigation_fee_refund_amount or 0),
-            case.execution_application_date.strftime("%Y-%m-%d") if case.execution_application_date else "",
-            case.mediation_due_date.strftime("%Y-%m-%d") if case.mediation_due_date else "",
-            case.execution_due_date.strftime("%Y-%m-%d") if case.execution_due_date else "",
-            case.created_at.strftime("%Y-%m-%d %H:%M") if case.created_at else "",
-            case.updated_at.strftime("%Y-%m-%d %H:%M") if case.updated_at else ""
-        ])
-
-    # 6. 调整列宽
-    for col in ws.columns:
-        max_length = 0
-        column = col[0].column_letter  # 获取列字母
-        for cell in col:
-            try:
-                if len(str(cell.value)) > max_length:
-                    max_length = len(str(cell.value))
-            except:
-                pass
-        adjusted_width = (max_length + 2) * 1.2
-        ws.column_dimensions[column].width = adjusted_width
-
-    # 7. 保存到内存
-    buffer = BytesIO()
-    wb.save(buffer)
-    buffer.seek(0)
-
-    # 8. 返回文件流
-    filename = f"案件数据_{datetime.now().strftime('%Y%m%d%H%M')}.xlsx"
+    filename = f"业务数据明细_{datetime.now().strftime('%Y%m%d%H%M')}.xlsx"
     encoded_filename = quote(filename)
+
     return StreamingResponse(
-        buffer,
+        excel_io,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
-        }
-    )
-
-@router.get("/export/bank_cases", response_class=StreamingResponse)
-def export_cases(
-        user_id: int,
-        role: str,
-        db: Session = Depends(get_db)
-):
-    """导出银行案件数据为Excel"""
-    # 1. 获取数据
-    cases = export_bank_cases_by_user_role(db, user_id, role)
-    if not cases:
-        raise HTTPException(status_code=404, detail="无符合条件的案件数据")
-
-    # 2. 创建Excel
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "案件列表"
-
-    # 3. 设置表头
-    headers = [
-        "案件ID", "案件号", "委托日期", "委托人", "委托人身份证号/单位税号", "委托人电话",
-        "案件类别", "案件来源", "收费方式", "风险比例", "案件收入",
-        "付款到期日", "案由", "介入阶段", "原告/申请人/侦察机关/检察院", "上诉人或第三人",
-        "被上诉人", "被告(人)", "代理权限", "审理法院", "开庭时间", "立案日",
-        "结案时间", "案件地点", "案件详情",
-        "主办律师", "助理律师", "执行主办律师", "执行助理律师",
-        "案件审核状态", "是否重大", "是否纸质卷宗", "是否解除", "是否笔录", "是否保全",
-        "是否删除", "保全开始日", "保全终止日",
-        "案号", "结案状态", "结案方式",
-        "诉讼费缴费时间", "诉讼费缴费金额", "诉讼费退费时间", "诉讼费退费金额",
-        "申请执行日", "调解到期日", "执行到期日",
-        "创建时间", "更新时间"
-    ]
-    ws.append(headers)
-
-    # 4. 设置表头样式
-    for cell in ws[1]:
-        cell.font = Font(bold=True)
-        cell.alignment = Alignment(horizontal="center")
-
-    # 5. 填充数据
-    for case in cases:
-        ws.append([
-            case.case_id,
-            case.case_number,
-            case.commission_date.strftime("%Y-%m-%d") if case.commission_date else "",
-            case.client_name,
-            case.client_id_number or "",
-            case.client_phone or "",
-            case.case_category,
-            case.case_source or "",
-            case.fee_method or "",
-            case.risk_ratio or "",
-            str(case.case_income or 0),
-            case.payment_due_date.strftime("%Y-%m-%d") if case.payment_due_date else "",
-            case.cause or "",
-            case.stage or "",
-            case.plaintiff or "",
-            case.appellant_info or "",
-            case.extra_appellant_info or "",
-            case.defendant or "",
-            case.agency_power or "",
-            case.court or "",
-            case.hearing_date.strftime("%Y-%m-%d") if case.hearing_date else "",
-            case.filing_date.strftime("%Y-%m-%d") if case.filing_date else "",
-            case.closing_date.strftime("%Y-%m-%d") if case.closing_date else "",
-            case.location or "",
-            case.details or "",
-            case.main_lawyer.real_name if case.main_lawyer else "",
-            case.assistant_lawyer.real_name if case.assistant_lawyer else "",
-            case.execution_lawyer.real_name if case.execution_lawyer else "",
-            case.execution_assistant.real_name if case.execution_assistant else "",
-            case.review_status,
-            "是" if case.is_major else "否",
-            "是" if case.has_paper_file else "否",
-            "是" if case.is_dismissed else "否",
-            "是" if case.has_record else "否",
-            "是" if case.has_preservation else "否",
-            "是" if case.is_deleted else "否",
-            case.preservation_start.strftime("%Y-%m-%d") if case.preservation_start else "",
-            case.preservation_end.strftime("%Y-%m-%d") if case.preservation_end else "",
-            case.case_code or "",
-            case.closing_status or "",
-            case.closing_method or "",
-            case.litigation_fee_payment_date.strftime("%Y-%m-%d") if case.litigation_fee_payment_date else "",
-            str(case.litigation_fee_payment_amount or 0),
-            case.litigation_fee_refund_date.strftime("%Y-%m-%d") if case.litigation_fee_refund_date else "",
-            str(case.litigation_fee_refund_amount or 0),
-            case.execution_application_date.strftime("%Y-%m-%d") if case.execution_application_date else "",
-            case.mediation_due_date.strftime("%Y-%m-%d") if case.mediation_due_date else "",
-            case.execution_due_date.strftime("%Y-%m-%d") if case.execution_due_date else "",
-            case.created_at.strftime("%Y-%m-%d %H:%M") if case.created_at else "",
-            case.updated_at.strftime("%Y-%m-%d %H:%M") if case.updated_at else ""
-        ])
-
-    # 6. 调整列宽
-    for col in ws.columns:
-        max_length = 0
-        column = col[0].column_letter  # 获取列字母
-        for cell in col:
-            try:
-                if len(str(cell.value)) > max_length:
-                    max_length = len(str(cell.value))
-            except:
-                pass
-        adjusted_width = (max_length + 2) * 1.2
-        ws.column_dimensions[column].width = adjusted_width
-
-    # 7. 保存到内存
-    buffer = BytesIO()
-    wb.save(buffer)
-    buffer.seek(0)
-
-    # 8. 返回文件流
-    filename = f"案件数据_{datetime.now().strftime('%Y%m%d%H%M')}.xlsx"
-    encoded_filename = quote(filename)
-    return StreamingResponse(
-        buffer,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
+            "Access-Control-Expose-Headers": "Content-Disposition"
         }
     )
 
@@ -607,173 +388,221 @@ def check_interest_conflict(
 
     return {"has_conflict": False, "details": []}
 
+
 @router.post("/import", status_code=200)
 def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
-    📦 批量导入案件接口
-    Import multiple cases from uploaded Excel file.
+    📦 批量导入案件接口 (V3: 双Sheet关联模式，完美适配 CaseParty 结构)
     """
-    # ---------------- 1️⃣ 读取Excel文件 ----------------
     try:
-        # 验证文件格式
         if not file.filename.endswith(('.xlsx', '.xls')):
             raise HTTPException(status_code=400, detail="仅支持.xlsx和.xls格式的Excel文件")
 
-        wb = load_workbook(filename=BytesIO(file.file.read()), data_only=True)  # data_only确保读取单元格值而非公式
-        ws = wb.active
+        wb = load_workbook(filename=BytesIO(file.file.read()), data_only=True)
+
+        # 校验两个必须的 Sheet
+        if "案件列表" not in wb.sheetnames or "当事人列表" not in wb.sheetnames:
+            raise HTTPException(status_code=400, detail="Excel模板错误：必须包含'案件列表'和'当事人列表'两个工作表")
+
+        ws_cases = wb["案件列表"]
+        ws_parties = wb["当事人列表"]
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"无法读取Excel文件：{str(e)}")
     finally:
-        file.file.close()  # 确保文件流关闭
+        file.file.close()
 
-    headers = [str(cell.value).strip() if cell.value else "" for cell in ws[1]]  # 获取表头并标准化
-    # 校验表头（与导出字段严格匹配）
-    required_cols = ["案件号", "委托日期", "委托人", "案件类别", "主办律师"]
+    # ---------------- 1. 解析【当事人列表】 ----------------
+    parties_headers = [str(cell.value).strip() if cell.value else "" for cell in ws_parties[1]]
+    parties_dict = defaultdict(list)  # 格式: { "案件号": [party1, party2, ...] }
+
+    for row in ws_parties.iter_rows(min_row=2, values_only=True):
+        p_row = dict(zip(parties_headers, row))
+        link_case_no = str(p_row.get("关联案件号", "")).strip()
+        p_type = str(p_row.get("当事人类型", "")).strip()
+        p_name = str(p_row.get("姓名/名称", "")).strip()
+
+        # 如果缺少关联号、类型或姓名，则跳过该当事人
+        if not link_case_no or not p_type or not p_name:
+            continue
+
+        parties_dict[link_case_no].append({
+            "party_type": p_type,
+            "name": p_name,
+            "phone": str(p_row.get("联系电话", "")).strip() or None,
+            "id_number": str(p_row.get("身份证号/统一社会信用代码", "")).strip() or None,
+            "address": str(p_row.get("联系地址", "")).strip() or None,
+            "legal_representative": str(p_row.get("法定代表人", "")).strip() or None,
+        })
+
+    # ---------------- 2. 解析【案件列表】 ----------------
+    cases_headers = [str(cell.value).strip() if cell.value else "" for cell in ws_cases[1]]
+
+    required_cols = ["案件号", "委托日期", "案件类别", "主办律师"]
     for col in required_cols:
-        if col not in headers:
-            raise HTTPException(status_code=400, detail=f"Excel表头缺少必要字段：{col}")
+        if col not in cases_headers:
+            raise HTTPException(status_code=400, detail=f"'案件列表'工作表缺少必要字段：{col}")
 
     total_rows = 0
     success_rows = 0
-    failed_cases = []  # 存储失败详情（案件号+原因）
+    failed_cases = []
 
-    # ---------------- 2️⃣ 遍历Excel数据行 ----------------
-    for row in ws.iter_rows(min_row=2, values_only=True):
+    def parse_date(date_value):
+        if not date_value: return None
+        if isinstance(date_value, str):
+            try:
+                return datetime.strptime(date_value, "%Y-%m-%d").date()
+            except ValueError:
+                return None
+        return date_value
+
+    def parse_decimal(value):
+        if not value: return 0
+        try:
+            return Decimal(str(value).replace(",", ""))
+        except:
+            return 0
+
+    for row in ws_cases.iter_rows(min_row=2, values_only=True):
+        # 检查是否为空行（依据案件号判断）
+        if not row[0]:
+            continue
+
         total_rows += 1
-        row_data = dict(zip(headers, row))
-        case_number = row_data.get("案件号") or f"第{total_rows}行"
+        row_data = dict(zip(cases_headers, row))
+
+        case_number = str(row_data.get("案件号", "")).strip()
 
         try:
-            # ⚙️ 律师信息转换（姓名转ID）
+            # 获取律师ID
             main_lawyer_id = get_user_id_by_name(db, row_data.get("主办律师"))
-            assistant_lawyer_id = get_user_id_by_name(db, row_data.get("助理律师"))
-            execution_lawyer_id = get_user_id_by_name(db, row_data.get("执行主办律师"))
-            execution_assistant_id = get_user_id_by_name(db, row_data.get("执行助理律师"))
-
-            # 验证主办律师必须存在
             if not main_lawyer_id:
-                failed_cases.append({
-                    "case_number": case_number,
-                    "reason": f"主办律师不存在：{row_data.get('主办律师')}"
-                })
+                failed_cases.append(
+                    {"case_number": case_number, "reason": f"主办律师不存在：{row_data.get('主办律师')}"})
                 continue
 
-            # 验证案件号唯一性
-            existing_case = db.query(Case).filter(
-                Case.case_number == str(row_data.get("案件号")).strip(),
-                Case.is_deleted == False
-            ).first()
-            if existing_case:
-                failed_cases.append({
-                    "case_number": case_number,
-                    "reason": "案件号已存在"
-                })
-                continue
+            # ---------------- 3. 解析银行案件专属字段 ----------------
+            case_category = str(row_data.get("案件类别", "")).strip()
+            bank_details = None
 
-            # 📅 日期字段处理（兼容Excel日期格式和字符串）
-            def parse_date(date_value):
-                if not date_value:
-                    return None
-                if isinstance(date_value, str):
-                    try:
-                        from datetime import datetime
-                        return datetime.strptime(date_value, "%Y-%m-%d").date()
-                    except ValueError:
-                        return None
-                return date_value  # 已为date类型
+            if case_category == "银行案件":
+                bank_details = {
+                    "branch_name": str(row_data.get("支行名称", "")).strip() or None,
+                    "collateral_info": str(row_data.get("抵/质押物信息", "")).strip() or None,
+                    "collateral_location": str(row_data.get("抵押物位置", "")).strip() or None,
+                    "account_manager": str(row_data.get("客户经理", "")).strip() or None,
+                    "loan_type": str(row_data.get("贷款类型", "")).strip() or None,
+                    "loan_account": str(row_data.get("贷款账号", "")).strip() or None,
+                    "loan_principal": parse_decimal(row_data.get("贷款本金")),
+                    "litigation_target_amount": parse_decimal(row_data.get("诉讼标的金额(含利息)")),
+                    "credit_card_penalty": parse_decimal(row_data.get("信用卡违约金")),
+                    "loan_date": parse_date(row_data.get("借款日")),
+                    "loan_due_date": parse_date(row_data.get("到期日")),
+                    "statute_of_limitations": parse_date(row_data.get("诉讼时效")),
+                    "case_acceptance_date": parse_date(row_data.get("收案日期")),
+                    "material_fetcher": str(row_data.get("取材料人", "")).strip() or None,
+                    "pre_litigation_collection": str(row_data.get("诉前催收情况", "")).strip() or None,
+                    "seal_date": parse_date(row_data.get("盖章日")),
+                    "material_submission_date": parse_date(row_data.get("材料提交法院日")),
+                    "handling_judge": str(row_data.get("承办法官", "")).strip() or None,
+                    "judgment_date": parse_date(row_data.get("裁判时间")),
+                    "judgment_method": str(row_data.get("裁判方式", "")).strip() or None,
+                    "judgment_summary": str(row_data.get("裁判摘要", "")).strip() or None,
+                    "lawyer_fee_supported": parse_decimal(row_data.get("支持律师费金额")),
+                    "defendant_paid_lawyer_fee": parse_decimal(row_data.get("被告支付律师费金额")),
+                    "is_settled": (str(row_data.get("是否还清", "")).strip() == "是"),
+                    "has_second_instance_or_retrial": (str(row_data.get("是否有二审/再审", "")).strip() == "是"),
+                    "execution_case_number": str(row_data.get("执行案号", "")).strip() or None,
+                    "execution_filing_date": parse_date(row_data.get("执行立案时间")),
+                    "execution_judge": str(row_data.get("执行法官", "")).strip() or None,
+                    "borrower_work_unit": str(row_data.get("借款人工作单位", "")).strip() or None,
+                    "is_execution_recovery": (str(row_data.get("是否为恢复执行", "")).strip() == "是"),
+                    "execution_material_receipt_date": parse_date(row_data.get("收取执行材料时间")),
+                    "execution_material_submission_date": parse_date(row_data.get("执行材料提交法院时间")),
+                    "execution_principal": parse_decimal(row_data.get("执行本金金额")),
+                    "execution_lawyer_fee": parse_decimal(row_data.get("执行律师费金额")),
+                    "property_investigation": str(row_data.get("财产调查情况", "")).strip() or None,
+                    "network_control_status": str(row_data.get("网络查控财产情况", "")).strip() or None,
+                    "execution_plan": str(row_data.get("承办人执行方案", "")).strip() or None,
+                    "court_execution_measures": str(row_data.get("法院执行措施", "")).strip() or None,
+                    "seizure_freeze_date": parse_date(row_data.get("查封冻结时间")),
+                    "auction_status": str(row_data.get("拍卖程序", "")).strip() or None,
+                    "auction_deal_price": parse_decimal(row_data.get("拍卖变卖成交价")),
+                    "execution_settlement_content": str(row_data.get("执行和解内容", "")).strip() or None,
+                    "procedure_termination_date": parse_date(row_data.get("终本时间")),
+                    "termination_reason": str(row_data.get("终本原因", "")).strip() or None,
+                    "execution_conclusion_date": parse_date(row_data.get("终结执行时间")),
+                    "execution_recovery_date": parse_date(row_data.get("恢复执行时间")),
+                    "payoff_date": parse_date(row_data.get("还清时间")),
+                    "execution_collection_amount": parse_decimal(row_data.get("执行回款总金额")),
+                    "collection_source": str(row_data.get("执行回款来源", "")).strip() or None,
+                    "mediation_tracking": str(row_data.get("调解案件履行跟踪情况", "")).strip() or None,
+                }
 
-            # 💰 数字字段处理
-            def parse_decimal(value):
-                if not value:
-                    return 0
-                try:
-                    return Decimal(str(value).replace(",", ""))  # 处理千分位符号
-                except:
-                    return 0
+            # ---------------- 4. 组装 CaseCreate ----------------
+            # 💡 核心：通过 case_number 从字典中提取对应的当事人列表
+            matched_parties = parties_dict.get(case_number, [])
 
-            # 🧱 构造完整CaseCreate数据模型（补全所有字段）
             new_case = CaseCreate(
-                # 基本信息
+                case_number=case_number,  # 必须传入以保持关联
                 commission_date=parse_date(row_data.get("委托日期")),
-                client_name=str(row_data.get("委托人")).strip() if row_data.get("委托人") else None,
-                client_id_number=str(row_data.get("委托人身份证号/单位税号")).strip() if row_data.get(
-                    "委托人身份证号/单位税号") else None,
-                client_phone=str(row_data.get("委托人电话")).strip() if row_data.get("委托人电话") else None,
-                case_category=str(row_data.get("案件类别")).strip() if row_data.get("案件类别") else None,
-                case_source=str(row_data.get("案件来源")).strip() if row_data.get("案件来源") else None,
-                fee_method=str(row_data.get("收费方式")).strip() if row_data.get("收费方式") else None,
-                risk_ratio=str(row_data.get("风险比例")).strip() if row_data.get("风险比例") else None,
-                case_income=parse_decimal(row_data.get("案件收入")),
+                case_category=case_category,
+                parties=matched_parties,  # 将关联的当事人列表直接塞入
+                bank_case_details=bank_details,
 
-                # 诉讼相关
+                case_source=str(row_data.get("案件来源", "")).strip() or None,
+                fee_method=str(row_data.get("收费方式", "")).strip() or None,
+                risk_ratio=str(row_data.get("风险比例", "")).strip() or None,
+                case_income=parse_decimal(row_data.get("案件收入")),
                 payment_due_date=parse_date(row_data.get("付款到期日")),
-                cause=str(row_data.get("案由")).strip() if row_data.get("案由") else None,
-                stage=str(row_data.get("介入阶段")).strip() if row_data.get("介入阶段") else None,
-                plaintiff=str(row_data.get("原告/申请人/侦察机关/检察院")).strip() if row_data.get("原告/申请人") else None,
-                appellant_info=str(row_data.get("上诉人或第三人")).strip() if row_data.get(
-                    "上诉人或第三人") else None,
-                extra_appellant_info=str(row_data.get("被上诉人")).strip() if row_data.get(
-                    "被上诉人") else None,
-                defendant=str(row_data.get("被告(人)")).strip() if row_data.get("被告(人)") else None,
-                agency_power=str(row_data.get("代理权限")).strip() if row_data.get("代理权限") else None,
-                court=str(row_data.get("审理法院")).strip() if row_data.get("审理法院") else None,
+                cause=str(row_data.get("案由", "")).strip() or None,
+                stage=str(row_data.get("介入阶段", "")).strip() or None,
+                agency_power=str(row_data.get("代理权限", "")).strip() or None,
+                court=str(row_data.get("审理法院", "")).strip() or None,
                 hearing_date=parse_date(row_data.get("开庭时间")),
                 filing_date=parse_date(row_data.get("立案日")),
                 closing_date=parse_date(row_data.get("结案时间")),
-                location=str(row_data.get("案件地点")).strip() if row_data.get("案件地点") else None,
-                details=str(row_data.get("案件详情")).strip() if row_data.get("案件详情") else None,
+                location=str(row_data.get("案件地点", "")).strip() or None,
+                details=str(row_data.get("案件详情", "")).strip() or None,
 
-                # 律师信息
                 main_lawyer_id=main_lawyer_id,
-                assistant_lawyer_id=assistant_lawyer_id,
-                execution_lawyer_id=execution_lawyer_id,
-                execution_assistant_id=execution_assistant_id,
+                assistant_lawyer_id=get_user_id_by_name(db, row_data.get("助理律师")),
+                execution_lawyer_id=get_user_id_by_name(db, row_data.get("执行主办律师")),
+                execution_assistant_id=get_user_id_by_name(db, row_data.get("执行助理律师")),
 
-                # 状态与标记
-                is_major=(str(row_data.get("是否重大")).strip() == "是"),
-                has_paper_file=(str(row_data.get("是否纸质卷宗")).strip() == "是"),
-                is_dismissed=(str(row_data.get("是否解除")).strip() == "是"),
-                has_record=(str(row_data.get("是否笔录")).strip() == "是"),
-                has_preservation=(str(row_data.get("是否保全")).strip() == "是"),
+                is_major=(str(row_data.get("是否重大", "")).strip() == "是"),
+                has_paper_file=(str(row_data.get("是否纸质卷宗", "")).strip() == "是"),
+                is_dismissed=(str(row_data.get("是否解除", "")).strip() == "是"),
+                has_record=(str(row_data.get("是否笔录", "")).strip() == "是"),
+                has_preservation=(str(row_data.get("是否保全", "")).strip() == "是"),
                 preservation_start=parse_date(row_data.get("保全开始日")),
                 preservation_end=parse_date(row_data.get("保全终止日")),
 
-                # 结案与执行
-                case_code=str(row_data.get("案号")).strip() if row_data.get("案号") else None,
-                closing_status=str(row_data.get("结案状态")).strip() if row_data.get("结案状态") else None,
-                closing_method=str(row_data.get("结案方式")).strip() if row_data.get("结案方式") else None,
+                closing_status=str(row_data.get("结案状态", "")).strip() or None,
+                closing_method=str(row_data.get("结案方式", "")).strip() or None,
 
-                # 诉讼费
                 litigation_fee_payment_date=parse_date(row_data.get("诉讼费缴费时间")),
                 litigation_fee_payment_amount=parse_decimal(row_data.get("诉讼费缴费金额")),
                 litigation_fee_refund_date=parse_date(row_data.get("诉讼费退费时间")),
                 litigation_fee_refund_amount=parse_decimal(row_data.get("诉讼费退费金额")),
 
-                # 执行相关
                 execution_application_date=parse_date(row_data.get("申请执行日")),
                 mediation_due_date=parse_date(row_data.get("调解到期日")),
                 execution_due_date=parse_date(row_data.get("执行到期日"))
             )
 
-            # ---------------- 3️⃣ 保存到数据库 ----------------
-            # 注意：create_case函数已处理案件号生成，无需手动设置case_number
-            db_case = create_case(db=db, case_in=new_case)
+            # ---------------- 5. 写入数据库 ----------------
+            create_case(db=db, case_in=new_case)
             db.commit()
             success_rows += 1
 
         except SQLAlchemyError as e:
             db.rollback()
-            failed_cases.append({
-                "case_number": case_number,
-                "reason": f"数据库错误：{str(e)}"
-            })
+            failed_cases.append({"case_number": case_number, "reason": f"数据库错误：{str(e)}"})
         except Exception as e:
-            failed_cases.append({
-                "case_number": case_number,
-                "reason": f"数据处理错误：{str(e)}"
-            })
+            failed_cases.append({"case_number": case_number, "reason": f"数据处理错误：{str(e)}"})
 
-    # ---------------- 4️⃣ 返回导入结果 ----------------
     return {
         "total_cases": total_rows,
         "imported_cases": success_rows,

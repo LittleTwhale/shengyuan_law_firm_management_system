@@ -287,6 +287,91 @@
         </span>
       </template>
     </el-dialog>
+
+    <el-dialog
+      title="导出业务数据"
+      v-model="showExportDialog"
+      width="550px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="exportForm" label-width="110px">
+        <el-form-item label="搜索关键词">
+          <el-input v-model="exportForm.keyword" placeholder="按业务号/委托人搜索" clearable />
+        </el-form-item>
+
+        <el-form-item label="业务类别">
+          <el-select
+            v-model="exportForm.case_category"
+            placeholder="全部类别"
+            clearable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="category in caseCategories"
+              :key="category.value"
+              :label="category.label"
+              :value="category.value"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item
+          label="主办律师"
+          v-if="currentUserRole === 'admin' || currentUserRole === 'owner'"
+        >
+          <el-select
+            v-model="exportForm.main_lawyer_id"
+            placeholder="全部律师"
+            clearable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="lawyer in lawyers"
+              :key="lawyer.id"
+              :label="lawyer.real_name"
+              :value="lawyer.id"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="委托日期区间">
+          <el-date-picker
+            v-model="exportForm.dateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+            clearable
+          />
+          <div class="form-tip text-muted">
+            提示：若设置了精确的日期区间，下方的年份筛选将自动失效。
+          </div>
+        </el-form-item>
+
+        <el-form-item label="指定年份">
+          <el-date-picker
+            v-model="exportForm.year"
+            type="year"
+            placeholder="选择年份"
+            value-format="YYYY"
+            style="width: 100%"
+            clearable
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showExportDialog = false">取消</el-button>
+          <el-button type="primary" :loading="isExporting" @click="submitExport">
+            <el-icon v-if="!isExporting"><Download /></el-icon>
+            {{ isExporting ? '生成并导出中...' : '确认导出' }}
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -296,7 +381,7 @@ import axios from 'axios'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import CaseForm from './CaseForm.vue' // 引入抽离的CaseForm组件
 import { useRouter } from 'vue-router'
-import { Check, Document, Loading, Upload, UploadFilled } from '@element-plus/icons-vue'
+import { Check, Document, Loading, Upload, UploadFilled, Download } from '@element-plus/icons-vue' // 新增了 Download 图标
 
 // -------------------------- 当前用户数据 ----------------------------
 const currentUserID = ref(localStorage.getItem('user_id'))
@@ -608,11 +693,49 @@ const deleteCase = async (caseId) => {
   }
 }
 
-// -------------------------- 导出Excel表格 --------------------------
-const handleExportClick = async () => {
+// -------------------------- 导出Excel表格相关 --------------------------
+const showExportDialog = ref(false)
+const isExporting = ref(false)
+
+// 导出表单数据
+const exportForm = reactive({
+  keyword: '',
+  case_category: '',
+  main_lawyer_id: null,
+  year: '',
+  dateRange: [],
+})
+
+// 点击列表页的导出按钮 -> 打开弹窗，并默认带入当前列表的筛选条件
+const handleExportClick = () => {
+  exportForm.keyword = searchKeyword.value || ''
+  exportForm.case_category = selectedCategory.value || ''
+  exportForm.main_lawyer_id = selectedLawyerId.value || null
+  exportForm.year = selectedYear.value || ''
+  exportForm.dateRange = [] // 默认不设置具体日期区间
+
+  showExportDialog.value = true
+}
+
+// 确认并提交导出
+const submitExport = async () => {
   try {
-    // 1️⃣ 发起请求到后端接口
-    const response = await axios.get('http://127.0.0.1:8002/cases/export/all', {
+    isExporting.value = true
+
+    // 1️⃣ 构建请求 Payload (严格匹配后端的 CaseExportQuery 模型)
+    const payload = {
+      keyword: exportForm.keyword || null,
+      case_category: exportForm.case_category || null,
+      main_lawyer_id: exportForm.main_lawyer_id || null,
+      year: exportForm.year || null,
+      start_date:
+        exportForm.dateRange && exportForm.dateRange.length === 2 ? exportForm.dateRange[0] : null,
+      end_date:
+        exportForm.dateRange && exportForm.dateRange.length === 2 ? exportForm.dateRange[1] : null,
+    }
+
+    // 2️⃣ 发起 POST 请求 (注意使用 params 传递 URL 参数，data 传递 JSON Payload)
+    const response = await axios.post('http://127.0.0.1:8002/cases/export', payload, {
       params: {
         user_id: currentUserID.value,
         role: currentUserRole.value,
@@ -620,16 +743,15 @@ const handleExportClick = async () => {
       responseType: 'blob', // 告诉 axios 返回文件流
     })
 
-    // 2️⃣ 创建下载链接
+    // 3️⃣ 创建下载链接
     const blob = new Blob([response.data], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     })
-
     const downloadUrl = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = downloadUrl
 
-    // 3️⃣ 动态生成文件名（使用当前时间）
+    // 4️⃣ 动态生成文件名
     const timestamp = new Date()
       .toLocaleString('zh-CN', {
         year: 'numeric',
@@ -639,16 +761,19 @@ const handleExportClick = async () => {
         minute: '2-digit',
       })
       .replace(/\D/g, '')
-    link.download = `案件数据_${timestamp}.xlsx`
+    link.download = `业务明细数据_${timestamp}.xlsx`
 
-    // 4️⃣ 触发下载
+    // 5️⃣ 触发下载并清理
     link.click()
     window.URL.revokeObjectURL(downloadUrl)
 
     ElMessage.success('Excel 文件导出成功 ✅')
+    showExportDialog.value = false // 导出成功后关闭弹窗
   } catch (error) {
     console.error('导出Excel失败：', error)
-    ElMessage.error('导出失败，请稍后重试 ❌')
+    ElMessage.error('导出失败，请检查网络或稍后重试 ❌')
+  } finally {
+    isExporting.value = false
   }
 }
 
@@ -1092,5 +1217,13 @@ const handleDownloadApproval = async (row) => {
 
 .el-upload__tip p {
   margin: 0;
+}
+
+/* 表单辅助提示文字 */
+.form-tip.text-muted {
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.4;
+  margin-top: 4px;
 }
 </style>

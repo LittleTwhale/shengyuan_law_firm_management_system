@@ -450,3 +450,12 @@ class EventReminderOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+# 业务导出查询参数
+class CaseExportQuery(BaseModel):
+    keyword: Optional[str] = None
+    case_category: Optional[str] = None
+    main_lawyer_id: Optional[int] = None
+    year: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
