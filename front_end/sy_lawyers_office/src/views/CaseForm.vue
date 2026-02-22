@@ -122,48 +122,71 @@ const lawyerOptions = ref([])
 
 // 定义银行案件初始详情数据
 const initialBankDetails = {
+  // --- 收案与基础信息 ---
   branch_name: null,
-  is_inclusive_finance: false,
   account_manager: null,
+  material_fetcher: null,
+  case_acceptance_date: null,
+
+  // --- 借贷基础信息 ---
+  loan_type: null,
+  loan_account: null,
   loan_principal: 0,
   litigation_target_amount: 0,
   credit_card_penalty: 0,
   loan_date: null,
   loan_due_date: null,
-  overdue_date: null,
   statute_of_limitations: null,
-  material_fetcher: null,
+  collateral_info: null,
+  collateral_location: null,
   pre_litigation_collection: null,
+
+  // --- 诉讼与立案阶段 ---
+  handling_judge: null,
   seal_date: null,
   material_submission_date: null,
+
+  // --- 财产保全阶段 ---
+  seizure_freeze_date: null,
+
+  // --- 裁判与诉讼结案 ---
+  judgment_date: null,
+  judgment_method: null,
+  has_second_instance_or_retrial: false,
   judgment_summary: null,
   lawyer_fee_supported: 0,
   defendant_paid_lawyer_fee: 0,
   is_settled: false,
+  payoff_date: null,
+
+  // --- 执行阶段启动 ---
   execution_case_number: null,
-  execution_filing_date: null,
   execution_judge: null,
   borrower_work_unit: null,
   is_execution_recovery: false,
+  execution_material_receipt_date: null,
+  execution_material_submission_date: null,
+  execution_filing_date: null,
   execution_principal: 0,
   execution_lawyer_fee: 0,
+
+  // --- 执行查控与财产处置 ---
   property_investigation: null,
-  network_control_status: null,
+  network_control_status: null, // 注意：已对应后端字段名
   execution_plan: null,
   court_execution_measures: null,
-  seizure_freeze_info: null,
   auction_status: null,
   auction_deal_price: 0,
+
+  // --- 执行结案与回款 ---
   execution_settlement_content: null,
+  mediation_tracking: null,
   procedure_termination_date: null,
   termination_reason: null,
   execution_conclusion_date: null,
   execution_recovery_date: null,
-  payoff_date: null,
   execution_collection_amount: 0,
   collection_source: null,
-  mediation_tracking: null,
-  // 注意：原有的 guarantor, borrower_id_number 等单行字段已废弃，改用 party_bank_borrowers 等数组
 }
 
 // 统一的大表单数据对象

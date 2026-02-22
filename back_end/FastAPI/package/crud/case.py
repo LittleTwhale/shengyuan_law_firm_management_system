@@ -307,7 +307,7 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
 
     # 创建全新的案件记录，但使用复用的编号
     # 分离 Case 数据和 BankCase、parties 数据
-    case_data = case_in.model_dump(exclude={"bank_details", "parties"})
+    case_data = case_in.model_dump(exclude={"bank_case_details", "parties"})
 
     # 如果前端传了当事人列表，自动生成旧字段字符串
     if case_in.parties:
@@ -348,8 +348,8 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
             db.add(new_party)
 
     # 如果是银行案件且提供了详情，则创建扩展表记录
-    if case_in.case_category == "银行案件" and case_in.bank_details:
-        bank_data = case_in.bank_details.model_dump()
+    if case_in.case_category == "银行案件" and case_in.bank_case_details:
+        bank_data = case_in.bank_case_details.model_dump()
         new_bank_case = BankCase(case_id=new_case.case_id, **bank_data)
         db.add(new_bank_case)
 
@@ -464,7 +464,7 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
 
     # 更新主表数据
     # 先批量更新其他字段，但跳过案件类别，避免提前改变
-    case_data = case_in.model_dump(exclude_unset=True, exclude={"bank_details", "parties"})
+    case_data = case_in.model_dump(exclude_unset=True, exclude={"bank_case_details", "parties"})
     for key, value in case_data.items():
         if key == "case_category": continue
         setattr(case, key, value)
@@ -496,16 +496,16 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
             case.client_id_number = legacy_update["client_id_number"]
 
     # 更新或创建银行案件详情
-    if case_in.bank_details:
+    if case_in.bank_case_details:
         if case.bank_case_details:
             # 更新现有记录
-            bank_update_data = case_in.bank_details.model_dump(exclude_unset=True)
+            bank_update_data = case_in.bank_case_details.model_dump(exclude_unset=True)
             for k, v in bank_update_data.items():
                 setattr(case.bank_case_details, k, v)
         else:
             # 如果之前没有详情（可能是从其他类型转过来的），则创建
             if case.case_category == "银行案件":
-                bank_data = case_in.bank_details.model_dump()
+                bank_data = case_in.bank_case_details.model_dump()
                 new_bank_case = BankCase(case_id=case.case_id, **bank_data)
                 db.add(new_bank_case)
 
@@ -744,7 +744,7 @@ def get_upcoming_events(db: Session, user_id: int, days: int = 30) -> List[dict]
             ("保全到期", case.preservation_end),
             ("调解到期", case.mediation_due_date),
             ("执行到期", case.execution_due_date),
-            ("付款到期", case.payment_due_date)
+            ("付款到期", case.payment_due_date),
         ]
 
         for event_type, event_date in check_points:

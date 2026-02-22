@@ -108,35 +108,39 @@ class BankCase(Base):
 
     # 借贷基础信息
     branch_name = Column(String(100), comment="支行名称")
-    borrower_id_number = Column(String(50), comment="借款人身份证号码/统信代码")
-    guarantor = Column(String(255), comment="担保人")
+
     collateral_info = Column(Text, comment="抵/质押物信息")
     collateral_location = Column(String(255), comment="抵押物位置")
-    is_inclusive_finance = Column(Boolean, default=False, comment="是否普惠金融")
     account_manager = Column(String(50), comment="客户经理")
+    loan_type = Column(String(100), comment="贷款类型")
+    loan_account = Column(String(100), comment="贷款账号")
 
     # 金额相关
     loan_principal = Column(DECIMAL(15, 2), default=0, comment="贷款本金")
     litigation_target_amount = Column(DECIMAL(15, 2), default=0, comment="诉讼标的金额(含利息)")
     credit_card_penalty = Column(DECIMAL(15, 2), default=0, comment="信用卡违约金")
 
-    # 关键日期
+    # 关键日期与流程
     loan_date = Column(Date, comment="借款日")
     loan_due_date = Column(Date, comment="到期日")
-    overdue_date = Column(Date, comment="逾期时间")
-    statute_of_limitations = Column(String(100), comment="诉讼时效")
+    statute_of_limitations = Column(Date, comment="诉讼时效")
+    case_acceptance_date = Column(Date, comment="收案日期")
 
     # 诉讼流程细节
     material_fetcher = Column(String(50), comment="取材料人")
     pre_litigation_collection = Column(Text, comment="诉前催收情况")
     seal_date = Column(Date, comment="盖章日")
     material_submission_date = Column(Date, comment="材料提交法院日")
+    handling_judge = Column(String(50), comment="承办法官")
 
     # 裁判结果补充
+    judgment_date = Column(Date, comment="裁判时间")
+    judgment_method = Column(String(50), comment="裁判方式")
     judgment_summary = Column(Text, comment="裁判摘要")
     lawyer_fee_supported = Column(DECIMAL(15, 2), default=0, comment="支持律师费金额")
     defendant_paid_lawyer_fee = Column(DECIMAL(15, 2), default=0, comment="被告支付律师费金额")
     is_settled = Column(Boolean, default=False, comment="是否还清")
+    has_second_instance_or_retrial = Column(Boolean, default=False, comment="是否有二审、再审")
 
     # 执行阶段详情
     execution_case_number = Column(String(50), comment="执行案号")
@@ -144,6 +148,8 @@ class BankCase(Base):
     execution_judge = Column(String(50), comment="执行法官")
     borrower_work_unit = Column(String(100), comment="借款人工作单位")
     is_execution_recovery = Column(Boolean, default=False, comment="是否为恢复执行")
+    execution_material_receipt_date = Column(Date, comment="收取执行材料时间")
+    execution_material_submission_date = Column(Date, comment="执行材料提交法院时间")
 
     execution_principal = Column(DECIMAL(15, 2), default=0, comment="执行本金金额")
     execution_lawyer_fee = Column(DECIMAL(15, 2), default=0, comment="执行律师费金额")
@@ -154,8 +160,8 @@ class BankCase(Base):
     execution_plan = Column(Text, comment="承办人执行方案")
     court_execution_measures = Column(Text, comment="法院执行措施")
 
-    # 查封与冻结 (建议存JSON字符串)
-    seizure_freeze_info = Column(Text, comment="查封冻结标的及时间")
+    # 查封与冻结
+    seizure_freeze_date = Column(Date, comment="查封冻结时间")
 
     # 拍卖流程
     auction_status = Column(Text, comment="拍卖程序")

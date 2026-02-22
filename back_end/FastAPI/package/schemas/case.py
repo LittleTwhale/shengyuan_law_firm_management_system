@@ -1,6 +1,6 @@
 # schemas/case.py
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 from decimal import Decimal
 from .user import UserOut
@@ -8,99 +8,144 @@ from .user import UserOut
 # 银行案件细节
 # 银行案件基础模型 - 包含银行相关案件的所有基本字段
 class BankCaseBase(BaseModel):
-    # 分行机构名称
+    # --- 借贷基础信息 ---
+
+    # 支行名称
     branch_name: Optional[str] = None
-    # 借款人身份证号
-    borrower_id_number: Optional[str] = None
-    # 担保人信息
-    guarantor: Optional[str] = None
-    # 抵押物信息
+    # 抵/质押物信息
     collateral_info: Optional[str] = None
     # 抵押物位置
     collateral_location: Optional[str] = None
-    # 是否为普惠金融业务
-    is_inclusive_finance: bool = False
     # 客户经理
     account_manager: Optional[str] = None
-    # 贷款本金金额
+    # 贷款类型
+    loan_type: Optional[str] = None
+    # 贷款账号
+    loan_account: Optional[str] = None
+
+    # --- 金额相关 ---
+
+    # 贷款本金
     loan_principal: Optional[Decimal] = 0
-    # 诉讼标的金额
+    # 诉讼标的金额(含利息)
     litigation_target_amount: Optional[Decimal] = 0
-    # 信用卡违约金/罚息
+    # 信用卡违约金
     credit_card_penalty: Optional[Decimal] = 0
-    # 放贷日期
+
+    # --- 关键日期与流程 ---
+
+    # 借款日
     loan_date: Optional[date] = None
-    # 贷款到期日
+    # 到期日
     loan_due_date: Optional[date] = None
-    # 逾期日期
-    overdue_date: Optional[date] = None
-    # 诉讼时效状态
-    statute_of_limitations: Optional[str] = None
-    # 资料领取人
+    # 诉讼时效
+    statute_of_limitations: Optional[date] = None
+    # 收案日期
+    case_acceptance_date: Optional[date] = None
+
+    # --- 诉讼流程细节 ---
+
+    # 取材料人
     material_fetcher: Optional[str] = None
     # 诉前催收情况
     pre_litigation_collection: Optional[str] = None
-    # 盖章日期
+    # 盖章日
     seal_date: Optional[date] = None
-    # 材料提交日期
+    # 材料提交法院日
     material_submission_date: Optional[date] = None
-    # 判决摘要
+    # 承办法官
+    handling_judge: Optional[str] = None
+
+    # --- 裁判结果补充 ---
+
+    # 裁判时间
+    judgment_date: Optional[date] = None
+    # 裁判方式
+    judgment_method: Optional[str] = None
+    # 裁判摘要
     judgment_summary: Optional[str] = None
-    # 律师费支持金额
+    # 支持律师费金额
     lawyer_fee_supported: Optional[Decimal] = 0
-    # 被告已付律师费
+    # 被告支付律师费金额
     defendant_paid_lawyer_fee: Optional[Decimal] = 0
-    # 是否已结清
+    # 是否还清
     is_settled: bool = False
+    # 是否有二审、再审
+    has_second_instance_or_retrial: bool = False
+
+    # --- 执行阶段详情 ---
+
     # 执行案号
     execution_case_number: Optional[str] = None
-    # 执行立案日期
+    # 执行立案时间
     execution_filing_date: Optional[date] = None
     # 执行法官
     execution_judge: Optional[str] = None
     # 借款人工作单位
     borrower_work_unit: Optional[str] = None
-    # 是否有执行回款
+    # 是否为恢复执行
     is_execution_recovery: bool = False
-    # 执行收回本金
+    # 收取执行材料时间
+    execution_material_receipt_date: Optional[date] = None
+    # 执行材料提交法院时间
+    execution_material_submission_date: Optional[date] = None
+    # 执行本金金额
     execution_principal: Optional[Decimal] = 0
-    # 执行律师费
+    # 执行律师费金额
     execution_lawyer_fee: Optional[Decimal] = 0
+
+    # --- 查控与财产 ---
+
     # 财产调查情况
     property_investigation: Optional[str] = None
-    # 网络查控状态
+    # 网络查控财产情况
     network_control_status: Optional[str] = None
-    # 执行方案
+    # 承办人执行方案
     execution_plan: Optional[str] = None
     # 法院执行措施
     court_execution_measures: Optional[str] = None
-    # 查封冻结信息
-    seizure_freeze_info: Optional[str] = None
-    # 拍卖状态
+
+    # --- 查封与冻结 ---
+
+    # 查封冻结时间
+    seizure_freeze_date: Optional[date] = None
+
+    # --- 拍卖流程 ---
+
+    # 拍卖程序
     auction_status: Optional[str] = None
-    # 拍卖成交价
+    # 拍卖变卖成交价
     auction_deal_price: Optional[Decimal] = 0
-    # 执行结案内容
+
+    # --- 结案与终本 ---
+
+    # 执行和解内容
     execution_settlement_content: Optional[str] = None
-    # 程序终结日期
+    # 终本时间
     procedure_termination_date: Optional[date] = None
-    # 终结原因
+    # 终本原因
     termination_reason: Optional[str] = None
-    # 执行结案日期
+    # 终结执行时间
     execution_conclusion_date: Optional[date] = None
-    # 执行回收日期
+    # 恢复执行时间
     execution_recovery_date: Optional[date] = None
-    # 还款日期
+    # 还清时间
     payoff_date: Optional[date] = None
-    # 执行回收金额
+
+    # --- 回款统计 ---
+
+    # 执行回款总金额
     execution_collection_amount: Optional[Decimal] = 0
-    # 回收来源
+    # 执行回款来源
     collection_source: Optional[str] = None
-    # 执行结案记录日志（JSON格式列表）
-    execution_settlement_log: Optional[List[Dict]] = []  # JSON list
-    # 扣划记录日志（JSON格式列表）
-    deduction_log: Optional[List[Dict]] = []  # JSON list
-    # 调解跟踪情况
+
+    # --- 复杂记录 (JSON) ---
+
+    # 执行和解跟进及回款额
+    execution_settlement_log: Optional[List[Dict[str, Any]]] = []
+    # 扣划跟进及回款额
+    deduction_log: Optional[List[Dict[str, Any]]] = []
+    # 调解案件履行跟踪情况
     mediation_tracking: Optional[str] = None
 
 # 银行案件创建模型
@@ -209,7 +254,7 @@ class CaseCreate(BaseModel):
     class Config:
         from_attributes = True
 
-    bank_details: Optional[BankCaseCreate] = None
+    bank_case_details: Optional[BankCaseCreate] = None
     parties: Optional[List[CasePartyCreate]] = []
 
 # 案件更新（部分字段可选）
@@ -284,7 +329,7 @@ class CaseUpdate(BaseModel):
     class Config:
         from_attributes = True
 
-    bank_details: Optional[BankCaseUpdate] = None
+    bank_case_details: Optional[BankCaseUpdate] = None
     parties: Optional[List[CasePartyCreate]] = None
 
 # 案件返回给前端
