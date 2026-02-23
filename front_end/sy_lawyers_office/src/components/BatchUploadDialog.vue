@@ -306,6 +306,7 @@ const startUpload = async () => {
     try {
       await request.post('/electronic_volumes/files', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 0, // 0 表示不设置超时限制，或者使用 120000 (2分钟)
         // 可以在这里添加 onUploadProgress 处理进度条
       })
       item.status = 'success'

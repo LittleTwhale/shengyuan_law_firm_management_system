@@ -458,7 +458,7 @@
       <div
         class="preview-box"
         v-loading="previewLoading"
-        element-loading-text="如果是Word文档，正在转换格式，请稍候..."
+        :element-loading-text="previewLoadingText"
       >
         <iframe
           v-if="previewUrl && previewType === 'pdf'"
@@ -477,8 +477,10 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+// 引入了 onBeforeUnmount 用于清理轮询计时器
+import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+// 新增引入 ElLoading 用于全局加载弹窗
+import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import {
   Document,
   DocumentCopy,
@@ -521,6 +523,9 @@ const merging = ref(false)
 const viewMode = ref('list')
 const activeNames = ref([])
 
+// 轮询计时器引用
+let mergePollingTimer = null
+
 // --- 新增：卷宗 新建/编辑 State ---
 const volDialogVisible = ref(false)
 const volDialogTitle = ref('')
@@ -550,6 +555,8 @@ const previewVisible = ref(false)
 const previewUrl = ref('')
 const previewType = ref('pdf')
 const previewLoading = ref(false)
+// 新增：动态加载文字
+const previewLoadingText = ref('加载中...')
 
 // Drag Sort State
 const dragTableRef = ref(null)
@@ -559,6 +566,11 @@ let sortableInstance = null
 onMounted(async () => {
   await fetchPermissions()
   await loadVolumes()
+})
+
+// 组件销毁前清理可能存在的轮询定时器，防止内存泄漏
+onBeforeUnmount(() => {
+  if (mergePollingTimer) clearInterval(mergePollingTimer)
 })
 
 // 监听 caseId 变化
@@ -866,13 +878,33 @@ const handleDeleteFile = async (row) => {
   }
 }
 
+// ---------------------- 核心改动：下载带进度提示 ----------------------
 const downloadBlob = async (url, filename) => {
+  let loadingInstance = null
   try {
-    ElMessage.info('正在请求下载...')
+    // 启动全局加载遮罩层
+    loadingInstance = ElLoading.service({
+      lock: true,
+      text: '正在请求下载，请耐心等待...',
+      background: 'rgba(0, 0, 0, 0.7)',
+    })
+
     const res = await request.get(url, {
       responseType: 'blob',
-      timeout: 60000,
+      timeout: 0,
+      // 监听下载进度
+      onDownloadProgress: (progressEvent) => {
+        if (progressEvent.total) {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          loadingInstance.setText(`正在下载文件: ${percentCompleted}%`)
+        } else {
+          // 如果后端没返回 total 大小，显示已下载的 MB 数
+          const mb = (progressEvent.loaded / 1024 / 1024).toFixed(2)
+          loadingInstance.setText(`正在下载文件: ${mb} MB`)
+        }
+      },
     })
+
     const blob = new Blob([res.data], {
       type: res.headers['content-type'] || 'application/octet-stream',
     })
@@ -884,58 +916,118 @@ const downloadBlob = async (url, filename) => {
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(href)
-    ElMessage.success('下载已开始')
+    ElMessage.success('下载完成！')
   } catch (err) {
     console.error('下载失败', err)
     ElMessage.error('下载失败，请检查网络或权限')
+  } finally {
+    // 确保无论成功失败都关闭遮罩层
+    if (loadingInstance) {
+      loadingInstance.close()
+    }
   }
 }
+// ----------------------------------------------------------------------------
 
 const handleDownload = async (row) => {
   const url = `/electronic_volumes/files/${row.id}/download`
   await downloadBlob(url, row.file_name)
 }
 
+// ---------------------- 合并卷宗支持后台异步 ----------------------
 const handleMergeVolume = async () => {
   if (!fileList.value.length) return ElMessage.warning('卷宗为空，无法合并')
 
   merging.value = true
+  // 锁定触发时的卷宗ID
+  const targetVolumeId = currentVolumeId.value
+
   try {
-    ElMessage.info('正在后台进行格式转换与合并，请耐心等待...')
-    const res = await request.post(`/electronic_volumes/${currentVolumeId.value}/merge`)
-    ElMessage.success('电子卷宗生成成功！')
-    currentVolume.value = res.data
-    await loadVolumes()
+    ElMessage.info('合并任务已提交，系统正在后台处理，请耐心等待...')
+
+    // 覆盖超时时间，提交任务到后台
+    await request.post(`/electronic_volumes/${targetVolumeId}/merge`, null, {
+      timeout: 120000,
+    })
+
+    // 开启轮询查询合并状态
+    startPollingMergeStatus(targetVolumeId)
   } catch (err) {
-    ElMessage.error(err.response?.data?.detail || '合并失败')
-  } finally {
+    ElMessage.error(err.response?.data?.detail || '合并任务提交失败')
     merging.value = false
   }
 }
 
+// 轮询查询合并状态
+const startPollingMergeStatus = (volId) => {
+  if (mergePollingTimer) clearInterval(mergePollingTimer)
+
+  mergePollingTimer = setInterval(async () => {
+    try {
+      // 查询该卷宗的最新状态
+      const res = await request.get(`/electronic_volumes/${volId}`)
+
+      // 检查后端是否已生成合并文件
+      if (res.data.merged_file_path) {
+        // 合并完成，停止轮询
+        clearInterval(mergePollingTimer)
+        mergePollingTimer = null
+
+        ElMessage.success('电子卷宗生成成功！')
+
+        // 只有当用户还在看触发合并的那个卷宗时，才去直接更新视图的 state
+        if (currentVolumeId.value === volId) {
+          merging.value = false
+          currentVolume.value = res.data
+        }
+
+        // 刷新左侧卷宗列表以同步“已合并”标签状态
+        await loadVolumes()
+      }
+    } catch (e) {
+      console.error('轮询合并状态失败', e)
+    }
+  }, 3000) // 每 3 秒查一次
+}
+// ----------------------------------------------------------------------------
+
+// ---------------------- 核心改动：合并文件预览带进度提示 ----------------------
 const previewMergedFile = async () => {
   if (!currentVolume.value?.merged_file_path) return
 
   previewLoading.value = true
   previewVisible.value = true
-  // 这里强制设为 pdf，因为合并后的文件一定是 PDF
   previewType.value = 'pdf'
+  // 重置加载文本
+  previewLoadingText.value = '正在请求全卷预览，请稍候...'
 
   try {
     const res = await request.get(`/electronic_volumes/${currentVolumeId.value}/preview_merged`, {
       responseType: 'blob',
+      timeout: 0,
+      // 监听下载进度
+      onDownloadProgress: (progressEvent) => {
+        if (progressEvent.total) {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          previewLoadingText.value = `正在加载全卷预览: ${percentCompleted}%`
+        } else {
+          const mb = (progressEvent.loaded / 1024 / 1024).toFixed(2)
+          previewLoadingText.value = `正在加载全卷预览: ${mb} MB`
+        }
+      },
     })
 
     const blob = new Blob([res.data], { type: 'application/pdf' })
     previewUrl.value = window.URL.createObjectURL(blob)
   } catch (err) {
     console.error(err)
-    ElMessage.error('预览加载失败，文件可能不存在')
+    ElMessage.error('预览加载失败，文件可能不存在或网络超时')
     previewVisible.value = false
   } finally {
     previewLoading.value = false
   }
 }
+// ----------------------------------------------------------------------------
 
 const downloadMergedFile = async () => {
   if (!currentVolume.value?.merged_file_path) return
@@ -944,12 +1036,27 @@ const downloadMergedFile = async () => {
   await downloadBlob(url, filename)
 }
 
+// ---------------------- 核心改动：单文件预览带进度提示 ----------------------
 const handlePreview = async (row) => {
   previewLoading.value = true
   previewVisible.value = true
+  // 重置单文件的提示信息
+  previewLoadingText.value = '正在加载预览文件，如果为Word文档可能会耗时稍长...'
+
   try {
     const res = await request.get(`/electronic_volumes/files/${row.id}/preview`, {
       responseType: 'blob',
+      timeout: 0,
+      // 单文件（比如大图片或大PDF）也监听进度
+      onDownloadProgress: (progressEvent) => {
+        if (progressEvent.total) {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          previewLoadingText.value = `正在下载预览文件: ${percentCompleted}%`
+        } else {
+          const mb = (progressEvent.loaded / 1024 / 1024).toFixed(2)
+          previewLoadingText.value = `正在下载预览文件: ${mb} MB`
+        }
+      },
     })
     const blob = new Blob([res.data], { type: res.headers['content-type'] })
     previewUrl.value = window.URL.createObjectURL(blob)
@@ -967,6 +1074,7 @@ const handlePreview = async (row) => {
     previewLoading.value = false
   }
 }
+// ----------------------------------------------------------------------------
 
 const isPdf = (type) => type?.includes('pdf')
 const isImage = (type) => type?.includes('image')

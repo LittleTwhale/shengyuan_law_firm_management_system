@@ -11,7 +11,7 @@ from typing import List, Optional
 
 # 引入 PDF 处理库
 from PyPDF2 import PdfReader, PdfWriter, Transformation, PdfMerger
-from PyPDF2.generic import RectangleObject
+from PyPDF2.generic import RectangleObject, AnnotationBuilder
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, BackgroundTasks
 from fastapi.responses import FileResponse
 from reportlab.lib import colors
@@ -699,18 +699,33 @@ def _create_toc_pdf(toc_entries: List[dict], output_path: str, volume_name: str)
         if len(display_name) > 45:
             display_name = display_name[:42] + "..."
 
+        # ================== 视觉优化：超链接样式 ==================
+        # 1. 设置文字为超链接蓝色
+        c.setFillColor(colors.blue)
         c.drawString(20 * mm, y, display_name)
         c.drawRightString(width - 20 * mm, y, str(page_display))
 
-        # 虚线
+        # 2. 绘制下划线
         text_width = c.stringWidth(display_name, font_name, 12)
+        c.setStrokeColor(colors.blue)
+        c.setLineWidth(0.5)
+        # 在文字下方 2pt 处画下划线
+        c.line(20 * mm, y - 2, 20 * mm + text_width, y - 2)
+
+        # 3. 恢复黑色画笔，用于绘制后续的虚线填充
+        c.setFillColor(colors.black)
+        c.setStrokeColor(colors.black)
+        c.setLineWidth(1)
+        # ==========================================================
+
+        # 虚线
         c.setDash(1, 3)
         c.line(20 * mm + text_width + 5, y + 1, width - 25 * mm, y + 1)
         c.setDash([])
 
-        # 记录链接区域
+        # 记录链接区域 (稍微扩大点击区域的高度，覆盖下划线，提高点击手感)
         # [x1, y1, x2, y2]
-        rect = [20 * mm, y - 2, width - 20 * mm, y + 8]
+        rect = [20 * mm, y - 4, width - 20 * mm, y + 10]
 
         if current_toc_page_idx not in link_map:
             link_map[current_toc_page_idx] = []
@@ -784,12 +799,29 @@ def _process_merge(db, volume, files, output_path):
                     "pages": p_count
                 })
 
-    # ---------------- 2. 规划页码 & 链接索引 ----------------
-    toc_page_count = 1  # 目录占1页
-    current_writer_index = toc_page_count
+    # ---------------- 2. 规划页码 & 链接索引 (双段生成法解决目录多页问题) ----------------
+
+    # 【第一步：预演生成，获取真实目录页数】
+    dummy_toc_path = output_path + ".dummy_toc.pdf"
+    # 假装生成一次，页码填0即可，主要为了看这些条目会撑出几页
+    dummy_toc_data = [{"name": f["obj"].file_name, "page_display": 0, "target_index": 0} for f in ready_files]
+    _create_toc_pdf(dummy_toc_data, dummy_toc_path, volume.name)
+
+    # 获取真实的目录页数
+    toc_page_count = _get_pdf_page_count(dummy_toc_path)
+
+    # 获取完毕，清理临时文件
+    if os.path.exists(dummy_toc_path):
+        try:
+            os.remove(dummy_toc_path)
+        except:
+            pass
+
+    # 【第二步：根据真实目录页数，排布正文页码】
+    current_writer_index = toc_page_count  # 正文在最终PDF的物理起始索引（接在目录后）
     toc_data = []
     total_pages_display = toc_page_count + sum(item['pages'] for item in ready_files)
-    current_display_page = current_writer_index + 1
+    current_display_page = toc_page_count + 1  # 视觉显示的起始页码
 
     for item in ready_files:
         f_obj = item["obj"]
@@ -872,29 +904,18 @@ def _process_merge(db, volume, files, output_path):
     for toc_page_idx, links in link_map.items():
         for link in links:
             try:
-                writer.add_link(
-                    pagenum=toc_page_idx,
-                    pagedest=link['target_index'],
-                    rect=RectangleObject(link['rect']),
-                    border=[0, 0, 0]
+                # 使用官方推荐的 AnnotationBuilder 创建链接注解
+                annotation = AnnotationBuilder.link(
+                    rect=link['rect'],  # 传入坐标数组 [x1, y1, x2, y2]
+                    target_page_index=link['target_index']
+                )
+                # 将注解添加到对应的目录页
+                writer.add_annotation(
+                    page_number=toc_page_idx,
+                    annotation=annotation
                 )
             except Exception as e:
-                print(f"标准链接添加失败: {e}")
-                # 降级方案：手动构造 Annotation
-                try:
-                    from PyPDF2.generic import DictionaryObject, NameObject, ArrayObject, FloatObject
-                    annot = DictionaryObject()
-                    annot[NameObject("/Type")] = NameObject("/Annot")
-                    annot[NameObject("/Subtype")] = NameObject("/Link")
-                    annot[NameObject("/Rect")] = RectangleObject(link['rect'])
-                    annot[NameObject("/Border")] = ArrayObject([FloatObject(0), FloatObject(0), FloatObject(0)])
-                    dest_page = writer.pages[link['target_index']]
-                    dest_ref = getattr(dest_page, 'indirect_reference', None) or getattr(dest_page, 'indirectRef', None)
-                    if dest_ref:
-                        annot[NameObject("/Dest")] = ArrayObject([dest_ref, NameObject("/Fit")])
-                        writer.add_annotation(page_number=toc_page_idx, annotation=annot)
-                except Exception as ex:
-                    print(f"降级链接添加失败: {ex}")
+                print(f"链接添加失败: {e}")
 
     # ---------------- 7. 保存最终 PDF ----------------
     with open(output_path, "wb") as f_out:
@@ -908,6 +929,37 @@ def _process_merge(db, volume, files, output_path):
             except:
                 pass
 
+
+# 抽离出的后台执行PDF合并函数
+def background_merge_task(volume_id: int):
+    # 后台任务必须拥有独立的数据库会话
+    db = SessionLocal()
+    try:
+        volume = crud.get_volume_by_id(db, volume_id)
+        if not volume:
+            return
+
+        files = crud.get_files_in_volume(db, volume_id)
+        if not files:
+            return
+
+        merged_dir = os.path.join(PDF_VOLUME_ROOT, f"case_{volume.case_id}", f"vol_{volume_id}")
+        os.makedirs(merged_dir, exist_ok=True)
+        merged_filename = f"{volume.name}_Merged_{datetime.now().strftime('%Y%m%d%H%M')}.pdf"
+        merged_path = os.path.join(merged_dir, merged_filename)
+
+        # 执行极度耗时的合并
+        _process_merge(db, volume, files, merged_path)
+
+        # 成功后更新数据库
+        relative_path = os.path.join(f"case_{volume.case_id}", f"vol_{volume_id}", merged_filename)
+        crud.update_merged_file_path(db, volume_id, relative_path)
+
+    except Exception as e:
+        print(f"[Merge Task] 合并失败: {e}")
+        # 这里建议未来在数据库给卷宗加个 merge_status 字段，记录 "合并失败" 状态
+    finally:
+        db.close()
 
 @router.post("/{volume_id}/merge", response_model=schemas.CaseVolumeOut)
 def merge_volume_files(
@@ -933,33 +985,8 @@ def merge_volume_files(
     # 重新刷新 volume 对象以获取最新的状态 (merged_file_path 应为 None)
     db.refresh(volume)
 
-    # 获取文件列表 (CRUD 已实现按 sort_order 排序)
-    files = crud.get_files_in_volume(db, volume_id)
-    if not files:
-        raise HTTPException(status_code=400, detail="卷宗内无文件，无法合并")
+    background_tasks.add_task(background_merge_task, volume_id)
 
-    # 定义合并后的输出路径
-    # 路径结构: PDF_VOLUME_ROOT / case_{id} / vol_{id}
-    merged_dir = os.path.join(PDF_VOLUME_ROOT, f"case_{volume.case_id}", f"vol_{volume_id}")
-    os.makedirs(merged_dir, exist_ok=True)
-
-    merged_filename = f"{volume.name}_Merged_{datetime.now().strftime('%Y%m%d%H%M')}.pdf"
-    merged_path = os.path.join(merged_dir, merged_filename)
-
-    # 执行合并
-    try:
-        _process_merge(db, volume, files, merged_path)
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"合并失败: {str(e)}")
-
-    # 更新数据库 merged_file_path
-    relative_path = os.path.join(f"case_{volume.case_id}", f"vol_{volume_id}", merged_filename)
-    crud.update_merged_file_path(db, volume_id, relative_path)
-
-    # 重新读取返回
-    db.refresh(volume)
     return volume
 
 
