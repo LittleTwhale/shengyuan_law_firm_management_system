@@ -186,8 +186,9 @@ class CasePartyOut(CasePartyBase):
 # 创建案件
 class CaseCreate(BaseModel):
     # 基本信息
+    case_number: Optional[str] = Field(None, description="案件号（批量导入时指定，留空则由系统自动生成）")
     commission_date: date = Field(..., description="委托日期")
-    client_name: str = Field(..., description="委托人")
+    client_name: Optional[str] = Field(None, description="委托人")
     client_id_number: Optional[str] = Field(None, description="委托人身份证号/单位税号")
     client_phone: Optional[str] = Field(None, description="委托人电话")
     case_category: str = Field(..., description="案件类别")

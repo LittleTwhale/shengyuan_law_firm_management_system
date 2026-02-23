@@ -46,7 +46,13 @@
       </div>
     </div>
 
-    <el-table :data="cases" border style="width: 100%" v-loading="tableLoading">
+    <el-table
+      :data="cases"
+      border
+      style="width: 100%"
+      v-loading="tableLoading"
+      @sort-change="handleSortChange"
+    >
       <el-table-column prop="case_number" label="业务号" width="220" align="center" />
       <el-table-column prop="client_name" label="委托银行" align="center" />
       <el-table-column prop="case_category" label="案件类别" align="center" />
@@ -56,6 +62,7 @@
         prop="created_at"
         label="创建时间"
         align="center"
+        sortable="custom"
         :formatter="(row, column, cellValue) => formatDate(cellValue)"
       />
       <el-table-column label="操作" width="380" header-align="center" align="left">
@@ -112,6 +119,7 @@
       :mode="formMode"
       :current-user-id="currentUserID"
       :current-user-role="currentUserRole"
+      :case-id="currentCaseId"
       @submit="handleFormSubmit"
     />
 
@@ -264,6 +272,10 @@ const selectedLawyerId = ref(null) // 选中的主办律师ID
 // 年份变量，默认为当前年份字符串
 const selectedYear = ref(new Date().getFullYear().toString())
 
+// 排序相关的响应式变量
+const currentSortField = ref('created_at') // 默认按创建时间排序
+const currentSortDir = ref('desc') // 默认降序（最新的在前面）
+
 // 弹窗控制
 const showFormDialog = ref(false)
 const formMode = ref('edit') // 只有编辑模式
@@ -300,7 +312,9 @@ const loadBankCases = async () => {
         skip: (page.value - 1) * pageSize.value,
         limit: pageSize.value,
         keyword: searchKeyword.value,
-        year: selectedYear.value || '', // 增加年份筛选
+        year: selectedYear.value || '', // 年份筛选
+        sort_field: currentSortField.value, // 排序字段
+        sort_dir: currentSortDir.value, // 排序方向
         ...(currentUserRole.value === 'admin' || currentUserRole.value === 'owner'
           ? { main_lawyer_id: selectedLawyerId.value }
           : {}),
@@ -315,6 +329,26 @@ const loadBankCases = async () => {
     ElMessage.error('获取银行案件列表失败')
   } finally {
     tableLoading.value = false
+  }
+}
+
+// -------------------------- 处理表格排序事件 --------------------------
+const handleSortChange = ({ prop, order }) => {
+  if (prop === 'created_at') {
+    if (order === 'ascending') {
+      currentSortDir.value = 'asc'
+    } else if (order === 'descending') {
+      currentSortDir.value = 'desc'
+    } else {
+      // 如果用户取消排序，通常恢复默认排序（降序）
+      currentSortDir.value = 'desc'
+    }
+
+    currentSortField.value = 'created_at'
+
+    // 重置到第一页并重新加载数据
+    page.value = 1
+    loadBankCases()
   }
 }
 

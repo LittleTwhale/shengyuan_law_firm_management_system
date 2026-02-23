@@ -392,7 +392,7 @@ def check_interest_conflict(
 @router.post("/import", status_code=200)
 def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
-    📦 批量导入案件接口 (V3: 双Sheet关联模式，完美适配 CaseParty 结构)
+    📦 批量导入业务接口 (V3: 双Sheet关联模式，完美适配 CaseParty 结构)
     """
     try:
         if not file.filename.endswith(('.xlsx', '.xls')):
@@ -401,10 +401,10 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
         wb = load_workbook(filename=BytesIO(file.file.read()), data_only=True)
 
         # 校验两个必须的 Sheet
-        if "案件列表" not in wb.sheetnames or "当事人列表" not in wb.sheetnames:
-            raise HTTPException(status_code=400, detail="Excel模板错误：必须包含'案件列表'和'当事人列表'两个工作表")
+        if "业务列表" not in wb.sheetnames or "当事人列表" not in wb.sheetnames:
+            raise HTTPException(status_code=400, detail="Excel模板错误：必须包含'业务列表'和'当事人列表'两个工作表")
 
-        ws_cases = wb["案件列表"]
+        ws_cases = wb["业务列表"]
         ws_parties = wb["当事人列表"]
     except HTTPException:
         raise
@@ -419,7 +419,7 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
 
     for row in ws_parties.iter_rows(min_row=2, values_only=True):
         p_row = dict(zip(parties_headers, row))
-        link_case_no = str(p_row.get("关联案件号", "")).strip()
+        link_case_no = str(p_row.get("关联业务号", "")).strip()
         p_type = str(p_row.get("当事人类型", "")).strip()
         p_name = str(p_row.get("姓名/名称", "")).strip()
 
@@ -436,13 +436,13 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
             "legal_representative": str(p_row.get("法定代表人", "")).strip() or None,
         })
 
-    # ---------------- 2. 解析【案件列表】 ----------------
+    # ---------------- 2. 解析【业务列表】 ----------------
     cases_headers = [str(cell.value).strip() if cell.value else "" for cell in ws_cases[1]]
 
-    required_cols = ["案件号", "委托日期", "案件类别", "主办律师"]
+    required_cols = ["业务号", "委托日期", "业务类别", "主办律师"]
     for col in required_cols:
         if col not in cases_headers:
-            raise HTTPException(status_code=400, detail=f"'案件列表'工作表缺少必要字段：{col}")
+            raise HTTPException(status_code=400, detail=f"'业务列表'工作表缺少必要字段：{col}")
 
     total_rows = 0
     success_rows = 0
@@ -472,7 +472,7 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
         total_rows += 1
         row_data = dict(zip(cases_headers, row))
 
-        case_number = str(row_data.get("案件号", "")).strip()
+        case_number = str(row_data.get("业务号", "")).strip()
 
         try:
             # 获取律师ID
@@ -483,7 +483,7 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
                 continue
 
             # ---------------- 3. 解析银行案件专属字段 ----------------
-            case_category = str(row_data.get("案件类别", "")).strip()
+            case_category = str(row_data.get("业务类别", "")).strip()
             bank_details = None
 
             if case_category == "银行案件":

@@ -318,12 +318,34 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
     if case_type not in type_map:
         raise ValueError("未知的案件类型")
 
-    # 第一步：查找可复用的已删除案件编号
-    available_case_number = _find_reusable_case_number(db, case_type, year)
+    if case_in.case_number:
+        # 校验手动传入的案件号是否已存在，防止触发 models 中 case_number unique=True 的报错
+        existing_case = db.query(Case).filter(Case.case_number == case_in.case_number).first()
+        if existing_case:
+            raise ValueError(f"案件号 {case_in.case_number} 已存在，请检查导入表格")
+        final_case_number = case_in.case_number
+    else:
+        # 如果没有传入案件号，执行原有的自动生成逻辑
+        final_case_number = _find_reusable_case_number(db, case_type, year)
+
+    # 清洗当事人列表空字段
+    if case_in.parties:
+        for party in case_in.parties:
+            for key, value in party.model_dump().items():
+                if isinstance(value, str) and value.strip() in ("None", "nan", "NaN", "", "null"):
+                    # 使用 setattr 修改 Pydantic 对象的属性，而不是 party[key]
+                    setattr(party, key, None)
 
     # 创建全新的案件记录，但使用复用的编号
     # 分离 Case 数据和 BankCase、parties 数据
-    case_data = case_in.model_dump(exclude={"bank_case_details", "parties"})
+    case_data = case_in.model_dump(exclude={"bank_case_details", "parties", "case_number"})
+
+    # 清洗数据，将字面量字符串 "None", "nan", "" 转换为真正的 None
+    for key, value in case_data.items():
+        if isinstance(value, str):
+            # 去除首尾空格后，如果是这些无效值，就转为 None
+            if value.strip() in ("None", "nan", "NaN", "", "null"):
+                case_data[key] = None
 
     # 如果前端传了当事人列表，自动生成旧字段字符串
     if case_in.parties:
@@ -342,7 +364,7 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
     # 创建主案件
     case_data["review_status"] = "待审核"
     case_data["is_deleted"] = False
-    new_case = Case(**case_data, case_number=available_case_number)
+    new_case = Case(**case_data, case_number=final_case_number)
     db.add(new_case)
     db.flush()  # 刷新以获取 new_case.case_id
 
@@ -366,6 +388,10 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
     # 如果是银行案件且提供了详情，则创建扩展表记录
     if case_in.case_category == "银行案件" and case_in.bank_case_details:
         bank_data = case_in.bank_case_details.model_dump()
+        # 清洗银行案件中的字符串 "None"
+        for key, value in bank_data.items():
+            if isinstance(value, str) and value.strip() in ("None", "nan", "NaN", "", "null"):
+                bank_data[key] = None
         new_bank_case = BankCase(case_id=new_case.case_id, **bank_data)
         db.add(new_bank_case)
 
@@ -847,14 +873,14 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
     if query_params.case_category == "银行案件":
         ws_bank = wb.create_sheet(title="银行案件")
     elif query_params.case_category and query_params.case_category != "银行案件":
-        ws_standard = wb.create_sheet(title="常规案件")
+        ws_standard = wb.create_sheet(title="常规业务")
     else:
         # 没有指定类型（导出全部），两个Sheet都生成
-        ws_standard = wb.create_sheet(title="常规案件")
+        ws_standard = wb.create_sheet(title="常规业务")
         ws_bank = wb.create_sheet(title="银行案件")
 
     # ---------------- 表头定义 ----------------
-    base_headers_part1 = ["案件ID", "案件号", "委托日期", "案件类别"]
+    base_headers_part1 = ["业务ID", "业务号", "委托日期", "业务类别"]
 
     # 使用统一的当事人详情列取代原来拆分的当事人类别列
     party_headers = ["当事人详情"]
