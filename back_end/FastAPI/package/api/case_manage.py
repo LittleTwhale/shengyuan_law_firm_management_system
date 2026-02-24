@@ -465,14 +465,18 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
             return 0
 
     for row in ws_cases.iter_rows(min_row=2, values_only=True):
-        # 检查是否为空行（依据案件号判断）
-        if not row[0]:
+        # 1. 先组装字典
+        row_data = dict(zip(cases_headers, row))
+
+        # 2. 提取业务号
+        case_number = str(row_data.get("业务号", "")).strip()
+
+        # 3. 检查是否为空行
+        if not case_number:
             continue
 
         total_rows += 1
         row_data = dict(zip(cases_headers, row))
-
-        case_number = str(row_data.get("业务号", "")).strip()
 
         try:
             # 获取律师ID
@@ -579,6 +583,7 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
                 preservation_start=parse_date(row_data.get("保全开始日")),
                 preservation_end=parse_date(row_data.get("保全终止日")),
 
+                case_code=str(row_data.get("案号", "")).strip() or None,
                 closing_status=str(row_data.get("结案状态", "")).strip() or None,
                 closing_method=str(row_data.get("结案方式", "")).strip() or None,
 

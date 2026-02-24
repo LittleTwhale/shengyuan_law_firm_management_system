@@ -819,6 +819,7 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         joinedload(Case.assistant_lawyer),
         joinedload(Case.execution_lawyer),
         joinedload(Case.execution_assistant),
+        joinedload(Case.reviewer),
         joinedload(Case.parties),
         joinedload(Case.bank_case_details)
     ).filter(Case.is_deleted == False)
@@ -887,8 +888,8 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
 
     base_headers_part2 = [
         "案件来源", "收费方式", "风险比例", "案件收入",
-        "付款到期日", "案由", "介入阶段", "代理权限", "审理法院", "开庭时间", "立案日", "结案时间",
-        "案件地点", "案件详情", "主办律师", "助理律师", "执行主办律师", "执行助理律师", "案件审核状态",
+        "付款到期日", "案由", "介入阶段", "代理权限", "审理法院", "侦查机关", "检察院", "二审检察机关", "开庭时间", "立案日", "结案时间",
+        "案件地点", "案件详情", "主办律师", "助理律师", "执行主办律师", "执行助理律师", "审核状态","审核人",
         "是否重大", "是否纸质卷宗", "是否解除", "是否笔录", "是否保全", "保全开始日", "保全终止日",
         "案号", "结案状态", "结案方式", "诉讼费缴费时间", "诉讼费缴费金额", "诉讼费退费时间", "诉讼费退费金额",
         "申请执行日", "调解到期日", "执行到期日", "创建时间", "更新时间"
@@ -979,6 +980,9 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
             case.stage or "",
             case.agency_power or "",
             case.court or "",
+            case.investigative_agency or "",
+            case.procuratorate or "",
+            case.second_instance_procuratorate or "",
             format_date(case.hearing_date),
             format_date(case.filing_date),
             format_date(case.closing_date),
@@ -989,6 +993,7 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
             case.execution_lawyer.real_name if case.execution_lawyer else "",
             case.execution_assistant.real_name if case.execution_assistant else "",
             case.review_status,
+            case.reviewer.real_name if case.reviewer else "",
             format_bool(case.is_major),
             format_bool(case.has_paper_file),
             format_bool(case.is_dismissed),
