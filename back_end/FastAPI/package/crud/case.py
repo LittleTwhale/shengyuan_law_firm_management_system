@@ -307,6 +307,7 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
         "商事仲裁": "商仲字",
         "行政案件": "行字",
         "非诉业务": "非诉字",
+        "执行案件": "执行字",
         "法律顾问业务": "法顾字",
         "银行案件": "银行案件",
         "法律援助(民事)": "法律援助(民)",
@@ -371,7 +372,7 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
     # 案件创建时，自动建立一对一的财务关联，初始金额为0
     new_finance = CaseFinance(
         case_id=new_case.case_id,
-        contract_amount=0,  # 初始为0，由财务后续修改
+        contract_amount=new_case.case_income or 0,
         remarks="案件创建自动初始化"
     )
     db.add(new_finance)
@@ -411,6 +412,7 @@ def _find_reusable_case_number(db: Session, case_type: str, year: int) -> str:
         "商事仲裁": "商仲字",
         "行政案件": "行字",
         "非诉业务": "非诉字",
+        "执行案件": "执行字",
         "法律顾问业务": "法顾字",
         "银行案件": "银行案件",
         "法律援助(民事)": "法律援助(民)",
@@ -561,6 +563,7 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
             "商事仲裁": "商仲字",
             "行政案件": "行字",
             "非诉业务": "非诉字",
+            "执行案件": "执行字",
             "法律顾问业务": "法顾字",
             "银行案件": "银行案件",
             "法律援助(民事)": "法律援助(民)",

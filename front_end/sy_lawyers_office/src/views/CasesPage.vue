@@ -404,6 +404,7 @@ const caseCategories = ref([
   { label: '刑事案件', value: '刑事案件' },
   { label: '行政案件', value: '行政案件' },
   { label: '非诉业务', value: '非诉业务' },
+  { label: '执行案件', value: '执行案件' },
   { label: '劳动仲裁', value: '劳动仲裁' },
   { label: '商事仲裁', value: '商事仲裁' },
   { label: '法律顾问业务', value: '法律顾问业务' },

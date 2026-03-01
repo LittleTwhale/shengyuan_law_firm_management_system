@@ -15,7 +15,7 @@ class Case(Base):
     client_id_number = Column(String(18), nullable=True, comment="委托人身份证号/单位税号")
     client_phone = Column(String(20), nullable=True, comment="委托人电话")
 
-    case_category = Column(Enum('民事案件','银行案件','刑事案件','行政案件','非诉业务','劳动仲裁','商事仲裁','法律顾问业务','法律援助(民事)','法律援助(刑事)','法律援助(行政)'), nullable=False, comment="案件类别")
+    case_category = Column(Enum('民事案件','银行案件','刑事案件','行政案件','非诉业务','劳动仲裁','商事仲裁', '执行案件','法律顾问业务','法律援助(民事)','法律援助(刑事)','法律援助(行政)'), nullable=False, comment="案件类别")
 
     case_source = Column(String(100), nullable=True, comment="案件来源")
     fee_method = Column(String(50), nullable=True, comment="收费方式")
