@@ -199,13 +199,21 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="欠款/余额" width="120" align="right">
+        <el-table-column label="欠款" width="120" align="right">
           <template #default="{ row }">
             <span v-if="row.unpaid_amount > 0" class="status-dot red">
               {{ formatCurrency(row.unpaid_amount) }}
             </span>
             <span v-else class="text-gray-light">
               {{ formatCurrency(row.unpaid_amount) }}
+            </span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="余额" width="120" align="right">
+          <template #default="{ row }">
+            <span class="font-bold" :class="calculateBalance(row) >= 0 ? 'text-green' : 'text-red'">
+              {{ formatCurrency(calculateBalance(row)) }}
             </span>
           </template>
         </el-table-column>
@@ -316,15 +324,31 @@
             </div>
           </el-col>
           <el-col :span="6">
-            <div class="detail-stat-box box-basic">
+            <div class="detail-stat-box box-basic" style="background: #fdf6ec">
               <div class="info-wrapper" style="text-align: center">
-                <div class="label">剩余结余 (实收-已领)</div>
-                <div class="value">
-                  {{
-                    formatCurrency(
-                      currentFinance.total_received_amount - currentFinance.total_withdrawal_amount,
-                    )
-                  }}
+                <div class="label">扣减税费 (15%)</div>
+                <div class="value orange">
+                  -{{ formatCurrency(calculateTax(currentFinance.total_invoiced_amount)) }}
+                </div>
+              </div>
+            </div>
+          </el-col>
+          <el-col :span="6">
+            <div class="detail-stat-box box-basic" style="background: #fef0f0">
+              <div class="info-wrapper" style="text-align: center">
+                <div class="label">扣减风险金 (5%, 5w封顶)</div>
+                <div class="value red">
+                  -{{ formatCurrency(calculateRiskFund(currentFinance.total_invoiced_amount)) }}
+                </div>
+              </div>
+            </div>
+          </el-col>
+          <el-col :span="6">
+            <div class="detail-stat-box box-basic" style="background: #f0f9eb">
+              <div class="info-wrapper" style="text-align: center">
+                <div class="label">最终可用余额</div>
+                <div class="value green font-bold">
+                  {{ formatCurrency(calculateBalance(currentFinance)) }}
                 </div>
               </div>
             </div>
@@ -939,7 +963,7 @@ const fetchLawyers = async () => {
 // 辅助函数：根据ID获取律师姓名 (用于领款列表回显)
 const getLawyerName = (id) => {
   if (id === 1) {
-    return '陈宇翱'
+    return 'super manager'
   }
   const found = lawyers.value.find((l) => l.id === id)
   return found ? found.real_name : '未知人员'
@@ -988,6 +1012,29 @@ const loadData = async () => {
     statsLoading.value = false
     tableLoading.value = false
   }
+}
+
+// 税费计算
+const calculateTax = (invoicedAmount) => {
+  return Number(invoicedAmount || 0) * 0.15
+}
+
+// 风险金计算
+const calculateRiskFund = (invoicedAmount) => {
+  const fund = Number(invoicedAmount || 0) * 0.05
+  return Math.min(fund, 50000) // 最高5万元
+}
+
+// 账户余额计算
+const calculateBalance = (row) => {
+  const received = Number(row.total_received_amount || 0)
+  const withdrawal = Number(row.total_withdrawal_amount || 0)
+  const invoiced = Number(row.total_invoiced_amount || 0)
+
+  const tax = calculateTax(invoiced)
+  const riskFund = calculateRiskFund(invoiced)
+
+  return received - withdrawal - tax - riskFund
 }
 
 // --- 交互处理 ---

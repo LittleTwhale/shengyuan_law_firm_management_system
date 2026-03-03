@@ -369,10 +369,13 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
     db.add(new_case)
     db.flush()  # 刷新以获取 new_case.case_id
 
-    # 案件创建时，自动建立一对一的财务关联，初始金额为0
+    # 案件创建时，自动建立一对一的财务关联
+    initial_amount = new_case.case_income or 0
     new_finance = CaseFinance(
         case_id=new_case.case_id,
-        contract_amount=new_case.case_income or 0,
+        contract_amount=initial_amount,
+        unpaid_amount=initial_amount,  # 初始欠款直接等于合同金额
+        uninvoiced_amount=initial_amount,  # 初始未开票直接等于合同金额
         remarks="案件创建自动初始化"
     )
     db.add(new_finance)

@@ -428,7 +428,7 @@ class CRUDFinance:
             "案件号", "委托人", "案件类别", "主办律师", "立案日期",
             "合同金额", "风险代理约定", "最终收费金额",
             "累计实收", "累计开票", "累计退费", "累计领款",
-            "未开票金额", "未付金额(尾款)",
+            "未开票金额", "未付金额(欠款)","可用余额",
             "财务备注", "创建时间", "最后更新"
         ]
 
@@ -436,6 +436,15 @@ class CRUDFinance:
         for f in finance_list:
             c = f.case
             main_lawyer_name = c.main_lawyer.real_name if c.main_lawyer else ""
+
+            # 动态计算税费、风险金和余额
+            invoiced = float(f.total_invoiced_amount or 0)
+            received = float(f.total_received_amount or 0)
+            withdrawal = float(f.total_withdrawal_amount or 0)
+
+            tax = invoiced * 0.15
+            risk_fund = min(invoiced * 0.05, 50000.0)
+            balance = received - withdrawal - tax - risk_fund
 
             row = [
                 c.case_number, c.client_name, c.case_category, main_lawyer_name,
@@ -449,6 +458,7 @@ class CRUDFinance:
                 float(f.total_withdrawal_amount or 0),
                 float(f.uninvoiced_amount or 0),
                 float(f.unpaid_amount or 0),
+                balance,
                 f.remarks or "",
                 f.created_at.strftime("%Y-%m-%d") if f.created_at else "",
                 f.updated_at.strftime("%Y-%m-%d") if f.updated_at else ""
