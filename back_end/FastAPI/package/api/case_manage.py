@@ -9,6 +9,7 @@ from decimal import Decimal
 
 from ..database.database import get_db
 from ..models.case import Case, CaseParty
+from ..models.user import User
 from ..schemas.user import UserOut
 from ..schemas.case import CaseOut, CasePageOut, CaseSimpleOut, CaseCreate, CaseUpdate, CaseExportQuery
 
@@ -16,6 +17,8 @@ from ..crud.user import get_all_lawyers, get_user_id_by_name
 from ..crud.case import list_cases_by_user_role, get_case_by_id, count_cases_by_user_role, create_case, update_case, \
     delete_case, export_cases_by_user_role, list_bank_cases_by_user_role, count_bank_cases_by_user_role, \
     export_bank_cases_by_user_role, split_with_separators, export_cases_to_excel
+
+from .deps import get_current_active_user
 
 from io import BytesIO
 from urllib.parse import quote
@@ -32,8 +35,6 @@ router = APIRouter(
 # 1️⃣ 获取正式生效案件列表（分页可选）
 @router.get("/", response_model=CasePageOut)
 def get_cases(
-    user_id: int,
-    role: str,
     skip: int = 0,
     limit: int = 100,
     keyword: Optional[str] = None,  # 新增搜索关键词参数
@@ -42,15 +43,16 @@ def get_cases(
     year: Optional[str] = None,  # 新增年份参数
     sort_field: Optional[str] = "created_at",  # 排序参数
     sort_dir: Optional[str] = "desc",  # 排序方式
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)  # 安全依赖
 ):
     """
     获取案件列表
     """
     cases = list_cases_by_user_role(
         db=db,
-        user_id=user_id,
-        role=role,
+        user_id=current_user.id,
+        role=current_user.role,
         skip=skip,
         limit=limit,
         keyword=keyword,  # 传递给CRUD函数
@@ -62,8 +64,8 @@ def get_cases(
     )
     total = count_cases_by_user_role(
         db=db,
-        user_id=user_id,
-        role=role,
+        user_id=current_user.id,
+        role=current_user.role,
         keyword=keyword,  # 传递给统计函数
         category=category,  # 传递给统计函数
         main_lawyer_id=main_lawyer_id,
@@ -75,8 +77,6 @@ def get_cases(
 # 2️⃣ 获取银行案件列表
 @router.get("/bank_cases", response_model=CasePageOut)
 def get_bank_cases(
-    user_id: int,
-    role: str,
     skip: int = 0,
     limit: int = 100,
     keyword: Optional[str] = None,  # 新增搜索关键词参数
@@ -84,15 +84,16 @@ def get_bank_cases(
     year: Optional[str] = None,
     sort_field: Optional[str] = "created_at",  # 排序参数
     sort_dir: Optional[str] = "desc",  # 排序方式
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)  # 安全依赖
 ):
     """
     获取银行案件列表
     """
     cases = list_bank_cases_by_user_role(
         db=db,
-        user_id=user_id,
-        role=role,
+        user_id=current_user.id,
+        role=current_user.role,
         skip=skip,
         limit=limit,
         keyword=keyword,
@@ -103,8 +104,8 @@ def get_bank_cases(
     )
     total = count_bank_cases_by_user_role(
         db=db,
-        user_id=user_id,
-        role=role,
+        user_id=current_user.id,
+        role=current_user.role,
         keyword=keyword,  # 传递给统计函数
         main_lawyer_id=main_lawyer_id,
         year=year,
@@ -116,15 +117,14 @@ def get_bank_cases(
 # 5️⃣ 导出案件表格
 @router.post("/export", response_class=StreamingResponse)
 def export_cases(
-        user_id: int,
-        role: str,
         query: CaseExportQuery,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)  # 安全依赖
 ):
     """
     根据筛选条件导出案件明细 (支持分Sheet导出普通案件和银行案件)
     """
-    excel_io = export_cases_to_excel(db, user_id, role, query)
+    excel_io = export_cases_to_excel(db, current_user.id, current_user.role, query)
 
     filename = f"业务数据明细_{datetime.now().strftime('%Y%m%d%H%M')}.xlsx"
     encoded_filename = quote(filename)
@@ -140,7 +140,7 @@ def export_cases(
 
 # 2️⃣ 获取单条案件详情
 @router.get("/{case_id}", response_model=CaseOut)
-def get_case(case_id: int, db: Session = Depends(get_db)):
+def get_case(case_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """
     获取案件详情
     """
@@ -152,7 +152,7 @@ def get_case(case_id: int, db: Session = Depends(get_db)):
 
 # 3️⃣ 普通用户提交案件操作申请（新增/修改/删除）
 @router.post("/case_create", response_model=CaseOut, status_code=status.HTTP_201_CREATED)
-def create_new_case(case_in: CaseCreate, db: Session = Depends(get_db)):
+def create_new_case(case_in: CaseCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """
     创建新案件
     """
@@ -163,7 +163,7 @@ def create_new_case(case_in: CaseCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @router.put("/case_update/{case_id}", response_model=CaseOut)
-def update_existing_case(case_id: int, case_in: CaseUpdate, db: Session = Depends(get_db)):
+def update_existing_case(case_id: int, case_in: CaseUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """
     更新案件
     """
@@ -173,7 +173,7 @@ def update_existing_case(case_id: int, case_in: CaseUpdate, db: Session = Depend
     return updated_case
 
 @router.delete("/case_delete/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_existing_case(case_id: int, db: Session = Depends(get_db)):
+def delete_existing_case(case_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """
     删除案件（逻辑删除）
     """
@@ -185,7 +185,7 @@ def delete_existing_case(case_id: int, db: Session = Depends(get_db)):
 
 # 4️⃣ 获取所有律师列表
 @router.get("/users/lawyers", response_model=List[UserOut])
-def list_lawyers(db: Session = Depends(get_db)):
+def list_lawyers(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     return get_all_lawyers(db)
 
 
@@ -193,7 +193,8 @@ def list_lawyers(db: Session = Depends(get_db)):
 @router.post("/check_conflict", status_code=status.HTTP_200_OK)
 def check_interest_conflict(
         case_data: CaseCreate,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)
 ):
     """
     基于 CaseParty 表的全维度利益冲突检测 (重构版)
@@ -390,7 +391,7 @@ def check_interest_conflict(
 
 
 @router.post("/import", status_code=200)
-def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(get_db)):
+def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """
     📦 批量导入业务接口 (V3: 双Sheet关联模式，完美适配 CaseParty 结构)
     """

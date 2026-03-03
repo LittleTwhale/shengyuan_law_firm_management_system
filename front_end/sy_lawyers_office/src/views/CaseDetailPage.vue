@@ -56,7 +56,7 @@
                       <el-button size="small" @click="previewAttachment(scope.row)">
                         预览
                       </el-button>
-                      <el-button size="small" @click="downloadAttachment(scope.row.attachment_id)">
+                      <el-button size="small" @click="downloadAttachment(scope.row)">
                         下载
                       </el-button>
                     </template>
@@ -80,6 +80,7 @@
       height="90vh"
       :close-on-click-modal="false"
       destroy-on-close
+      @closed="handlePreviewClose"
     >
       <div class="preview-container">
         <img
@@ -87,6 +88,7 @@
           :src="previewUrl"
           class="image-preview"
           alt="预览图片"
+          @error="handleImageError"
         />
 
         <iframe v-else-if="previewType === 'pdf'" :src="previewUrl" class="pdf-iframe" />
@@ -98,7 +100,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import axios from 'axios'
+import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 
 // 引入拆分的组件
@@ -139,7 +141,7 @@ const goBack = () => {
 const loadCaseDetail = async () => {
   loading.value = true
   try {
-    const res = await axios.get(`http://127.0.0.1:8002/cases/${caseId}`)
+    const res = await request.get(`/cases/${caseId}`)
     caseData.value = res.data || {}
 
     // 权限判断逻辑
@@ -174,7 +176,7 @@ const loadAttachments = async () => {
 
   loadingAttachments.value = true
   try {
-    const res = await axios.get(`http://127.0.0.1:8002/attachments/case/${caseId}`)
+    const res = await request.get(`/attachments/case/${caseId}`)
     attachments.value = res.data
     // 转换为上传组件需要的格式
     attachmentFileList.value = res.data.map((item) => ({
@@ -202,8 +204,36 @@ const formatFileSize = (row) => {
 }
 
 // 下载附件
-const downloadAttachment = (attachmentId) => {
-  window.open(`http://127.0.0.1:8002/attachments/${attachmentId}/download`, '_blank')
+const downloadAttachment = async (attachment) => {
+  try {
+    ElMessage.info('正在获取文件，请稍候...')
+
+    // 1. 发起请求，注意 responseType: 'blob' 必须加上
+    const res = await request.get(`/attachments/${attachment.attachment_id}/download`, {
+      responseType: 'blob',
+    })
+
+    // 2. 获取文件名（从传入的 attachment 对象中获取，或者从响应头 Content-Disposition 提取）
+    const fileName = attachment.file_name || '附件下载'
+
+    // 3. 创建 Blob URL 并触发下载
+    const blob = new Blob([res.data])
+    const downloadUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = fileName
+
+    // 兼容 Firefox 触发点击
+    document.body.appendChild(link)
+    link.click()
+
+    // 4. 清理内存
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(downloadUrl)
+  } catch (err) {
+    console.error('下载附件失败:', err)
+    ElMessage.error('附件下载失败，请检查网络或权限')
+  }
 }
 
 // 新增预览相关变量
@@ -212,37 +242,81 @@ const previewUrl = ref('')
 const previewType = ref('') // 'image' 或 'pdf'
 const previewTitle = ref('文件预览')
 
-// 预览附件
-const previewAttachment = (attachment) => {
-  // 根据文件类型决定预览方式
+const previewAttachment = async (attachment) => {
   const fileType = attachment.file_type || ''
-  const previewUrlTemp = `http://127.0.0.1:8002/attachments/${attachment.attachment_id}/preview`
 
-  // 图片类型处理
-  if (fileType.startsWith('image/')) {
-    previewType.value = 'image'
-    previewUrl.value = previewUrlTemp
-    previewTitle.value = `图片预览：${attachment.file_name}`
-    showFilePreview.value = true
-    return
-  }
-
-  // PDF类型处理
+  // 1. 先判断是否支持预览
+  const isImage = fileType.startsWith('image/')
   const previewableTypes = [
     'application/pdf',
     'application/msword', // .doc
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
   ]
-  if (previewableTypes.includes(fileType)) {
-    previewType.value = 'pdf'
-    previewUrl.value = previewUrlTemp
-    previewTitle.value = `PDF预览：${attachment.file_name}`
-    showFilePreview.value = true
+  const isPdfOrWord = previewableTypes.includes(fileType)
+
+  if (!isImage && !isPdfOrWord) {
+    ElMessage.info('该文件类型不支持直接预览，建议下载查看')
     return
   }
 
-  // 对于Office文档，可以提示无法直接预览或使用第三方服务
-  ElMessage.info('该文件类型不支持直接预览，建议下载查看')
+  // 2. 发起携带 Token 的请求获取文件流
+  try {
+    ElMessage.info('正在加载预览，请稍候...')
+
+    // 使用统一的 request 请求，附带 responseType: 'blob'
+    const res = await request.get(`/attachments/${attachment.attachment_id}/preview`, {
+      responseType: 'blob',
+    })
+
+    // 确定 Blob 的 MIME 类型 (特别注意：后端将 Word 转成了 PDF，所以此处可以强制指定为 pdf 格式)
+    let contentType = fileType
+    if (isPdfOrWord && !fileType.includes('pdf')) {
+      contentType = 'application/pdf'
+    }
+
+    // 创建本地临时 URL
+    const blob = new Blob([res.data], { type: contentType })
+    const objectUrl = window.URL.createObjectURL(blob)
+
+    // 3. 赋值并打开预览弹窗
+    if (isImage) {
+      previewType.value = 'image'
+      previewTitle.value = `图片预览：${attachment.file_name}`
+    } else {
+      previewType.value = 'pdf'
+      previewTitle.value = `PDF预览：${attachment.file_name}`
+    }
+
+    previewUrl.value = objectUrl
+    showFilePreview.value = true
+  } catch (err) {
+    console.error('获取预览失败:', err)
+    ElMessage.error('预览加载失败，请检查网络或权限')
+  }
+}
+
+// 关闭预览时清理资源
+const handlePreviewClose = () => {
+  // 检查是否是blob URL，若是则释放
+  if (previewUrl.value && previewUrl.value.startsWith('blob:')) {
+    try {
+      // 释放blob URL内存
+      window.URL.revokeObjectURL(previewUrl.value)
+    } catch (e) {
+      console.warn('释放blob URL失败:', e)
+    }
+    // 清空URL，避免残留
+    previewUrl.value = ''
+  }
+  // 清空其他预览状态
+  previewTitle.value = ''
+  previewType.value = ''
+}
+
+// 图片加载失败处理
+const handleImageError = (e) => {
+  e.target.src = 'https://placeholder.pics/svg/800x600/CCCCCC/666666/图片加载失败'
+  console.error('图片预览加载失败')
 }
 
 const formatDateTime = (dateVal) => {

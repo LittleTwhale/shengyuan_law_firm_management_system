@@ -5,6 +5,8 @@ from typing import List
 
 from ..database.database import get_db
 from ..models.attachment import CaseAttachment
+from .deps import get_current_active_user
+from ..models.user import User
 from ..schemas.attachment import AttachmentCreate, AttachmentOut
 from ..crud.attachment import create_attachment, get_attachments_by_case_id, delete_attachment_by_id, \
     convert_word_to_pdf
@@ -23,9 +25,9 @@ router = APIRouter(
 @router.post("/", response_model=AttachmentOut, status_code=status.HTTP_201_CREATED)
 async def upload_attachment(
         case_id: int = Form(..., description="关联的案件ID"),
-        uploaded_by: int = Form(..., description="上传人ID"),
         file: UploadFile = File(...),
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)
 ):
     """
     上传案件附件
@@ -44,7 +46,7 @@ async def upload_attachment(
     # 构建附件创建参数
     attachment_in = AttachmentCreate(
         case_id=case_id,
-        uploaded_by=uploaded_by
+        uploaded_by=current_user.id
     )
 
     try:
@@ -83,7 +85,8 @@ async def upload_attachment(
 @router.get("/case/{case_id}", response_model=List[AttachmentOut])
 def get_case_attachments(
         case_id: int,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)
 ):
     """根据案件ID查询所有附件"""
     # 验证案件存在性
@@ -99,7 +102,8 @@ def get_case_attachments(
 @router.delete("/{attachment_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_attachment(
         attachment_id: int,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)
 ):
     """删除附件（同时删除文件和数据库记录）"""
     try:
@@ -119,7 +123,8 @@ def delete_attachment(
 @router.get("/{attachment_id}/download")
 def download_attachment(
         attachment_id: int,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)
 ):
     """下载附件文件"""
 
@@ -152,7 +157,8 @@ def download_attachment(
 @router.get("/{attachment_id}/preview")
 def preview_attachment(
         attachment_id: int,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)
 ):
     """
     预览图片或PDF附件

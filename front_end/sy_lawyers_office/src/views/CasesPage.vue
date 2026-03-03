@@ -377,8 +377,8 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import axios from 'axios'
-import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
+import request from '@/utils/request'
+import { ElMessage, ElNotification } from 'element-plus'
 import CaseForm from './CaseForm.vue' // 引入抽离的CaseForm组件
 import { useRouter } from 'vue-router'
 import { Check, Document, Loading, Upload, UploadFilled, Download } from '@element-plus/icons-vue' // 新增了 Download 图标
@@ -437,7 +437,7 @@ onMounted(() => {
 // -------------------------- 律师列表加载 --------------------------
 const loadLawyers = async () => {
   try {
-    const res = await axios.get('http://127.0.0.1:8002/cases/users/lawyers')
+    const res = await request.get('/cases/users/lawyers')
     lawyers.value = res.data || []
   } catch (err) {
     console.error('加载律师列表失败:', err)
@@ -449,10 +449,8 @@ const loadLawyers = async () => {
 const loadCases = async () => {
   tableLoading.value = true
   try {
-    const res = await axios.get('http://127.0.0.1:8002/cases/', {
+    const res = await request.get('/cases/', {
       params: {
-        user_id: currentUserID.value,
-        role: currentUserRole.value,
         skip: (page.value - 1) * pageSize.value,
         limit: pageSize.value,
         keyword: searchKeyword.value, // 搜索关键词
@@ -528,7 +526,7 @@ const handleEditClick = async (row) => {
   currentCaseId.value = row.case_id
   try {
     // 调接口获取完整案件详情（CaseOut）
-    const res = await axios.get(`http://127.0.0.1:8002/cases/${row.case_id}`)
+    const res = await request.get(`/cases/${row.case_id}`)
     const fullCaseData = res.data
 
     // 深拷贝 CaseOut 数据到表单
@@ -544,126 +542,10 @@ const handleEditClick = async (row) => {
 
 // -------------------------- CaseForm 组件事件回调 --------------------------
 // 表单提交（新增/编辑通用）
-const handleFormSubmit = async (submittedData) => {
-  // 提取文件列表并从提交数据中移除
-  const filesToUpload = submittedData.filesToUpload || []
-  delete submittedData.filesToUpload
-
-  // 在 try/catch 外部声明 newCaseId
-  let newCaseId = null
-
-  try {
-    if (formMode.value === 'add') {
-      // 1.1 新增案件：先检测利益冲突
-      const conflictRes = await axios.post(
-        'http://127.0.0.1:8002/cases/check_conflict',
-        submittedData,
-        {
-          params: {},
-        },
-      )
-
-      if (conflictRes.data.has_conflict) {
-        try {
-          // 构建冲突提示文本
-          let message = ''
-          // 检查是否有顾问单位类型的冲突
-          const hasConsultantConflict = conflictRes.data.details.some(
-            (c) => c.conflict_type === '顾问单位作为被告',
-          )
-
-          if (hasConsultantConflict) {
-            // 顾问单位冲突提示
-            message = `检测到可能存在利益冲突：该案件的被告为法律顾问单位，是否继续创建？\n`
-          } else {
-            // 常规利益冲突提示（使用第一个冲突的角色）
-            message = `检测到可能存在利益冲突：该委托人在以下案件中担任${conflictRes.data.details[0].role}，是否继续创建？\n`
-          }
-
-          // 拼接所有冲突案件信息
-          message += conflictRes.data.details
-            .map(
-              (c) =>
-                `业务号：${c.case_number}（主办律师：${c.other_lawyer_name || c.other_lawyer_id}）`,
-            )
-            .join('\n')
-
-          // 弹出确认框
-          await ElMessageBox.confirm(message, '利益冲突警告', {
-            confirmButtonText: '继续创建',
-            cancelButtonText: '取消',
-            type: 'warning',
-          })
-        } catch {
-          // 用户点了“取消”，直接返回，不创建案件
-          ElMessage.info('已取消创建')
-          return
-        }
-      }
-
-      // 无冲突或用户确认继续，则提交创建
-      // 捕获响应，获取新生成的 case_id
-      const createRes = await axios.post('http://127.0.0.1:8002/cases/case_create', submittedData)
-      newCaseId = createRes.data.case_id // 获取新案件 ID
-      ElMessage.success('新增案件成功')
-
-      // 批量上传附件
-      if (filesToUpload.length > 0) {
-        ElMessage.info(`正在上传 ${filesToUpload.length} 个附件...`)
-        const uploadPromises = filesToUpload.map((file) => {
-          const fileFormData = new FormData()
-          fileFormData.append('file', file)
-          fileFormData.append('case_id', newCaseId)
-          fileFormData.append('uploaded_by', currentUserID.value) // 使用当前用户ID
-
-          // 直接调用附件上传接口
-          return axios.post('http://127.0.0.1:8002/attachments/', fileFormData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-          })
-        })
-
-        // 等待所有上传完成
-        const uploadResults = await Promise.allSettled(uploadPromises)
-
-        // 检查失败情况并通知用户
-        const failedUploads = uploadResults.filter((r) => r.status === 'rejected')
-        if (failedUploads.length > 0) {
-          console.error('部分附件上传失败:', failedUploads)
-          ElNotification.warning({
-            title: '案件创建成功，但附件上传有误',
-            message: `共 ${filesToUpload.length} 个附件，其中 ${failedUploads.length} 个上传失败。您可以在案件详情页重新上传。`,
-            duration: 8000,
-          })
-        } else {
-          ElMessage.success('所有附件上传完成')
-        }
-      }
-    } else {
-      // 编辑案件：调用 /cases/case_update/{case_id}
-      await axios.put(
-        `http://127.0.0.1:8002/cases/case_update/${currentCaseId.value}`,
-        submittedData,
-      )
-      ElMessage.success('编辑案件成功')
-    }
-    await loadCases()
-  } catch (err) {
-    console.error(`${formMode.value === 'add' ? '新增' : '编辑'}案件失败:`, err)
-
-    // 提取通用错误信息
-    const errorMessage =
-      err.response?.data?.detail?.message ||
-      err.response?.data?.detail ||
-      `${formMode.value === 'add' ? '新增' : '编辑'}案件失败，请重试`
-
-    // 针对新增模式：如果创建成功但附件上传失败，给出不同的提示
-    if (formMode.value === 'add' && newCaseId) {
-      // newCaseId 现在可以在 catch 块中访问
-      ElMessage.warning(`案件创建成功 (ID: ${newCaseId})，但附件上传失败，请在案件详情页重新上传。`)
-    } else {
-      ElMessage.error(errorMessage)
-    }
-  }
+const handleFormSubmit = () => {
+  // CaseForm 组件内部已经处理完了所有提交和附件上传逻辑
+  // 外层页面只需要负责重新拉取数据，刷新表格即可
+  loadCases()
 }
 
 // -------------------------- 查看案件相关 --------------------------
@@ -685,7 +567,7 @@ const deleteCase = async (caseId) => {
   if (!confirm('确定要删除该案件吗？')) return
 
   try {
-    await axios.delete(`http://127.0.0.1:8002/cases/case_delete/${caseId}`)
+    await request.delete(`/cases/case_delete/${caseId}`)
     ElMessage.success('删除案件成功')
     await loadCases() // 刷新列表
   } catch (err) {
@@ -735,12 +617,8 @@ const submitExport = async () => {
         exportForm.dateRange && exportForm.dateRange.length === 2 ? exportForm.dateRange[1] : null,
     }
 
-    // 2️⃣ 发起 POST 请求 (注意使用 params 传递 URL 参数，data 传递 JSON Payload)
-    const response = await axios.post('http://127.0.0.1:8002/cases/export', payload, {
-      params: {
-        user_id: currentUserID.value,
-        role: currentUserRole.value,
-      },
+    // 2️⃣ 发起 POST 请求
+    const response = await request.post('/cases/export', payload, {
       responseType: 'blob', // 告诉 axios 返回文件流
     })
 
@@ -823,10 +701,9 @@ const submitAttachments = async () => {
     const uploadPromises = attachmentFileList.value.map((file) => {
       const formData = new FormData()
       formData.append('case_id', currentUploadCaseId.value)
-      formData.append('uploaded_by', currentUserID.value) // 使用当前登录用户ID
       formData.append('file', file.raw) // 注意：ElementPlus 中要用 file.raw 获取原生文件对象
 
-      return axios.post('http://127.0.0.1:8002/attachments/', formData, {
+      return request.post('/attachments/', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
     })
@@ -947,7 +824,7 @@ const downloadTemplate = async () => {
   const fileName = 'case_import_template.xlsx'
   try {
     // 请求文件流
-    const response = await axios.get(`http://127.0.0.1:8002/template/download`, {
+    const response = await request.get(`/template/download`, {
       params: { filename: fileName },
       responseType: 'blob', // 告诉 axios 返回二进制流
     })
@@ -995,7 +872,7 @@ const handleImport = async () => {
     progress.value = 0
 
     // ✅ 使用 axios 提供的 onUploadProgress 获取真实进度
-    const response = await axios.post('http://127.0.0.1:8002/cases/import', formData, {
+    const response = await request.post('/cases/import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (event) => {
         if (event.total > 0) {
@@ -1066,12 +943,9 @@ const handleDownloadApproval = async (row) => {
     ElMessage.info('正在生成审批表，请稍候...')
 
     // 发起请求
-    const response = await axios.get(
-      `http://127.0.0.1:8002/case_review/${row.case_id}/approval_form`,
-      {
-        responseType: 'blob', // 关键设置：告诉 axios 响应是一个二进制文件流
-      },
-    )
+    const response = await request.get(`/case_review/${row.case_id}/approval_form`, {
+      responseType: 'blob', // 关键设置：告诉 axios 响应是一个二进制文件流
+    })
 
     // 创建 Blob 对象
     const blob = new Blob([response.data], {

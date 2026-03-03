@@ -234,12 +234,12 @@ const initChart = () => {
     },
     yAxis: {
       type: 'value',
-      name: '案件数量',
+      name: '业务数量',
       min: 0, // y轴最小值设为0，避免数据偏差
     },
     series: [
       {
-        name: '案件数量',
+        name: '业务数量',
         type: 'bar', // 基础柱状图类型（无需3D依赖）
         data: chartData,
         barWidth: '50%', // 柱子宽度，避免过宽或过窄

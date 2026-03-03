@@ -250,7 +250,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import axios from 'axios'
+import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import CaseForm from './CaseForm.vue'
 import { useRouter } from 'vue-router'
@@ -293,7 +293,7 @@ onMounted(() => {
 // 加载律师列表
 const loadLawyers = async () => {
   try {
-    const res = await axios.get('http://127.0.0.1:8002/cases/users/lawyers')
+    const res = await request.get('/cases/users/lawyers')
     lawyers.value = res.data || []
   } catch (err) {
     console.error('加载律师列表失败:', err)
@@ -305,10 +305,8 @@ const loadLawyers = async () => {
 const loadBankCases = async () => {
   tableLoading.value = true
   try {
-    const res = await axios.get('http://127.0.0.1:8002/cases/bank_cases', {
+    const res = await request.get('/cases/bank_cases', {
       params: {
-        user_id: currentUserID.value,
-        role: currentUserRole.value,
         skip: (page.value - 1) * pageSize.value,
         limit: pageSize.value,
         keyword: searchKeyword.value,
@@ -380,7 +378,7 @@ const handleEditClick = async (row) => {
   formMode.value = 'edit'
   currentCaseId.value = row.case_id
   try {
-    const res = await axios.get(`http://127.0.0.1:8002/cases/${row.case_id}`)
+    const res = await request.get(`/cases/${row.case_id}`)
     Object.assign(formData, JSON.parse(JSON.stringify(res.data)))
     showFormDialog.value = true
   } catch (err) {
@@ -390,16 +388,10 @@ const handleEditClick = async (row) => {
 }
 
 // 提交编辑表单
-const handleFormSubmit = async (submittedData) => {
-  try {
-    await axios.put(`http://127.0.0.1:8002/cases/case_update/${currentCaseId.value}`, submittedData)
-    ElMessage.success('编辑案件成功')
-    showFormDialog.value = false
-    await loadBankCases()
-  } catch (err) {
-    console.error('编辑案件失败:', err)
-    ElMessage.error('编辑案件失败')
-  }
+const handleFormSubmit = () => {
+  // CaseForm 组件内部已经处理了真实的保存 API 调用和关闭弹窗
+  // 这里只需要重新加载列表数据
+  loadBankCases()
 }
 
 // 删除案件
@@ -407,7 +399,7 @@ const deleteCase = async (caseId) => {
   if (!confirm('确定要删除该案件吗？')) return
 
   try {
-    await axios.delete(`http://127.0.0.1:8002/cases/case_delete/${caseId}`)
+    await request.delete(`/cases/case_delete/${caseId}`)
     ElMessage.success('删除案件成功')
     await loadBankCases()
   } catch (err) {
@@ -421,12 +413,9 @@ const handleDownloadApproval = async (row) => {
   try {
     ElMessage.info('正在生成审批表，请稍候...')
 
-    const response = await axios.get(
-      `http://127.0.0.1:8002/case_review/${row.case_id}/approval_form`,
-      {
-        responseType: 'blob',
-      },
-    )
+    const response = await request.get(`/case_review/${row.case_id}/approval_form`, {
+      responseType: 'blob',
+    })
 
     const blob = new Blob([response.data], {
       type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -492,10 +481,9 @@ const submitAttachments = async () => {
     const uploadPromises = attachmentFileList.value.map((file) => {
       const formData = new FormData()
       formData.append('case_id', currentUploadCaseId.value)
-      formData.append('uploaded_by', currentUserID.value)
       formData.append('file', file.raw)
 
-      return axios.post('http://127.0.0.1:8002/attachments/', formData, {
+      return request.post('/attachments/', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
     })
@@ -552,11 +540,7 @@ const submitExport = async () => {
     }
 
     // 调用与总库一样的 export 接口
-    const response = await axios.post('http://127.0.0.1:8002/cases/export', payload, {
-      params: {
-        user_id: currentUserID.value,
-        role: currentUserRole.value,
-      },
+    const response = await request.post('/cases/export', payload, {
       responseType: 'blob',
     })
 

@@ -94,7 +94,7 @@
 
 <script setup>
 import { ref, reactive, watch, computed, provide } from 'vue'
-import axios from 'axios'
+import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
 
@@ -301,7 +301,7 @@ const handleCategoryChange = (val) => {
 // 加载律师列表
 const fetchLawyers = async () => {
   try {
-    const res = await axios.get('http://127.0.0.1:8002/cases/users/lawyers')
+    const res = await request.get('/cases/users/lawyers')
     lawyerOptions.value = res.data
   } catch (e) {
     console.error('加载律师列表失败', e)
@@ -312,7 +312,7 @@ const fetchLawyers = async () => {
 const fetchCaseDetail = async () => {
   if (!props.caseId) return
   try {
-    const res = await axios.get(`http://127.0.0.1:8002/cases/${props.caseId}`)
+    const res = await request.get(`/cases/${props.caseId}`)
     const data = res.data
 
     // 填充基础数据
@@ -332,7 +332,16 @@ const fetchCaseDetail = async () => {
       )
         return
       if (data[key] !== undefined) {
-        formData[key] = data[key]
+        // 如果 formData 中初始定义该字段是数字类型，且后端返回了字符串，则将其转换为数字
+        if (
+          typeof formData[key] === 'number' &&
+          typeof data[key] === 'string' &&
+          !isNaN(Number(data[key]))
+        ) {
+          formData[key] = Number(data[key])
+        } else {
+          formData[key] = data[key]
+        }
       }
     })
 
@@ -413,7 +422,24 @@ const fetchCaseDetail = async () => {
 
     // 填充银行案件数据
     if (data.case_category === '银行案件' && data.bank_case_details) {
-      formData.bank_case_details = { ...initialBankDetails, ...data.bank_case_details }
+      const backendDetails = data.bank_case_details
+      Object.keys(initialBankDetails).forEach((key) => {
+        const val = backendDetails[key]
+        if (val !== undefined && val !== null) {
+          // 如果模板定义这是个数字，而后端给了字符串，强转成 Number
+          if (
+            typeof initialBankDetails[key] === 'number' &&
+            typeof val === 'string' &&
+            !isNaN(Number(val))
+          ) {
+            formData.bank_case_details[key] = Number(val)
+          } else {
+            formData.bank_case_details[key] = val
+          }
+        } else {
+          formData.bank_case_details[key] = initialBankDetails[key] // 后端没传则用默认值
+        }
+      })
     } else {
       formData.bank_case_details = JSON.parse(JSON.stringify(initialBankDetails))
     }
@@ -425,8 +451,35 @@ const fetchCaseDetail = async () => {
   }
 }
 
-const downloadFormAttachment = (attachmentId) => {
-  window.open(`http://127.0.0.1:8002/attachments/${attachmentId}/download`, '_blank')
+const downloadFormAttachment = async (attachmentId) => {
+  try {
+    ElMessage.info('正在获取文件...')
+    // 使用带有 Token 的 request 去请求文件流
+    const res = await request.get(`/attachments/${attachmentId}/download`, {
+      responseType: 'blob',
+    })
+
+    // 从 headers 中尝试提取文件名 (如果后端设置了 Content-Disposition)
+    // 也可以直接在前端找对应附件列表里的名字
+    const attachmentInfo = formData.attachments.find((item) => item.uid === attachmentId)
+    const fileName = attachmentInfo ? attachmentInfo.name : '附件下载'
+
+    // 创建 blob 下载链接
+    const blob = new Blob([res.data]) // 注意 mimetype 根据实际情况可能需要补充
+    const downloadUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = fileName // 设定下载的文件名
+    document.body.appendChild(link)
+    link.click()
+
+    // 清理
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(downloadUrl)
+  } catch (err) {
+    console.error('下载失败', err)
+    ElMessage.error('附件下载失败')
+  }
 }
 
 const deleteFormAttachment = async (attachmentId) => {
@@ -434,7 +487,7 @@ const deleteFormAttachment = async (attachmentId) => {
     await ElMessageBox.confirm('确定要永久删除该附件吗？', '提示', {
       type: 'warning',
     })
-    await axios.delete(`http://127.0.0.1:8002/attachments/${attachmentId}`)
+    await request.delete(`/attachments/${attachmentId}`)
     ElMessage.success('附件删除成功')
     formData.attachments = formData.attachments.filter((item) => item.uid !== attachmentId)
   } catch (err) {
@@ -444,7 +497,7 @@ const deleteFormAttachment = async (attachmentId) => {
 
 const loadFormAttachments = async (caseId) => {
   try {
-    const res = await axios.get(`http://127.0.0.1:8002/attachments/case/${caseId}`)
+    const res = await request.get(`/attachments/case/${caseId}`)
     formData.attachments = res.data.map((item) => ({
       name: item.file_name,
       uid: item.attachment_id,
@@ -584,10 +637,7 @@ const handleSubmit = async () => {
 
         // ================== 利益冲突检测 ==================
         try {
-          const conflictRes = await axios.post(
-            'http://127.0.0.1:8002/cases/check_conflict',
-            submitData,
-          )
+          const conflictRes = await request.post('/cases/check_conflict', submitData)
 
           if (conflictRes.data.has_conflict) {
             const detailsHtml = conflictRes.data.details
@@ -638,14 +688,11 @@ const handleSubmit = async () => {
         let res
         let targetCaseId
         if (props.caseId) {
-          res = await axios.put(
-            `http://127.0.0.1:8002/cases/case_update/${props.caseId}`,
-            submitData,
-          )
+          res = await request.put(`/cases/case_update/${props.caseId}`, submitData)
           targetCaseId = props.caseId
           ElMessage.success('更新成功')
         } else {
-          res = await axios.post('http://127.0.0.1:8002/cases/case_create', submitData)
+          res = await request.post('/cases/case_create', submitData)
           targetCaseId = res.data.case_id
           ElMessage.success('创建成功')
         }
@@ -657,9 +704,8 @@ const handleSubmit = async () => {
             const file = fileItem.raw || fileItem
             fd.append('file', file)
             fd.append('case_id', targetCaseId)
-            fd.append('uploaded_by', props.currentUserId || 1)
 
-            return axios.post('http://127.0.0.1:8002/attachments/', fd, {
+            return request.post('/attachments/', fd, {
               headers: { 'Content-Type': 'multipart/form-data' },
             })
           })
