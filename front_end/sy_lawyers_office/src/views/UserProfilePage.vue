@@ -48,7 +48,7 @@
           <el-col :span="6" v-if="isAdmin">
             <el-card class="stat-card">
               <div class="stat-item">
-                <span class="stat-label">审核案件数</span>
+                <span class="stat-label">审核业务数</span>
                 <span class="stat-value">{{ stats.review_case_count }}</span>
               </div>
             </el-card>
@@ -58,7 +58,7 @@
 
       <!-- 案件类型统计图表 -->
       <div class="profile-chart">
-        <h3>案件类型分布</h3>
+        <h3>业务类型分布</h3>
         <el-card>
           <div ref="chartContainer" class="chart-container"></div>
         </el-card>

@@ -199,6 +199,41 @@
           </template>
         </el-table-column>
 
+        <el-table-column label="税费" width="100" align="right">
+          <template #default="{ row }">
+            <span
+              :class="{
+                'text-gray-light':
+                  calculateTax(row.total_invoiced_amount, row.total_received_amount) <= 0,
+                'text-cyan': calculateTax(row.total_invoiced_amount, row.total_received_amount) > 0,
+              }"
+            >
+              {{
+                formatCurrency(calculateTax(row.total_invoiced_amount, row.total_received_amount))
+              }}
+            </span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="风险金" width="100" align="right">
+          <template #default="{ row }">
+            <span
+              :class="{
+                'text-gray-light':
+                  calculateRiskFund(row.total_invoiced_amount, row.total_received_amount) <= 0,
+                'text-indigo':
+                  calculateRiskFund(row.total_invoiced_amount, row.total_received_amount) > 0,
+              }"
+            >
+              {{
+                formatCurrency(
+                  calculateRiskFund(row.total_invoiced_amount, row.total_received_amount),
+                )
+              }}
+            </span>
+          </template>
+        </el-table-column>
+
         <el-table-column label="欠款" width="120" align="right">
           <template #default="{ row }">
             <span v-if="row.unpaid_amount > 0" class="status-dot red">
@@ -328,7 +363,14 @@
               <div class="info-wrapper" style="text-align: center">
                 <div class="label">扣减税费 (15%)</div>
                 <div class="value orange">
-                  -{{ formatCurrency(calculateTax(currentFinance.total_invoiced_amount)) }}
+                  -{{
+                    formatCurrency(
+                      calculateTax(
+                        currentFinance.total_invoiced_amount,
+                        currentFinance.total_received_amount,
+                      ),
+                    )
+                  }}
                 </div>
               </div>
             </div>
@@ -338,7 +380,14 @@
               <div class="info-wrapper" style="text-align: center">
                 <div class="label">扣减风险金 (5%, 5w封顶)</div>
                 <div class="value red">
-                  -{{ formatCurrency(calculateRiskFund(currentFinance.total_invoiced_amount)) }}
+                  -{{
+                    formatCurrency(
+                      calculateRiskFund(
+                        currentFinance.total_invoiced_amount,
+                        currentFinance.total_received_amount,
+                      ),
+                    )
+                  }}
                 </div>
               </div>
             </div>
@@ -1014,13 +1063,15 @@ const loadData = async () => {
   }
 }
 
-// 税费计算
-const calculateTax = (invoicedAmount) => {
+// 税费计算 (仅在有回款时计算)
+const calculateTax = (invoicedAmount, receivedAmount = 0) => {
+  if (Number(receivedAmount) <= 0) return 0
   return Number(invoicedAmount || 0) * 0.15
 }
 
-// 风险金计算
-const calculateRiskFund = (invoicedAmount) => {
+// 风险金计算 (仅在有回款时计算)
+const calculateRiskFund = (invoicedAmount, receivedAmount = 0) => {
+  if (Number(receivedAmount) <= 0) return 0
   const fund = Number(invoicedAmount || 0) * 0.05
   return Math.min(fund, 50000) // 最高5万元
 }
@@ -1031,8 +1082,9 @@ const calculateBalance = (row) => {
   const withdrawal = Number(row.total_withdrawal_amount || 0)
   const invoiced = Number(row.total_invoiced_amount || 0)
 
-  const tax = calculateTax(invoiced)
-  const riskFund = calculateRiskFund(invoiced)
+  // 传入 received 参与判断
+  const tax = calculateTax(invoiced, received)
+  const riskFund = calculateRiskFund(invoiced, received)
 
   return received - withdrawal - tax - riskFund
 }
@@ -1504,6 +1556,12 @@ const formatCurrency = (val) => {
 .text-purple {
   color: #6d14d7;
   font-weight: bold;
+}
+.text-cyan {
+  color: #409eff !important;
+}
+.text-indigo {
+  color: #667eea !important;
 }
 .contract-text {
   font-weight: 800;

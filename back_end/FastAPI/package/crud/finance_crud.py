@@ -442,8 +442,12 @@ class CRUDFinance:
             received = float(f.total_received_amount or 0)
             withdrawal = float(f.total_withdrawal_amount or 0)
 
-            tax = invoiced * 0.15
-            risk_fund = min(invoiced * 0.05, 50000.0)
+            if received > 0:
+                tax = invoiced * 0.15
+                risk_fund = min(invoiced * 0.05, 50000.0)
+            else:
+                tax = 0.0
+                risk_fund = 0.0
             balance = received - withdrawal - tax - risk_fund
 
             row = [
