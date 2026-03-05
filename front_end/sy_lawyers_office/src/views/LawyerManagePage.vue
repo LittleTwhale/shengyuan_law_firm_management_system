@@ -13,15 +13,13 @@
         />
       </div>
       <div class="toolbar-right">
-        <el-button type="primary" icon="el-icon-plus" @click="openDialog()">
-          新增用户
-        </el-button>
+        <el-button type="primary" icon="el-icon-plus" @click="openDialog()"> 新增用户 </el-button>
       </div>
     </div>
 
     <!-- 用户表格 -->
     <div class="content-area">
-      <el-table :data="pagedData" border stripe style="flex: 1;">
+      <el-table :data="pagedData" border stripe style="flex: 1">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="accounts" label="账号" width="150" />
         <el-table-column prop="real_name" label="姓名" width="120" />
@@ -92,11 +90,7 @@
         <!-- 密码 -->
         <!-- 编辑用户时可为空，不修改密码 -->
         <el-form-item label="密码" prop="password" v-if="editUser">
-          <el-input
-            v-model="form.password"
-            type="password"
-            placeholder="不填则不修改密码"
-          />
+          <el-input v-model="form.password" type="password" placeholder="不填则不修改密码" />
         </el-form-item>
 
         <!-- 新增用户时密码必填 -->
@@ -117,6 +111,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import request from '@/utils/request'
 
 // 当前用户角色
 const role = localStorage.getItem('role')
@@ -138,11 +133,12 @@ const formRef = ref(null) // 表单引用
 // --------------------------
 const filteredList = computed(() => {
   if (!searchKeyword.value) return users.value
-  return users.value.filter(u =>
-    u.accounts.includes(searchKeyword.value) ||
-    u.real_name.includes(searchKeyword.value) ||
-    u.position.includes(searchKeyword.value) ||
-    u.role.includes(searchKeyword.value)
+  return users.value.filter(
+    (u) =>
+      u.accounts.includes(searchKeyword.value) ||
+      u.real_name.includes(searchKeyword.value) ||
+      u.position.includes(searchKeyword.value) ||
+      u.role.includes(searchKeyword.value),
   )
 })
 const pagedData = computed(() => {
@@ -153,15 +149,15 @@ const pagedData = computed(() => {
 // --------------------------
 // 权限控制
 // --------------------------
-const canEdit = row => {
+const canEdit = (row) => {
   if (role === 'owner') return row.role !== 'owner'
   if (role === 'admin') {
     // 管理员只能编辑普通用户（user）
-    return row.role === 'user';
+    return row.role === 'user'
   }
   return false
 }
-const canDelete = row => canEdit(row)
+const canDelete = (row) => canEdit(row)
 
 // --------------------------
 // 弹窗操作
@@ -183,27 +179,22 @@ const openDialog = (row = null) => {
 const formRules = {
   accounts: [
     { required: true, message: '请输入账号', trigger: 'blur' },
-    { min: 3, max: 20, message: '账号长度需为3~20位', trigger: 'blur' }
+    { min: 3, max: 20, message: '账号长度需为3~20位', trigger: 'blur' },
   ],
-  real_name: [
-    { required: true, message: '请输入姓名', trigger: 'blur' }
-  ],
-  position: [
-    { required: true, message: '请输入职位', trigger: 'blur' }
-  ],
+  real_name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
+  position: [{ required: true, message: '请输入职位', trigger: 'blur' }],
   password: [
     {
       validator: (_, value, callback) => {
         // 编辑时允许密码为空
         if (editUser.value && !value) return callback()
         if (!value) return callback(new Error('请输入密码'))
-        if (value.length < 6 || value.length > 20)
-          return callback(new Error('密码长度需为6~20位'))
+        if (value.length < 6 || value.length > 20) return callback(new Error('密码长度需为6~20位'))
         callback()
       },
-      trigger: 'blur'
-    }
-  ]
+      trigger: 'blur',
+    },
+  ],
 }
 
 // --------------------------
@@ -211,14 +202,11 @@ const formRules = {
 // --------------------------
 const fetchUsers = async () => {
   try {
-    const res = await fetch(`http://127.0.0.1:8002/lawyer_manage/users?role=${role}`)
-    if (!res.ok) {
-      ElMessage.error('获取用户列表失败')
-      return
-    }
-    users.value = await res.json()
+    const res = await request.get('/lawyer_manage/users')
+    users.value = res.data || []
   } catch (err) {
-    ElMessage.error(err.message)
+    console.error('获取用户列表失败:', err)
+    ElMessage.error(err.response?.data?.detail || '获取用户列表失败')
   }
 }
 
@@ -226,7 +214,7 @@ const fetchUsers = async () => {
 // 保存用户信息
 // --------------------------
 const handleSave = () => {
-  formRef.value.validate(async valid => {
+  formRef.value.validate(async (valid) => {
     if (!valid) return // 表单验证不通过
 
     try {
@@ -236,33 +224,20 @@ const handleSave = () => {
       }
 
       if (editUser.value) {
-        const res = await fetch(`http://127.0.0.1:8002/lawyer_manage/users/${form.value.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        })
-        if (!res.ok) {
-          ElMessage.error('更新失败')
-          return
-        }
+        // 编辑：PUT 请求
+        await request.put(`/lawyer_manage/users/${form.value.id}`, payload)
         ElMessage.success('用户信息已更新')
       } else {
-        const res = await fetch(`http://127.0.0.1:8002/lawyer_manage/users`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        })
-        if (!res.ok) {
-          ElMessage.error('新增失败')
-          return
-        }
+        // 新增：POST 请求
+        await request.post('/lawyer_manage/users', payload)
         ElMessage.success('用户已新增')
       }
 
       dialogVisible.value = false
       await fetchUsers()
     } catch (err) {
-      ElMessage.error(err.message)
+      console.error('保存失败:', err)
+      ElMessage.error(err.response?.data?.detail || '保存失败')
     }
   })
 }
@@ -270,18 +245,20 @@ const handleSave = () => {
 // --------------------------
 // 删除用户
 // --------------------------
-const handleDelete = async row => {
+const handleDelete = async (row) => {
   try {
     await ElMessageBox.confirm(`确定要删除用户 ${row.real_name} 吗？`, '提示', { type: 'warning' })
-    const res = await fetch(`http://127.0.0.1:8002/lawyer_manage/users/${row.id}`, { method: 'DELETE' })
-    if (!res.ok) {
-      ElMessage.error('删除失败')
-      return
-    }
+
+    await request.delete(`/lawyer_manage/users/${row.id}`)
+
     ElMessage.success('用户已删除')
     await fetchUsers()
   } catch (err) {
-    ElMessage.error(err.message)
+    if (err !== 'cancel') {
+      // 排除用户取消删除的情况
+      console.error('删除失败:', err)
+      ElMessage.error(err.response?.data?.detail || '删除失败')
+    }
   }
 }
 

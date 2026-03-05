@@ -11,7 +11,7 @@ from ..database.database import get_db
 from ..schemas.case import CaseStatistics, EventReminderOut
 from ..schemas.user import UserOut, ChangePasswordRequest
 
-# 1. 引入当前用户依赖和 User 模型
+# 引入当前用户依赖和 User 模型
 from .deps import get_current_active_user
 from ..models.user import User
 
@@ -33,7 +33,6 @@ def get_case_statistics(
     current_user: User = Depends(get_current_active_user)
 ):
     """获取用户案件统计数据，支持按年份筛选"""
-    # 3. 使用 current_user.id 替代前端传来的 user_id
     # 统计主办案件数
     main_case_count = case_crud.count_main_cases(db, current_user.id, year)
     # 统计主办案件总收费
@@ -47,7 +46,6 @@ def get_case_statistics(
         "category_stats": case_category_stats
     }
 
-    # 4. 直接使用 current_user.role 判断权限，无需再次查库
     if current_user.role in ["admin", "owner"]:
         review_count = count_reviewed_cases(db, current_user.id, year)
         result["review_case_count"] = review_count
@@ -62,7 +60,6 @@ def change_password(
     current_user: User = Depends(get_current_active_user)
 ):
     """修改密码"""
-    # 5. 强制使用当前登录用户的 ID 进行密码修改
     user_id = current_user.id
     old_password = data.old_password
     new_password = data.new_password
@@ -76,5 +73,4 @@ def get_user_reminders(
         current_user: User = Depends(get_current_active_user)
 ):
     """获取用户的待办事项提醒"""
-    # 6. 使用 current_user.id 查询待办，防止查询他人的待办
     return get_upcoming_events(db, current_user.id, days)
