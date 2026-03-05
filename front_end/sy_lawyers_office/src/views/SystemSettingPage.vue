@@ -2,7 +2,7 @@
   <div class="system-settings-page">
     <div class="header">
       <h2>系统后台管理</h2>
-      <el-tag type="danger" effect="dark">超级管理员模式 (Owner)</el-tag>
+      <el-tag type="danger" effect="dark">超级管理员模式</el-tag>
     </div>
 
     <el-tabs v-model="activeTab" type="border-card" class="settings-tabs">
@@ -32,9 +32,9 @@
               <template #default="{ row }">
                 <el-switch
                   v-model="row.permissions.can_review_case"
-                  :disabled="row.id === 1"
                   @change="updatePermission(row, 'can_review_case')"
-                  active-text="允许"
+                  active-text="开启"
+                  style="--el-switch-on-color: #13ce66"
                 />
               </template>
             </el-table-column>
@@ -43,9 +43,9 @@
               <template #default="{ row }">
                 <el-switch
                   v-model="row.permissions.can_approve_seal"
-                  :disabled="row.id === 1"
                   @change="updatePermission(row, 'can_approve_seal')"
-                  active-text="允许"
+                  active-text="开启"
+                  style="--el-switch-on-color: #13ce66"
                 />
               </template>
             </el-table-column>
@@ -54,7 +54,6 @@
               <template #default="{ row }">
                 <el-switch
                   v-model="row.permissions.finance_manage"
-                  :disabled="row.id === 1"
                   @change="updatePermission(row, 'finance_manage')"
                   active-text="开启"
                   style="--el-switch-on-color: #13ce66"
@@ -66,7 +65,6 @@
               <template #default="{ row }">
                 <el-switch
                   v-model="row.permissions.party_admin"
-                  :disabled="row.id === 1"
                   @change="updatePermission(row, 'party_admin')"
                   active-text="开启"
                   style="--el-switch-on-color: #13ce66"
@@ -78,8 +76,19 @@
               <template #default="{ row }">
                 <el-switch
                   v-model="row.permissions.volume_manage"
-                  :disabled="row.id === 1"
                   @change="updatePermission(row, 'volume_manage')"
+                  active-text="开启"
+                  style="--el-switch-on-color: #13ce66"
+                />
+              </template>
+            </el-table-column>
+
+            <el-table-column label="后台管理权" width="150" align="center">
+              <template #default="{ row }">
+                <el-switch
+                  v-model="row.permissions.can_access_admin"
+                  :disabled="row.role === 'owner'"
+                  @change="updatePermission(row, 'can_access_admin')"
                   active-text="开启"
                   style="--el-switch-on-color: #13ce66"
                 />
@@ -104,7 +113,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import axios from 'axios'
+import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 
 const activeTab = ref('permissions')
@@ -112,23 +121,12 @@ const loading = ref(false)
 const users = ref([])
 const searchKeyword = ref('')
 
-const API_BASE = 'http://127.0.0.1:8002/admin/system'
-
-const currentUserId = localStorage.getItem('user_id')
-const currentUserRole = localStorage.getItem('role')
-
 // 获取用户及权限列表
 const fetchUsers = async () => {
   loading.value = true
   try {
     // 包含 permissions 字段的用户列表接口
-    const res = await axios.get(`${API_BASE}/users_with_permissions`, {
-      // 传递当前操作者的身份信息
-      params: {
-        current_user_id: currentUserId,
-        current_user_role: currentUserRole,
-      },
-    })
+    const res = await request.get('/admin/system/users_with_permissions')
 
     // 数据预处理：确保 permissions 对象存在，防止报错
     users.value = res.data.map((u) => ({
@@ -153,25 +151,20 @@ const fetchUsers = async () => {
 // 更新权限
 const updatePermission = async (user, permissionType) => {
   try {
-    await axios.put(
-      `${API_BASE}/permissions/${user.id}`,
-      {
-        [permissionType]: user.permissions[permissionType],
-      },
-      {
-        // 传递当前操作者的身份信息
-        params: {
-          current_user_id: currentUserId,
-          current_user_role: currentUserRole,
-        },
-      },
-    )
+    await request.put(`/admin/system/permissions/${user.id}`, {
+      [permissionType]: user.permissions[permissionType],
+    })
     ElMessage.success(`已更新 ${user.real_name} 的权限设置`)
   } catch (err) {
     console.error(err)
-    // 失败回滚
+    // 失败回滚视图状态
     user.permissions[permissionType] = !user.permissions[permissionType]
-    ElMessage.error('权限更新失败')
+
+    // 动态提取后端的错误提示 (针对 FastAPI 的 HTTPException 结构)
+    const errorMessage = err.response?.data?.detail || '权限更新失败，请稍后重试'
+
+    // 使用 ElMessage 展示清晰的中文提示
+    ElMessage.error(errorMessage)
   }
 }
 

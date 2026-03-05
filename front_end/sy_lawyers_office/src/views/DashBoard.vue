@@ -65,7 +65,7 @@
         <el-menu-item index="/main/reminders">
           <el-icon><Bell /></el-icon> <span>事项提醒</span>
         </el-menu-item>
-        <el-menu-item index="/main/admin/settings" v-if="role === 'owner'">
+        <el-menu-item index="/main/admin/settings" v-if="hasAdminAccess">
           <el-icon><Setting /></el-icon>
           <span>后台管理</span>
         </el-menu-item>
@@ -80,16 +80,30 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElNotification } from 'element-plus'
 import { useRouter } from 'vue-router'
-import axios from 'axios'
+import request from '@/utils/request'
 import { Bell, Setting, Collection } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const currentUser = ref(localStorage.getItem('username'))
 const activeMenu = ref('/dashboard/cases')
 const role = localStorage.getItem('role')
+
+// 解析权限
+let permissions = {}
+try {
+  permissions = JSON.parse(localStorage.getItem('permissions') || '{}')
+} catch (e) {
+  console.error('解析权限失败', e)
+  ElMessage.error('解析权限失败')
+}
+
+// 计算属性：是否有后台管理入口权限
+const hasAdminAccess = computed(() => {
+  return role === 'owner' || permissions.can_access_admin === true
+})
 
 // 登出
 const handleLogout = () => {
@@ -103,6 +117,7 @@ const handleLogout = () => {
   localStorage.removeItem('role')
   localStorage.removeItem('userId')
   localStorage.removeItem('user_id')
+  localStorage.removeItem('permissions')
   router.push('/')
   ElMessage.info('已退出登录')
 }
@@ -118,8 +133,8 @@ const checkUrgentReminders = async () => {
   }
 
   try {
-    const res = await axios.get('http://127.0.0.1:8002/user/profile/reminders', {
-      params: { user_id: userId, days: 7 },
+    const res = await request.get('/user/profile/reminders', {
+      params: { days: 7 },
     })
 
     const urgentEvents = res.data

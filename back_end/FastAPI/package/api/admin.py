@@ -7,41 +7,57 @@ from typing import List
 from ..database import database
 from ..schemas.user import UserOut, UserPermissionUpdate
 from ..crud.user import get_users, update_user_permissions
+from ..models.user import User
+from .deps import get_current_active_user
 
 router = APIRouter(prefix="/admin/system", tags=["admin_system"])
 
 
-def check_super_admin(user_id: int, role: str):
+def check_admin_permission(current_user: User, target_user: User = None):
     """
-    检查操作者是否为超级管理员 (Owner 且 ID 为 1)
-    注意：这是基于前端传参的校验，安全性依赖于前端逻辑（和你现有项目一致）
+    校验后台管理权限
+    1. owner 拥有最高权限
+    2. 拥有 can_access_admin=True 的 admin 也有后台权限
+    3. 如果操作涉及具体用户(target_user)，admin 不能操作 owner
     """
-    # 强制要求 role 为 owner 且 user_id 为 1
-    if role != 'owner' or str(user_id) != '1':
+    is_owner = current_user.role == 'owner'
+
+    # 检查 permissions 是否为字典并且包含 can_access_admin
+    has_admin_perm = False
+    if current_user.permissions and isinstance(current_user.permissions, dict):
+        has_admin_perm = current_user.permissions.get("can_access_admin") is True
+
+    is_authorized_admin = (current_user.role == 'admin' and has_admin_perm)
+
+    # 1. 基础入口权限校验
+    if not (is_owner or is_authorized_admin):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="需要超级管理员权限"
+            detail="权限不足：您没有后台管理权限"
         )
+
+    # 2. 防越权保护：如果传入了目标操作用户，确保 admin 不能操作 owner
+    if target_user:
+        if current_user.role != 'owner' and target_user.role == 'owner':
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="越权操作：管理员无权修改最高权限(owner)账户的权限"
+            )
 
 
 # 1. 获取所有用户及其权限列表
 @router.get("/users_with_permissions", response_model=List[UserOut])
 def get_users_with_permissions(
-        # 操作者的身份信息（由前端传递）
-        current_user_id: int,
-        current_user_role: str,
-
         skip: int = 0,
         limit: int = 100,
-        db: Session = Depends(database.get_db)
+        db: Session = Depends(database.get_db),
+        current_user: User = Depends(get_current_active_user)
 ):
-    # 1. 权限校验
-    check_super_admin(current_user_id, current_user_role)
+    # 1. 权限校验 (列表接口，不需要传入目标用户)
+    check_admin_permission(current_user)
 
     # 2. 获取用户列表 (复用 CRUD 中的 get_users)
-    # UserOut schema 会自动包含 permissions 字段
     users = get_users(db)
-    # 简单的切片分页
     return users[skip: skip + limit]
 
 
@@ -50,24 +66,23 @@ def get_users_with_permissions(
 def update_permissions(
         target_user_id: int,
         permission_update: UserPermissionUpdate,
-
-        # 操作者的身份信息（由前端传递）
-        current_user_id: int,
-        current_user_role: str,
-
-        db: Session = Depends(database.get_db)
+        db: Session = Depends(database.get_db),
+        current_user: User = Depends(get_current_active_user)
 ):
-    # 1. 权限校验
-    check_super_admin(current_user_id, current_user_role)
-
-    # 2. 禁止修改 Owner (ID=1) 的权限，防止把自己锁死
-    if str(target_user_id) == '1':
-        raise HTTPException(status_code=400, detail="无法修改超级管理员的权限")
-
-    # 3. 执行更新
-    updated_user = update_user_permissions(db, target_user_id, permission_update)
-
-    if not updated_user:
+    # 1. 先从数据库查出被操作的目标用户
+    target_user = db.query(User).filter(User.id == target_user_id).first()
+    if not target_user:
         raise HTTPException(status_code=404, detail="用户不存在")
+
+    # 2. 细粒度权限校验（带入目标用户，触发防越权保护）
+    check_admin_permission(current_user, target_user)
+
+    # 3. 防止 Owner 误操作锁死自己
+    if current_user.id == target_user_id and current_user.role == 'owner':
+        if permission_update.can_access_admin is False:
+            raise HTTPException(status_code=400, detail="Owner 不能撤销自己的后台管理权限")
+
+    # 4. 执行更新
+    updated_user = update_user_permissions(db, target_user_id, permission_update)
 
     return updated_user

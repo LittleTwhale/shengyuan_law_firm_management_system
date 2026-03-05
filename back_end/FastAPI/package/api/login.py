@@ -46,6 +46,7 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
             "accounts": user.accounts,
             "real_name": user.real_name,
             "role": user.role,
+            "permissions":user.permissions,
             "created_at": user.created_at,
             "updated_at": user.updated_at
         }

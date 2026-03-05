@@ -46,7 +46,7 @@
 
       <div class="login-footer">
         <p>© {{ currentYear }} 湖南生元律师事务所 版权所有</p>
-        <p style="font-size: 10px; opacity: 0.5;">渲染模式: {{ renderMode }}</p>
+        <p style="font-size: 10px; opacity: 0.5">渲染模式: {{ renderMode }}</p>
       </div>
     </div>
   </div>
@@ -96,9 +96,12 @@ const isMobileDevice = () => {
 const isWebGLAvailable = () => {
   try {
     const canvas = document.createElement('canvas')
-    return !!(window.WebGLRenderingContext && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')))
+    return !!(
+      window.WebGLRenderingContext &&
+      (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'))
+    )
   } catch (e) {
-    console.error('WebGL 不可用',e)
+    console.error('WebGL 不可用', e)
     return false
   }
 }
@@ -245,8 +248,8 @@ const initCanvas2D = () => {
     reset() {
       this.x = Math.random() * width
       this.y = Math.random() * height
-      this.vx = (Math.random() - 0.5)
-      this.vy = (Math.random() - 0.5)
+      this.vx = Math.random() - 0.5
+      this.vy = Math.random() - 0.5
       this.size = Math.random() * 3 + 1
       this.alpha = Math.random() * 0.5 + 0.1
       // 随机分配颜色，模拟 Three.js 的渐变色
@@ -286,7 +289,7 @@ const initCanvas2D = () => {
     // 启用 additive blending 模拟 Three.js 效果
     ctx.globalCompositeOperation = 'lighter'
 
-    particles.forEach(p => {
+    particles.forEach((p) => {
       p.update()
       p.draw()
     })
@@ -316,7 +319,7 @@ const onWindowResizeCommon = () => {
     renderer.setSize(window.innerWidth, window.innerHeight)
   } else if (renderMode.value === 'Canvas2D') {
     const canvas = backgroundContainer.value.querySelector('canvas')
-    if(canvas) {
+    if (canvas) {
       canvas.width = window.innerWidth
       canvas.height = window.innerHeight
     }
@@ -371,11 +374,13 @@ const handleLogin = async () => {
     const username = res.data.user.real_name
     const role = res.data.user.role
     const user_id = res.data.user.id
+    const permissions = res.data.user.permissions
 
     localStorage.setItem('token', token)
     localStorage.setItem('username', username)
     localStorage.setItem('role', role)
     localStorage.setItem('user_id', user_id)
+    localStorage.setItem('permissions', JSON.stringify(permissions))
 
     ElMessage.success(`欢迎 ${username} 登录系统！`)
     await router.push('/main')

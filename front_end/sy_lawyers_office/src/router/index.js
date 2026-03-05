@@ -47,7 +47,7 @@ const routes = [
         path: 'admin/settings',
         component: SystemSettingPage,
         meta: {
-          requiresSuperAdmin: true, // 标记需要超级权限
+          requiresAdmin: true,
         },
       },
     ],
@@ -65,7 +65,14 @@ const whiteList = ['/login']
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
   const role = localStorage.getItem('role')
-  const userId = localStorage.getItem('user_id')
+
+  // 安全地解析权限 JSON
+  let permissions = {}
+  try {
+    permissions = JSON.parse(localStorage.getItem('permissions') || '{}')
+  } catch (e) {
+    console.error('解析权限失败', e)
+  }
 
   if (!token && !whiteList.includes(to.path)) {
     // ❌ 没有登录，且访问的不是白名单页面 → 强制跳转到登录页
@@ -83,13 +90,14 @@ router.beforeEach((to, from, next) => {
     return
   }
 
-  // 超级管理员权限检查
-  if (to.meta.requiresSuperAdmin) {
-    if (role === 'owner' && String(userId) === '1') {
+  // 后台管理员权限检查
+  if (to.meta.requiresAdmin) {
+    const hasAdminAccess = role === 'owner' || permissions.can_access_admin === true
+    if (hasAdminAccess) {
       next()
     } else {
-      ElMessage.error('您无权访问后台管理系统')
-      next('/main')
+      ElMessage.error('权限不足，无法访问后台管理')
+      next('/main') // 踢回工作台
     }
     return
   }
