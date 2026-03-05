@@ -96,7 +96,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
-import axios from 'axios'
+import request from '@/utils/request'
 
 // 状态管理
 const loading = ref(true)
@@ -121,7 +121,6 @@ const chartContainer = ref(null)
 const router = useRouter()
 
 // 当前用户信息
-const currentUserId = ref(localStorage.getItem('user_id')).value
 const currentUserRole = ref(localStorage.getItem('role')).value
 const isAdmin = computed(() => ['admin', 'owner'].includes(currentUserRole))
 
@@ -150,9 +149,8 @@ const passwordRules = {
 // 独立获取统计数据的方法
 const fetchStats = async () => {
   try {
-    const statsRes = await axios.get(`http://127.0.0.1:8002/user/profile/case-statistics`, {
+    const statsRes = await request.get(`/user/profile/case-statistics`, {
       params: {
-        user_id: currentUserId,
         year: selectedYear.value,
       },
     })
@@ -170,8 +168,8 @@ const initData = async () => {
   try {
     loading.value = true
     // 获取用户基本信息
-    const userRes = await axios.get(
-      `http://127.0.0.1:8002/user/profile/info?user_id=${currentUserId}`,
+    const userRes = await request.get(
+      `/user/profile/info`,
     )
     userInfo.value = userRes.data
 
@@ -286,8 +284,7 @@ const handleChangePassword = async () => {
     if (!valid) return
 
     try {
-      await axios.put('http://127.0.0.1:8002/user/profile/change-password', {
-        user_id: currentUserId,
+      await request.put('/user/profile/change-password', {
         old_password: passwordForm.value.oldPassword,
         new_password: passwordForm.value.newPassword,
       })

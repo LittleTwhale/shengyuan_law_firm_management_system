@@ -32,7 +32,6 @@ class UserLogin(BaseModel):
 
 # 修改密码请求模型
 class ChangePasswordRequest(BaseModel):
-    user_id: int
     old_password: str
     new_password: str
 
