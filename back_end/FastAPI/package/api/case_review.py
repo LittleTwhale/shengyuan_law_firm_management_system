@@ -1,7 +1,6 @@
 # api/case_review.py
 import os
 import tempfile
-from typing import Optional
 
 from docxtpl import DocxTemplate
 from fastapi import APIRouter, Depends, Query, HTTPException, status
@@ -9,6 +8,7 @@ from fastapi import BackgroundTasks
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 
+from .deps import get_current_active_user
 from ..core.config import TEMPLATE_DIR
 from ..crud.case_review import list_pending_cases, count_pending_cases, update_review_status, \
     check_interest_conflict_for_case, get_case_approval_context
@@ -24,44 +24,35 @@ router = APIRouter(
 
 
 # --- 辅助函数：权限检查 ---
-def check_review_permission(db: Session, user_id: int):
+def check_review_permission(user: User):
     """
     检查用户是否有权审核案件
     逻辑：Role为Owner，或者 permissions['can_review_case'] 为 True
     """
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=403, detail="用户不存在")
-
     # 1. Owner 拥有最高权限
     if user.role == 'owner':
         return True
 
     # 2. 检查细粒度权限
-    # user.permissions 可能为 None (旧数据) 或 字典
     perms = user.permissions or {}
     if perms.get('can_review_case', False) is True:
         return True
 
-    raise HTTPException(status_code=403, detail="您没有审核案件的权限")
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="您没有审核案件的权限")
+
 
 @router.get("/pending", response_model=CasePageOut)
 def get_pending_cases(
-        user_id: int = Query(..., description="当前操作的用户ID"),
-        role: Optional[str] = None,
         skip: int = Query(0, ge=0),
         limit: int = Query(10, ge=1, le=100),
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)  # 注入当前用户
 ):
     """
-    获取待审核案件列表（仅管理员可访问）
+    获取待审核案件列表
     """
-    # 验证管理员权限
-    if not role or role not in ["admin", "owner"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="无审核案件权限"
-        )
+    # 验证审核权限
+    check_review_permission(current_user)
 
     cases = list_pending_cases(db, skip=skip, limit=limit)
     total = count_pending_cases(db)
@@ -72,16 +63,16 @@ def get_pending_cases(
 @router.put("/{case_id}/review", response_model=CaseOut)
 def review_case(
         case_id: int,
-        reviewer_id: int,
         review_status: str,
-        role: Optional[str] = None,
-        force: bool = Query(False, description="是否强制通过（忽略利益冲突）"),  # 新增参数
-        db: Session = Depends(get_db)
+        force: bool = Query(False, description="是否强制通过（忽略利益冲突）"),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)  # 注入当前用户
 ):
     """
-    审核案件（通过/拒绝，仅管理员可操作）
+    审核案件（通过/拒绝）
     """
-    check_review_permission(db, reviewer_id)
+    # 鉴权
+    check_review_permission(current_user)
 
     # 1. 审核通过逻辑
     if review_status == "已审核":
@@ -105,7 +96,7 @@ def review_case(
             db=db,
             case_id=case_id,
             review_status=review_status,
-            reviewer_id=reviewer_id
+            reviewer_id=current_user.id  # 安全地使用 Token 解析出的用户 ID
         )
         if not updated_case:
             raise HTTPException(status_code=404, detail="案件不存在")
@@ -120,13 +111,13 @@ def review_case(
 def generate_approval_form(
         case_id: int,
         background_tasks: BackgroundTasks,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)
 ):
     """
     生成并下载案件审批表 (Word格式)
     """
-    # 1. 查询案件信息 (关键修改：使用 options(joinedload(...)) 预加载 parties)
-    # 如果不预加载，在 crud 函数中遍历 case.parties 时会触发 N+1 查询或报错
+    # 1. 查询案件信息 (使用 options(joinedload(...)) 预加载 parties)
     case = db.query(Case).options(
         joinedload(Case.parties),
         joinedload(Case.main_lawyer),
@@ -156,8 +147,7 @@ def generate_approval_form(
         )
 
     try:
-        # 4. 获取填充数据 (调用 CRUD 中的新函数)
-        # 这个函数已经处理了 CaseParty 的分类聚合逻辑
+        # 4. 获取填充数据
         context = get_case_approval_context(case)
 
         # 5. 渲染模板 (使用 docxtpl)
@@ -166,15 +156,12 @@ def generate_approval_form(
         tpl.render(context)
 
         # 6. 保存到临时文件
-        # 使用 tempfile 创建临时文件
         with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
             tpl.save(tmp.name)
             tmp_path = tmp.name
 
         # 7. 设置下载文件名
         filename = f"案件审批表_{case.case_number}.docx"
-
-        # 解决中文文件名在不同浏览器乱码的兼容性处理（可选，FastAPI通常处理得很好）
         from urllib.parse import quote
         encoded_filename = quote(filename)
 
@@ -192,7 +179,6 @@ def generate_approval_form(
 
     except Exception as e:
         print(f"Generate document error: {e}")
-        # 如果临时文件已创建但在报错前未删除，尝试清理
         if 'tmp_path' in locals() and os.path.exists(tmp_path):
             os.remove(tmp_path)
 

@@ -95,10 +95,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import axios from 'axios'
+import request from '@/utils/request'
 import { useRouter } from 'vue-router'
 
-const API_BASE = 'http://127.0.0.1:8002'
 const router = useRouter()
 
 // 表格数据
@@ -108,10 +107,6 @@ const page = ref(1)
 const pageSize = ref(10)
 const tableLoading = ref(false)
 const caseTableRef = ref(null)
-
-// 当前用户信息
-const currentUserId = ref(localStorage.getItem('user_id'))
-const currentUserRole = ref(localStorage.getItem('role'))
 
 // 多选状态
 const selectedCases = ref([])
@@ -236,18 +231,12 @@ const review = async (row, status) => {
 
 // 强制通过审核（忽略冲突）
 const sendReviewRequest = async (row, status, force) => {
-  await axios.put(
-    `${API_BASE}/case_review/${row.case_id}/review`,
-    {}, // body 为空
-    {
-      params: {
-        reviewer_id: currentUserId.value,
-        role: currentUserRole.value,
-        review_status: status,
-        force: force, // 传递 force 参数
-      },
+  await request.put(`/case_review/${row.case_id}/review`, null, {
+    params: {
+      review_status: status,
+      force: force, // 传递 force 参数
     },
-  )
+  })
 }
 
 // 批量审核
@@ -263,17 +252,9 @@ const batchReview = async (status) => {
 
     await Promise.all(
       selectedCases.value.map((item) =>
-        axios.put(
-          `${API_BASE}/case_review/${item.case_id}/review`,
-          {},
-          {
-            params: {
-              reviewer_id: currentUserId.value,
-              role: currentUserRole.value,
-              review_status: status,
-            },
-          },
-        ),
+        request.put(`/case_review/${item.case_id}/review`, null, {
+          params: { review_status: status },
+        }),
       ),
     )
 
@@ -295,10 +276,8 @@ const batchReview = async (status) => {
 const fetchPendingCases = async () => {
   tableLoading.value = true
   try {
-    const res = await axios.get(`${API_BASE}/case_review/pending`, {
+    const res = await request.get(`/case_review/pending`, {
       params: {
-        user_id: currentUserId.value,
-        role: currentUserRole.value,
         skip: (page.value - 1) * pageSize.value,
         limit: pageSize.value,
       },
@@ -375,10 +354,6 @@ const formatDate = (dateVal) => {
 
 // 页面加载时初始化
 onMounted(() => {
-  if (!['admin', 'owner'].includes(currentUserRole.value)) {
-    ElMessage.error('无权限访问审核页面')
-    return
-  }
   fetchPendingCases()
 })
 </script>

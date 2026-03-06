@@ -26,7 +26,7 @@
           <i class="el-icon-cases"></i>
           <span>业务管理</span>
         </el-menu-item>
-        <el-menu-item index="/main/case_review" v-if="role === 'owner' || role === 'admin'">
+        <el-menu-item index="/main/case_review" v-if="hasReviewAccess">
           <i class="el-icon-check"></i>
           <span>业务审核</span>
         </el-menu-item>
@@ -103,6 +103,10 @@ try {
 // 计算属性：是否有后台管理入口权限
 const hasAdminAccess = computed(() => {
   return role === 'owner' || permissions.can_access_admin === true
+})
+// 是否有业务审核入口权限
+const hasReviewAccess = computed(() => {
+  return role === 'owner' || permissions.can_review_case === true
 })
 
 // 登出

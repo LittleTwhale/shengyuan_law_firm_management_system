@@ -27,7 +27,7 @@ const routes = [
     children: [
       { path: 'cases', component: CasesPage },
       { path: 'lawyers', component: LawyerManagePage, meta: { roles: ['owner', 'admin'] } },
-      { path: 'case_review', component: CaseReviewPage, meta: { roles: ['owner', 'admin'] } },
+      { path: 'case_review', component: CaseReviewPage, meta: { requiresReview: true } },
       {
         path: 'cases/:id',
         name: 'CaseDetail',
@@ -98,6 +98,18 @@ router.beforeEach((to, from, next) => {
     } else {
       ElMessage.error('权限不足，无法访问后台管理')
       next('/main') // 踢回工作台
+    }
+    return
+  }
+
+  // 业务审核权限检查
+  if (to.meta.requiresReview) {
+    const hasReviewAccess = role === 'owner' || permissions.can_review_case === true
+    if (hasReviewAccess) {
+      next()
+    } else {
+      ElMessage.error('权限不足，无法访问审核页面')
+      next('/main')
     }
     return
   }
