@@ -23,48 +23,60 @@
         active-text-color="#ffd04b"
       >
         <el-menu-item index="/main/cases">
-          <i class="el-icon-cases"></i>
+          <el-icon><Briefcase /></el-icon>
           <span>业务管理</span>
         </el-menu-item>
+
         <el-menu-item index="/main/case_review" v-if="hasReviewAccess">
-          <i class="el-icon-check"></i>
+          <el-icon><DocumentChecked /></el-icon>
           <span>业务审核</span>
         </el-menu-item>
+
         <el-menu-item index="/main/volumes">
           <el-icon><Collection /></el-icon>
           <span>电子卷宗</span>
         </el-menu-item>
+
         <el-menu-item index="/main/lawyers" v-if="role === 'owner' || role === 'admin'">
-          <i class="el-icon-user"></i>
+          <el-icon><User /></el-icon>
           <span>人员管理</span>
         </el-menu-item>
+
         <el-menu-item index="/main/cases/bank_cases">
-          <i class="el-icon-bank_cases"></i>
+          <el-icon><OfficeBuilding /></el-icon>
           <span>银行案件</span>
         </el-menu-item>
+
         <el-menu-item index="/main/finance">
-          <i class="el-icon-finance"></i>
+          <el-icon><Money /></el-icon>
           <span>财务管理</span>
         </el-menu-item>
+
         <el-menu-item index="/main/document_template">
-          <i class="el-icon-document-template"></i>
+          <el-icon><DocumentCopy /></el-icon>
           <span>文书模板</span>
         </el-menu-item>
+
         <el-menu-item index="/main/electronic_seal">
-          <i class="el-icon-electronic-seal"></i>
+          <el-icon><Stamp /></el-icon>
           <span>电子用印</span>
         </el-menu-item>
+
         <el-menu-item index="/main/party_building">
-          <i class="el-icon-electronic-seal"></i>
+          <el-icon><Flag /></el-icon>
           <span>党建资料</span>
         </el-menu-item>
+
         <el-menu-item index="/main/user_profile">
-          <i class="el-icon-user-profile"></i>
+          <el-icon><Postcard /></el-icon>
           <span>个人信息</span>
         </el-menu-item>
+
         <el-menu-item index="/main/reminders">
-          <el-icon><Bell /></el-icon> <span>事项提醒</span>
+          <el-icon><Bell /></el-icon>
+          <span>事项提醒</span>
         </el-menu-item>
+
         <el-menu-item index="/main/admin/settings" v-if="hasAdminAccess">
           <el-icon><Setting /></el-icon>
           <span>后台管理</span>
@@ -84,7 +96,21 @@ import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElNotification } from 'element-plus'
 import { useRouter } from 'vue-router'
 import request from '@/utils/request'
-import { Bell, Setting, Collection } from '@element-plus/icons-vue'
+// 统一在这里引入所有需要的 Element Plus 图标组件
+import {
+  Briefcase,
+  DocumentChecked,
+  Collection,
+  User,
+  OfficeBuilding,
+  Money,
+  DocumentCopy,
+  Stamp,
+  Flag,
+  Postcard,
+  Bell,
+  Setting,
+} from '@element-plus/icons-vue'
 
 const router = useRouter()
 const currentUser = ref(localStorage.getItem('username'))

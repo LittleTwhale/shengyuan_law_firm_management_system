@@ -10,6 +10,9 @@ from ..crud.document import create_template, get_template_by_id, delete_template
 from ..database.database import get_db
 from ..schemas.document import TemplateCreate, TemplateOut
 
+from .deps import get_current_active_user
+from ..models.user import User
+
 router = APIRouter(
     prefix="/template",
     tags=["template"]
@@ -19,7 +22,10 @@ router = APIRouter(
 TEMPLATE_DIR = os.path.join("FastAPI", "static", "template")
 
 @router.get("/download")
-async def download_template(filename: str = Query(..., description="要下载的文件名")):
+async def download_template(
+    filename: str = Query(..., description="要下载的文件名"),
+    current_user: User = Depends(get_current_active_user)  # 增加鉴权，防止未登录用户下载
+):
     """
     通用模板下载接口
     """
@@ -39,20 +45,19 @@ async def download_template(filename: str = Query(..., description="要下载的
         media_type=mime_type
     )
 
-# 新增：文书模板上传接口
 @router.post("/document", response_model=TemplateOut, status_code=status.HTTP_201_CREATED)
 async def upload_document_template(
-    uploaded_by: int,
     name: str = Query(..., description="模板名称"),
     description: Optional[str] = Form(None),
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user) # 注入当前用户
 ):
     """上传文书模板（保存到 根目录/当前年份/文件名）"""
     template_in = TemplateCreate(
         name=name,
         description=description,
-        uploaded_by=uploaded_by
+        uploaded_by=current_user.id
     )
 
     try:
@@ -85,21 +90,22 @@ async def upload_document_template(
             detail=str(e)
         )
 
-
-# 新增：获取文书模板列表
 @router.get("/document", response_model=List[TemplateOut])
 def list_document_templates(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user) # 增加鉴权
 ):
     """获取所有文书模板列表（支持分页）"""
     return get_templates(db, skip=skip, limit=limit)
 
-
-# 新增：获取单个文书模板详情
 @router.get("/document/{template_id}", response_model=TemplateOut)
-def get_document_template(template_id: int, db: Session = Depends(get_db)):
+def get_document_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user) # 增加鉴权
+):
     """根据ID获取文书模板详情"""
     template = get_template_by_id(db, template_id)
     if not template:
@@ -109,10 +115,12 @@ def get_document_template(template_id: int, db: Session = Depends(get_db)):
         )
     return template
 
-
-# 新增：删除文书模板
 @router.delete("/document/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
-def remove_document_template(template_id: int, db: Session = Depends(get_db)):
+def remove_document_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
     """删除文书模板（同时删除文件和数据库记录）"""
     try:
         success = delete_template(db, template_id)
@@ -127,10 +135,12 @@ def remove_document_template(template_id: int, db: Session = Depends(get_db)):
             detail=str(e)
         )
 
-
-# 新增：下载文书模板
 @router.get("/document/{template_id}/download")
-def download_document_template(template_id: int, db: Session = Depends(get_db)):
+def download_document_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user) # 增加鉴权
+):
     """下载指定ID的文书模板文件"""
     template = get_template_by_id(db, template_id)
     if not template:
@@ -152,10 +162,12 @@ def download_document_template(template_id: int, db: Session = Depends(get_db)):
         media_type=template.file_type or "application/octet-stream"
     )
 
-
-# 新增：预览文书模板
 @router.get("/document/{template_id}/preview")
-def preview_document_template(template_id: int, db: Session = Depends(get_db)):
+def preview_document_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user) # 增加鉴权
+):
     """预览文书模板（支持图片、PDF和Word转换）"""
     template = get_template_by_id(db, template_id)
     if not template:

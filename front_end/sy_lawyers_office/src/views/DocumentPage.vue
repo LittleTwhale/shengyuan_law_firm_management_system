@@ -27,13 +27,17 @@
           <!-- 图标根据文件类型显示 -->
           <div class="file-icon">
             <el-icon v-if="isWordFile(template.file_type)"><Document /></el-icon>
-            <el-icon v-else-if="isPdfFile(template.file_type)"><Document class="pdf-icon" /></el-icon>
+            <el-icon v-else-if="isPdfFile(template.file_type)"
+              ><Document class="pdf-icon"
+            /></el-icon>
             <el-icon v-else-if="isImageFile(template.file_type)"><PictureFilled /></el-icon>
             <el-icon v-else><Document /></el-icon>
           </div>
           <div class="file-info">
             <h3 class="file-name">{{ template.name }}</h3>
-            <p class="file-meta">{{ formatFileSize(template.file_size) }} · {{ formatDate(template.created_at) }}</p>
+            <p class="file-meta">
+              {{ formatFileSize(template.file_size) }} · {{ formatDate(template.created_at) }}
+            </p>
           </div>
         </div>
 
@@ -52,17 +56,10 @@
             </div>
           </div>
           <div class="detail-actions">
-            <el-button
-              size="small"
-              type="primary"
-              @click.stop="handlePreview(template.id)"
-            >
+            <el-button size="small" type="primary" @click.stop="handlePreview(template.id)">
               <el-icon><View /></el-icon>预览
             </el-button>
-            <el-button
-              size="small"
-              @click.stop="handleDownload(template.id, template.name)"
-            >
+            <el-button size="small" @click.stop="handleDownload(template.id, template.name)">
               <el-icon><Download /></el-icon>下载
             </el-button>
             <el-button
@@ -110,13 +107,15 @@
         </template>
       </el-upload>
 
-      <el-form :model="uploadForm" :rules="uploadRules" ref="uploadFormRef" label-width="80px" style="margin-top: 20px;">
+      <el-form
+        :model="uploadForm"
+        :rules="uploadRules"
+        ref="uploadFormRef"
+        label-width="80px"
+        style="margin-top: 20px"
+      >
         <el-form-item label="标题" prop="name">
-          <el-input
-            v-model="uploadForm.name"
-            placeholder="请输入模板标题"
-            maxlength="100"
-          />
+          <el-input v-model="uploadForm.name" placeholder="请输入模板标题" maxlength="100" />
         </el-form-item>
 
         <el-form-item label="描述" prop="description">
@@ -131,11 +130,7 @@
 
       <template #footer>
         <el-button @click="showUploadDialog = false">取消</el-button>
-        <el-button
-          type="primary"
-          @click="handleUploadSubmit"
-          :disabled="!canUpload || isUploading"
-        >
+        <el-button type="primary" @click="handleUploadSubmit" :disabled="!canUpload || isUploading">
           <el-icon v-if="!isUploading"><Check /></el-icon>
           <el-icon v-if="isUploading"><Loading /></el-icon>
           {{ isUploading ? '上传中...' : '确认上传' }}
@@ -176,7 +171,7 @@
           <el-button
             type="primary"
             @click="handleDownload(currentPreviewId, previewTitle)"
-            style="margin-top: 10px;"
+            style="margin-top: 10px"
           >
             <el-icon><Download /></el-icon>下载文件
           </el-button>
@@ -187,11 +182,18 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
-import axios from 'axios'
+import { ref, reactive, onMounted, computed, onUnmounted } from 'vue'
+import request from '@/utils/request' // 【修改】替换原有的 axios 为封装的 request
 import {
-  Document, PictureFilled, Upload, View, Download,
-  Delete, Check, Loading, QuestionFilled,
+  Document,
+  PictureFilled,
+  Upload,
+  View,
+  Download,
+  Delete,
+  Check,
+  Loading,
+  QuestionFilled,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElNotification } from 'element-plus'
 
@@ -209,14 +211,14 @@ const isUploading = ref(false)
 const canUpload = computed(() => uploadFileList.value.length > 0)
 const uploadForm = reactive({
   name: '',
-  description: ''
+  description: '',
 })
 const uploadRules = {
   name: [
     { required: true, message: '请输入模板标题', trigger: 'blur' },
-    { max: 100, message: '标题不能超过100字', trigger: 'blur' }
+    { max: 100, message: '标题不能超过100字', trigger: 'blur' },
   ],
-  description: [{ max: 500, message: '描述不能超过500字', trigger: 'blur' }]
+  description: [{ max: 500, message: '描述不能超过500字', trigger: 'blur' }],
 }
 const uploadFormRef = ref(null)
 const uploadRef = ref(null)
@@ -233,10 +235,17 @@ onMounted(() => {
   fetchTemplates()
 })
 
+// 组件销毁时释放内存，防止 Blob URL 导致内存泄漏
+onUnmounted(() => {
+  if (previewUrl.value) {
+    window.URL.revokeObjectURL(previewUrl.value)
+  }
+})
+
 // 获取模板列表
 const fetchTemplates = async () => {
   try {
-    const res = await axios.get('http://127.0.0.1:8002/template/document')
+    const res = await request.get('/template/document')
     templates.value = res.data
   } catch (err) {
     console.error('获取模板列表失败:', err)
@@ -248,7 +257,7 @@ const fetchTemplates = async () => {
 const isWordFile = (fileType) => {
   return [
     'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ].includes(fileType)
 }
 
@@ -270,7 +279,7 @@ const getFileTypeText = (fileType) => {
 
 // 格式化文件大小（kb转MB）
 const formatFileSize = (kb) => {
-  if (!kb) return '0 KB'  // 防止空值 / Guard clause
+  if (!kb) return '0 KB' // 防止空值 / Guard clause
 
   // 如果文件小于1MB（1024KB），显示KB
   if (kb < 1024) {
@@ -317,22 +326,18 @@ const handleUploadSubmit = async () => {
   const formData = new FormData()
   formData.append('file', file)
   const templateName = uploadForm.name
-  const uploadedBy = localStorage.getItem('user_id')
   formData.append('description', uploadForm.description)
 
   isUploading.value = true
   try {
-    await axios.post(
-      `http://127.0.0.1:8002/template/document?name=${encodeURIComponent(templateName)}&uploaded_by=${uploadedBy}`,
-      formData,
-      {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      }
-    )
+    // 使用 request，移除硬编码域名，且不再传递伪造风险极高的 uploaded_by 参数
+    await request.post(`/template/document?name=${encodeURIComponent(templateName)}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
     ElNotification({
       title: '成功',
       message: '模板上传成功',
-      type: 'success'
+      type: 'success',
     })
     showUploadDialog.value = false
     // 重置表单
@@ -354,27 +359,43 @@ const handlePreview = async (templateId) => {
   currentPreviewId.value = templateId
   showPreviewDialog.value = true
 
+  // 【新增】释放上一次预览的内存
+  if (previewUrl.value) {
+    window.URL.revokeObjectURL(previewUrl.value)
+    previewUrl.value = ''
+  }
+
   try {
     // 获取模板信息
-    const infoRes = await axios.get(`http://127.0.0.1:8002/template/document/${templateId}`)
+    // 使用 request 且去掉了本地硬编码域名
+    const infoRes = await request.get(`/template/document/${templateId}`)
     previewTitle.value = infoRes.data.name
     const fileType = infoRes.data.file_type
-
-    // 直接使用URL而非blob，避免比例问题
-    const previewUrlTemp = `http://127.0.0.1:8002/template/document/${templateId}/preview`
 
     // 判断预览类型
     if (fileType.startsWith('image/')) {
       previewType.value = 'image'
-      previewUrl.value = previewUrlTemp
-    } else if (['application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(fileType)) {
+    } else if (
+      [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ].includes(fileType)
+    ) {
       previewType.value = 'pdf'
-      previewUrl.value = previewUrlTemp
     } else {
       previewType.value = 'other'
+      return // 不支持预览类型，直接返回由界面展示不支持
     }
+
+    // 安全地获取预览流，解决 img/iframe 无法在 Header 传 Token 导致被后端拦截的问题
+    const previewRes = await request.get(`/template/document/${templateId}/preview`, {
+      responseType: 'blob', // 强制指定接收二进制流
+    })
+
+    // 生成临时的本地访问 URL 绑定到 dom 上
+    const blob = new Blob([previewRes.data], { type: previewRes.headers['content-type'] })
+    previewUrl.value = window.URL.createObjectURL(blob)
   } catch (err) {
     console.error('模板预览失败:', err)
     ElMessage.error(err.response?.data?.detail || '模板预览失败')
@@ -384,8 +405,9 @@ const handlePreview = async (templateId) => {
 // 下载模板
 const handleDownload = async (templateId, fileName) => {
   try {
-    const response = await axios.get(`http://127.0.0.1:8002/template/document/${templateId}/download`, {
-      responseType: 'blob'
+    // 【修改】使用 request 并在配置中处理 blob 下载
+    const response = await request.get(`/template/document/${templateId}/download`, {
+      responseType: 'blob',
     })
 
     const blob = new Blob([response.data], { type: response.headers['content-type'] })
@@ -399,7 +421,7 @@ const handleDownload = async (templateId, fileName) => {
     ElNotification({
       title: '成功',
       message: '模板下载成功',
-      type: 'success'
+      type: 'success',
     })
   } catch (err) {
     console.error('模板下载失败:', err)
@@ -412,7 +434,8 @@ const handleDelete = async (templateId) => {
   if (!confirm('确定要删除该模板吗？此操作不可恢复')) return
 
   try {
-    await axios.delete(`http://127.0.0.1:8002/template/document/${templateId}`)
+    // 【修改】使用 request 且去掉了本地硬编码域名
+    await request.delete(`/template/document/${templateId}`)
     ElMessage.success('模板删除成功')
     await fetchTemplates() // 刷新列表
   } catch (err) {
@@ -426,7 +449,7 @@ const handleDelete = async (templateId) => {
 /* ============ 全局布局 ============ */
 .document-page {
   padding: 20px;
-  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   color: #333;
   background-color: #f8f9fb;
 }
@@ -654,5 +677,4 @@ const handleDelete = async (templateId) => {
   margin-bottom: 20px;
   color: #ccc;
 }
-
 </style>
