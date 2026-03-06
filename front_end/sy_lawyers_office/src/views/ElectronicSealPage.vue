@@ -19,11 +19,18 @@
           <el-table-column label="印章预览" width="120" align="center">
             <template #default="{ row }">
               <el-image
-                :src="getSealImageUrl(row.id)"
-                :preview-src-list="[getSealImageUrl(row.id)]"
+                v-if="row.imageUrl"
+                :src="row.imageUrl"
+                :preview-src-list="[row.imageUrl]"
                 class="seal-preview-img"
                 fit="contain"
               />
+              <div
+                v-else
+                class="seal-preview-img"
+                v-loading="true"
+                style="width: 50px; height: 50px; margin: 0 auto"
+              ></div>
             </template>
           </el-table-column>
           <el-table-column prop="name" label="印章名称" />
@@ -77,7 +84,7 @@
                 v-if="row.stamped_file_path"
                 size="small"
                 type="success"
-                @click="downloadStampedFile(row.id)"
+                @click="downloadStampedFile(row.id, row.original_file_name)"
               >
                 下载盖章件
               </el-button>
@@ -282,9 +289,9 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
-import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { Plus, EditPen, Edit, CircleClose } from '@element-plus/icons-vue' // 引入所需图标
+import request from '@/utils/request' // 修改为引入封装好的 request
 
 // 引入 PDF 相关库
 import * as pdfjsLib from 'pdfjs-dist'
@@ -294,7 +301,7 @@ import { PDFDocument } from 'pdf-lib'
 pdfjsLib.GlobalWorkerOptions.workerSrc = `/pdfjs/pdf.worker.min.mjs`
 
 // --- 基础状态 ---
-const API_BASE = 'http://127.0.0.1:8002/electronic_seal'
+// 移除 API_BASE 常量，直接使用 request 的相对路径
 const currentUserId = parseInt(localStorage.getItem('user_id'))
 const currentUserRole = localStorage.getItem('role')
 const currentUserPermissions = ref({})
@@ -371,9 +378,7 @@ onMounted(() => {
 })
 const fetchUserProfile = async () => {
   try {
-    const res = await axios.get(`http://127.0.0.1:8002/user/profile/info`, {
-      params: { user_id: currentUserId },
-    })
+    const res = await request.get(`/user/profile/info`) // 移除 user_id 参数，由后端 Token 解析
     // 如果 permissions 为空，给一个空对象防止报错
     currentUserPermissions.value = res.data.permissions || {}
   } catch (err) {
@@ -403,9 +408,26 @@ const handleTabChange = (tab) => {
 const fetchSeals = async () => {
   loading.seals = true
   try {
-    const res = await axios.get(`${API_BASE}/seals`)
-    sealList.value = res.data
-    activeSeals.value = res.data.filter((s) => s.is_active)
+    const res = await request.get(`/electronic_seal/seals`)
+
+    // 由于 Token 验证原因，前端拉取图片不再能直接拼接 URL 给 img 标签，需要先获取 Blob
+    const sealsWithImages = await Promise.all(
+      res.data.map(async (s) => {
+        try {
+          const imgRes = await request.get(`/electronic_seal/seals/${s.id}/image`, {
+            responseType: 'blob',
+          })
+          s.imageUrl = URL.createObjectURL(imgRes.data)
+        } catch (e) {
+          console.error(`无法加载印章 ${s.id} 的图片`, e)
+          s.imageUrl = '' // 获取失败时给予空处理
+        }
+        return s
+      }),
+    )
+
+    sealList.value = sealsWithImages
+    activeSeals.value = sealsWithImages.filter((s) => s.is_active)
   } catch (err) {
     console.error(err)
   }
@@ -415,7 +437,8 @@ const fetchSeals = async () => {
 const fetchMyApplications = async () => {
   loading.applications = true
   try {
-    const res = await axios.get(`${API_BASE}/applications`, {
+    // 后端会根据 Token 自动过滤当前用户的申请（管理员传 applicant_id 会查询特定用户）
+    const res = await request.get(`/electronic_seal/applications`, {
       params: { applicant_id: currentUserId },
     })
     myApplications.value = res.data
@@ -428,15 +451,13 @@ const fetchMyApplications = async () => {
 const fetchPendingApplications = async () => {
   loading.pending = true
   try {
-    const res = await axios.get(`${API_BASE}/applications`, { params: { status: '待审核' } })
+    const res = await request.get(`/electronic_seal/applications`, { params: { status: '待审核' } })
     pendingApplications.value = res.data
   } catch (err) {
     console.error(err)
   }
   loading.pending = false
 }
-
-const getSealImageUrl = (sealId) => `${API_BASE}/seals/${sealId}/image`
 
 // ... 其他印章和申请操作 ...
 const handleCreateSeal = async () => {
@@ -445,11 +466,10 @@ const handleCreateSeal = async () => {
   const fd = new FormData()
   fd.append('name', sealForm.name)
   fd.append('file', sealForm.file)
-  fd.append('uploaded_by', currentUserId)
-  fd.append('role', currentUserRole)
+  // 移除 uploaded_by 和 role，后端已通过 Token 解析
 
   try {
-    await axios.post(`${API_BASE}/seals`, fd)
+    await request.post(`/electronic_seal/seals`, fd)
     ElMessage.success('印章上传成功')
     showCreateSealDialog.value = false
     await fetchSeals()
@@ -462,7 +482,8 @@ const handleCreateSeal = async () => {
 
 const toggleSealStatus = async (row) => {
   try {
-    await axios.put(`${API_BASE}/seals/${row.id}?role=${currentUserRole}`, {
+    await request.put(`/electronic_seal/seals/${row.id}`, {
+      // 移除 role 参数
       is_active: !row.is_active,
     })
     await fetchSeals()
@@ -475,7 +496,7 @@ const toggleSealStatus = async (row) => {
 const deleteSeal = async (row) => {
   if (!confirm('确定删除该印章吗？')) return
   try {
-    await axios.delete(`${API_BASE}/seals/${row.id}?role=${currentUserRole}`)
+    await request.delete(`/electronic_seal/seals/${row.id}`) // 移除 role 参数
     await fetchSeals()
   } catch (err) {
     console.error(err)
@@ -490,10 +511,10 @@ const handleCreateApplication = async () => {
   fd.append('seal_id', applyForm.seal_id)
   fd.append('apply_reason', applyForm.apply_reason)
   fd.append('file', applyForm.file)
-  fd.append('applicant_id', currentUserId)
+  // 移除 applicant_id，后端已通过 Token 解析
 
   try {
-    await axios.post(`${API_BASE}/applications`, fd)
+    await request.post(`/electronic_seal/applications`, fd)
     ElMessage.success('申请已提交，请等待审核')
     showApplyDialog.value = false
     resetApplyForm()
@@ -504,8 +525,23 @@ const handleCreateApplication = async () => {
   loading.submitting = false
 }
 
-const downloadStampedFile = (id) => {
-  window.open(`${API_BASE}/applications/${id}/download_stamped`, '_blank')
+// 修改为 Blob 形式下载，保证携带请求头 Auth Token
+const downloadStampedFile = async (id, fileName) => {
+  try {
+    const res = await request.get(`/electronic_seal/applications/${id}/download_stamped`, {
+      responseType: 'blob',
+    })
+    const url = window.URL.createObjectURL(new Blob([res.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `已盖章_${fileName}.pdf`) // 赋予下载文件名
+    document.body.appendChild(link)
+    link.click()
+    link.parentNode.removeChild(link)
+  } catch (err) {
+    console.error('下载失败', err)
+    ElMessage.error('下载失败，文件可能已丢失或无权限')
+  }
 }
 
 const deleteApplication = async (row) => {
@@ -515,13 +551,8 @@ const deleteApplication = async (row) => {
   if (!confirm(confirmMsg)) return
 
   try {
-    //  调用 DELETE /applications/{application_id} 接口
-    await axios.delete(`${API_BASE}/applications/${row.id}`, {
-      params: {
-        user_id: currentUserId,
-        role: currentUserRole,
-      },
-    })
+    //  调用 DELETE /applications/{application_id} 接口 (移除 user_id 和 role)
+    await request.delete(`/electronic_seal/applications/${row.id}`)
 
     ElMessage.success('用印申请及所有附件已删除')
     await fetchMyApplications() // 重新加载我的申请列表
@@ -547,16 +578,11 @@ const handleReject = async () => {
   if (!auditRemark.value) return ElMessage.warning('请填写拒绝原因')
   loading.submitting = true
   try {
-    // 调用 PUT /applications/{application_id}/review 接口
-    await axios.put(
-      `${API_BASE}/applications/${currentAuditRow.value.id}/review`,
-      {
-        status: '已拒绝',
-        review_remark: auditRemark.value,
-        reviewer_id: currentUserId,
-      },
-      { params: { reviewer_id: currentUserId, role: currentUserRole } },
-    )
+    // 调用 PUT /applications/{application_id}/review 接口 (移除 reviewer_id 和 role)
+    await request.put(`/electronic_seal/applications/${currentAuditRow.value.id}/review`, {
+      status: '已拒绝',
+      review_remark: auditRemark.value,
+    })
 
     ElMessage.success('已拒绝')
     showRejectDialog.value = false
@@ -575,8 +601,6 @@ const handleApproveAndStamp = async (row) => {
   showAuditDialog.value = true // 打开盖章大屏弹窗
   loading.pdfProcessing = true
 
-  // 预加载印章图片URL
-  currentSealUrl.value = getSealImageUrl(row.seal.id)
   // 重置印章位置
   sealX.value = 100
   sealY.value = 100
@@ -585,8 +609,14 @@ const handleApproveAndStamp = async (row) => {
   sealHeight.value = 150
 
   try {
+    // 预加载印章图片URL (因鉴权要求使用 Blob)
+    const sealImgRes = await request.get(`/electronic_seal/seals/${row.seal.id}/image`, {
+      responseType: 'blob',
+    })
+    currentSealUrl.value = URL.createObjectURL(sealImgRes.data)
+
     // 1. 获取底图 PDF (ArrayBuffer)
-    const response = await axios.get(`${API_BASE}/applications/${row.id}/preview_pdf`, {
+    const response = await request.get(`/electronic_seal/applications/${row.id}/preview_pdf`, {
       responseType: 'arraybuffer',
     })
 
@@ -600,7 +630,7 @@ const handleApproveAndStamp = async (row) => {
     await renderPage(1)
   } catch (err) {
     console.error(err)
-    ElMessage.error('加载文件失败，请检查文件格式')
+    ElMessage.error('加载文件失败，请检查文件格式或重试')
     showAuditDialog.value = false
   } finally {
     loading.pdfProcessing = false
@@ -723,15 +753,15 @@ const confirmStamping = async () => {
   loading.stamping = true
   try {
     // 1. 获取原 PDF ArrayBuffer
-    const pdfBytes = await axios
-      .get(`${API_BASE}/applications/${currentAuditRow.value.id}/preview_pdf`, {
+    const pdfBytes = await request
+      .get(`/electronic_seal/applications/${currentAuditRow.value.id}/preview_pdf`, {
         responseType: 'arraybuffer',
       })
       .then((res) => res.data)
 
-    // 2. 获取印章图片 ArrayBuffer
-    const sealBytes = await axios
-      .get(currentSealUrl.value, {
+    // 2. 获取印章图片 ArrayBuffer (由于带权限需要通过 request 请求)
+    const sealBytes = await request
+      .get(`/electronic_seal/seals/${currentAuditRow.value.seal.id}/image`, {
         responseType: 'arraybuffer',
       })
       .then((res) => res.data)
@@ -783,12 +813,11 @@ const confirmStamping = async () => {
     ]
     fd.append('log_data_json', JSON.stringify(logData))
 
-    fd.append('reviewer_id', currentUserId)
-    fd.append('role', currentUserRole)
+    // 移除 reviewer_id 和 role，后端已通过 Token 解析
 
     // 8. ⚠调用 POST /applications/{application_id}/confirm 接口
     //    该接口在后端应负责保存文件并更新状态为“已通过”
-    await axios.post(`${API_BASE}/applications/${currentAuditRow.value.id}/confirm`, fd)
+    await request.post(`/electronic_seal/applications/${currentAuditRow.value.id}/confirm`, fd)
 
     ElMessage.success('盖章完成，申请状态已更新为“已通过”')
     showAuditDialog.value = false
