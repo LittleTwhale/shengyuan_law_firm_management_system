@@ -393,7 +393,7 @@ def check_interest_conflict(
 @router.post("/import", status_code=200)
 def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """
-    📦 批量导入业务接口 (V3: 双Sheet关联模式，完美适配 CaseParty 结构)
+    📦 批量导入业务接口
     """
     try:
         if not file.filename.endswith(('.xlsx', '.xls')):
@@ -440,7 +440,7 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
     # ---------------- 2. 解析【业务列表】 ----------------
     cases_headers = [str(cell.value).strip() if cell.value else "" for cell in ws_cases[1]]
 
-    required_cols = ["业务号", "委托日期", "业务类别", "主办律师"]
+    required_cols = ["业务号", "业务类别"]
     for col in required_cols:
         if col not in cases_headers:
             raise HTTPException(status_code=400, detail=f"'业务列表'工作表缺少必要字段：{col}")
@@ -480,12 +480,15 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
         row_data = dict(zip(cases_headers, row))
 
         try:
-            # 获取律师ID
-            main_lawyer_id = get_user_id_by_name(db, row_data.get("主办律师"))
-            if not main_lawyer_id:
-                failed_cases.append(
-                    {"case_number": case_number, "reason": f"主办律师不存在：{row_data.get('主办律师')}"})
-                continue
+            # 获取律师ID (兼容为空的情况)
+            lawyer_name = str(row_data.get("主办律师", "")).strip()
+            main_lawyer_id = None
+            if lawyer_name and lawyer_name not in ("None", "nan", "NaN", "null"):
+                main_lawyer_id = get_user_id_by_name(db, lawyer_name)
+                if not main_lawyer_id:
+                    failed_cases.append(
+                        {"case_number": case_number, "reason": f"主办律师不存在：{lawyer_name}"})
+                    continue
 
             # ---------------- 3. 解析银行案件专属字段 ----------------
             case_category = str(row_data.get("业务类别", "")).strip()

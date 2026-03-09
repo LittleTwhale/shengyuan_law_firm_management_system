@@ -168,7 +168,7 @@
           </el-button>
           <template #tip>
             <div class="el-upload__tip text-danger">
-              请确保Excel表头包含：业务号、委托日期、业务类别、主办律师
+              请确保Excel表头包含：业务号、业务类别
             </div>
           </template>
         </el-upload>

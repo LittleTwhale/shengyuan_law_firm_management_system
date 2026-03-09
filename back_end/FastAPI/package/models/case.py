@@ -10,7 +10,7 @@ class Case(Base):
     # 基本信息
     case_id = Column(Integer, primary_key=True, index=True, comment="案件ID，自增主键")
     case_number = Column(String(50), unique=True, nullable=False, comment="案件号")
-    commission_date = Column(Date, nullable=False, comment="委托日期")
+    commission_date = Column(Date, nullable=True, comment="委托日期")
     client_name = Column(String(100), nullable=False, comment="委托人")
     client_id_number = Column(String(18), nullable=True, comment="委托人身份证号/单位税号")
     client_phone = Column(String(20), nullable=True, comment="委托人电话")
@@ -45,7 +45,7 @@ class Case(Base):
     details = Column(Text, nullable=True, comment="案件详情")
 
     # 律师信息
-    main_lawyer_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment="主办律师ID")
+    main_lawyer_id = Column(Integer, ForeignKey("users.id"), nullable=True, comment="主办律师ID")
     assistant_lawyer_id = Column(Integer, ForeignKey("users.id"), nullable=True, comment="助理律师ID")
     execution_lawyer_id = Column(Integer, ForeignKey("users.id"), nullable=True, comment="执行主办律师ID")
     execution_assistant_id = Column(Integer, ForeignKey("users.id"), nullable=True, comment="执行助理律师ID")

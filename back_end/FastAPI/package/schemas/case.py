@@ -187,7 +187,7 @@ class CasePartyOut(CasePartyBase):
 class CaseCreate(BaseModel):
     # 基本信息
     case_number: Optional[str] = Field(None, description="案件号（批量导入时指定，留空则由系统自动生成）")
-    commission_date: date = Field(..., description="委托日期")
+    commission_date: date = Field(None, description="委托日期")
     client_name: Optional[str] = Field(None, description="委托人")
     client_id_number: Optional[str] = Field(None, description="委托人身份证号/单位税号")
     client_phone: Optional[str] = Field(None, description="委托人电话")
@@ -212,7 +212,7 @@ class CaseCreate(BaseModel):
     details: Optional[str] = None
 
     # 律师信息
-    main_lawyer_id: int = Field(..., description="主办律师ID")
+    main_lawyer_id: int = Field(None, description="主办律师ID")
     assistant_lawyer_id: Optional[int] = None
     execution_lawyer_id: Optional[int] = None
     execution_assistant_id: Optional[int] = None
@@ -338,7 +338,7 @@ class CaseOut(BaseModel):
     # 基本信息
     case_id: int = Field(..., description="案件ID / Case ID")
     case_number: str = Field(..., description="案件号 / Case number")
-    commission_date: date = Field(..., description="委托日期 / Commission date")
+    commission_date: date = Field(None, description="委托日期 / Commission date")
     client_name: str = Field(..., description="委托人 / Client name")
     client_id_number: Optional[str] = Field(None, description="身份证号/税号 / ID or Tax number")
     client_phone: Optional[str] = Field(None, description="电话 / Phone number")
@@ -395,7 +395,7 @@ class CaseOut(BaseModel):
     execution_due_date: Optional[date] = Field(None, description="执行到期日 / Execution due date")
 
     # 律师信息
-    main_lawyer: UserOut
+    main_lawyer: Optional[UserOut] = None
     assistant_lawyer: Optional[UserOut] = None
     execution_lawyer: Optional[UserOut] = None
     execution_assistant: Optional[UserOut] = None
@@ -418,7 +418,7 @@ class CaseSimpleOut(BaseModel):
     client_name: str = Field(..., description="委托人 / Client name")
     case_category: str = Field(..., description="案件类别 / Case category")
     review_status: str = Field(..., description="案件审核状态 / Review status")
-    main_lawyer: UserOut = Field(..., description="主办律师 / Main lawyer")
+    main_lawyer: Optional[UserOut] = Field(None, description="主办律师 / Main lawyer")
     created_at: datetime = Field(..., description="创建时间 / Created at")
 
     class Config:
