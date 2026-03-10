@@ -817,7 +817,7 @@ def get_upcoming_events(db: Session, user_id: int, days: int = 30) -> List[dict]
 
 def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: CaseExportQuery) -> BytesIO:
     """
-    导出业务数据为Excel文件 (支持动态生成Sheet)
+    导出业务数据为Excel文件 (主表看概况 + 子表查详情)
     """
     # 1. 基础查询与预加载
     query = db.query(Case).options(
@@ -876,26 +876,36 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
     ws_standard = None
     ws_bank = None
 
-    # 根据筛选条件决定需要生成哪些Sheet
+    # 根据筛选条件决定需要生成哪些主表Sheet
     if query_params.case_category == "银行案件":
         ws_bank = wb.create_sheet(title="银行案件")
     elif query_params.case_category and query_params.case_category != "银行案件":
         ws_standard = wb.create_sheet(title="常规业务")
     else:
-        # 没有指定类型（导出全部），两个Sheet都生成
+        # 没有指定类型（导出全部），两个主表Sheet都生成
         ws_standard = wb.create_sheet(title="常规业务")
         ws_bank = wb.create_sheet(title="银行案件")
+
+    # --- 新增：创建独立的当事人明细 Sheet ---
+    ws_parties = wb.create_sheet(title="当事人明细")
 
     # ---------------- 表头定义 ----------------
     base_headers_part1 = ["业务ID", "业务号", "委托日期", "业务类别"]
 
-    # 使用统一的当事人详情列取代原来拆分的当事人类别列
-    party_headers = ["当事人详情"]
+    # 拆分当事人列头
+    party_headers = [
+        "委托人",
+        "原告/申请人/上诉人",
+        "被告(人)/被申请人/被上诉人",
+        "第三人",
+        "其他当事人"
+    ]
 
     base_headers_part2 = [
         "案件来源", "收费方式", "风险比例", "案件收入",
-        "付款到期日", "案由", "介入阶段", "代理权限", "审理法院", "侦查机关", "检察院", "二审检察机关", "开庭时间", "立案日", "结案时间",
-        "案件地点", "案件详情", "主办律师", "助理律师", "执行主办律师", "执行助理律师", "审核状态","审核人",
+        "付款到期日", "案由", "介入阶段", "代理权限", "审理法院", "侦查机关", "检察院", "二审检察机关", "开庭时间",
+        "立案日", "结案时间",
+        "案件地点", "案件详情", "主办律师", "助理律师", "执行主办律师", "执行助理律师", "审核状态", "审核人",
         "是否重大", "是否纸质卷宗", "是否解除", "是否笔录", "是否保全", "保全开始日", "保全终止日",
         "案号", "结案状态", "结案方式", "诉讼费缴费时间", "诉讼费缴费金额", "诉讼费退费时间", "诉讼费退费金额",
         "申请执行日", "调解到期日", "执行到期日", "创建时间", "更新时间"
@@ -914,14 +924,21 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         "执行回款总金额", "执行回款来源", "执行和解跟进及回款额", "扣划跟进及回款额", "调解案件履行跟踪情况"
     ]
 
-    # 组合表头 (判空安全)
+    party_detail_headers = [
+        "关联业务号", "业务类别", "当事人名称", "类型",
+        "法定代表人", "身份证号/统一社会信用代码", "联系电话", "联系地址"
+    ]
+
+    # 组合表头写入
     if ws_standard:
         ws_standard.append(base_headers_part1 + party_headers + base_headers_part2)
     if ws_bank:
         ws_bank.append(base_headers_part1 + party_headers + base_headers_part2 + bank_specific_headers)
 
-    # 设置表头样式 (只处理存在的Sheet)
-    for ws in [ws for ws in [ws_standard, ws_bank] if ws is not None]:
+    ws_parties.append(party_detail_headers)
+
+    # 设置表头样式
+    for ws in [ws for ws in [ws_standard, ws_bank, ws_parties] if ws is not None]:
         for cell in ws[1]:
             cell.font = Font(bold=True)
             cell.alignment = Alignment(horizontal="center", vertical="center")
@@ -946,28 +963,53 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         except:
             return str(j)
 
-    # 格式化当事人详情为带换行的字符串
-    def format_parties(parties):
-        if not parties:
-            return ""
-        party_strs = []
-        for p in parties:
-            info = f"[{p.party_type}] {p.name}"
-            details = []
-            if p.phone: details.append(f"电话: {p.phone}")
-            if p.id_number: details.append(f"证件: {p.id_number}")
-            if p.legal_representative: details.append(f"法定代表人: {p.legal_representative}")
-            if p.address: details.append(f"地址: {p.address}")
-
-            if details:
-                info += f" ({' | '.join(details)})"
-            party_strs.append(info)
-
-        return "\n".join(party_strs)
-
     # ---------------- 填充数据 ----------------
     for case in cases:
-        parties_detail_str = format_parties(case.parties)
+        clients = []
+        plaintiffs = []
+        defendants = []
+        thirds = []
+        others = []
+
+        # 遍历当事人，分发数据
+        if case.parties:
+            for p in case.parties:
+                # 1. 写入子表 (当事人明细)
+                ws_parties.append([
+                    case.case_number or "",
+                    case.case_category or "",
+                    p.name or "",
+                    p.party_type or "",
+                    p.legal_representative or "",
+                    p.id_number or "",
+                    p.phone or "",
+                    p.address or ""
+                ])
+
+                # 2. 为主表聚合字符串 (按角色分组)
+                ptype = p.party_type or ""
+                pname = p.name or "未知姓名"
+
+                if "委托人" in ptype:
+                    clients.append(pname)
+                elif ptype in ["原告", "申请人", "上诉人"]:
+                    plaintiffs.append(pname)
+                elif ptype in ["被告", "被告人", "被申请人", "被上诉人"]:
+                    defendants.append(pname)
+                elif ptype == "第三人":
+                    thirds.append(pname)
+                else:
+                    # 其他当事人追加身份后缀
+                    others.append(f"{pname}({ptype})" if ptype else pname)
+
+        # 构建主表的5列当事人数据 (使用 \n 回车换行拼接)
+        party_columns_data = [
+            "\n".join(clients),
+            "\n".join(plaintiffs),
+            "\n".join(defendants),
+            "\n".join(thirds),
+            "\n".join(others)
+        ]
 
         base_data_part1 = [
             case.case_id,
@@ -1078,15 +1120,21 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
                 format_json(bank.deduction_log if bank else None),
                 bank.mediation_tracking if bank else ""
             ]
-            row_data = base_data_part1 + [parties_detail_str] + base_data_part2 + bank_specific_data
+            row_data = base_data_part1 + party_columns_data + base_data_part2 + bank_specific_data
             ws_bank.append(row_data)
-            ws_bank.cell(row=ws_bank.max_row, column=5).alignment = Alignment(wrap_text=True, vertical="center")
+            # 给5个当事人列（E, F, G, H, I列，即第5到第9列）设置自动换行和居中对齐
+            for col_idx in range(5, 10):
+                ws_bank.cell(row=ws_bank.max_row, column=col_idx).alignment = Alignment(wrap_text=True,
+                                                                                        vertical="center")
 
         # 写入常规案件
         elif case.case_category != "银行案件" and ws_standard:
-            row_data = base_data_part1 + [parties_detail_str] + base_data_part2
+            row_data = base_data_part1 + party_columns_data + base_data_part2
             ws_standard.append(row_data)
-            ws_standard.cell(row=ws_standard.max_row, column=5).alignment = Alignment(wrap_text=True, vertical="center")
+            # 同样为当事人列设置换行
+            for col_idx in range(5, 10):
+                ws_standard.cell(row=ws_standard.max_row, column=col_idx).alignment = Alignment(wrap_text=True,
+                                                                                                vertical="center")
 
     # ---------------- 自适应列宽逻辑 ----------------
     def auto_fit_columns(worksheet):
@@ -1096,16 +1144,20 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
 
             for col_cell in col:
                 if col_cell.value is not None:
-                    # 如果是当事人详情列(E列)，给定一个固定宽度而不是自适应，以便换行效果更好
-                    if col_letter == 'E':
-                        max_length = 45
-                        continue
+                    # 将单元格内容转为字符串
+                    cell_str = str(col_cell.value)
 
-                    cell_len = sum(2 if ord(c) > 255 else 1.2 for c in str(col_cell.value))
-                    if cell_len > max_length:
-                        max_length = cell_len
+                    # 按换行符拆分，计算单行最长字符
+                    # 这样可以兼容多个当事人通过 \n 换行的情况，同时保证最长公司名不断行
+                    lines = cell_str.split('\n')
+                    for line in lines:
+                        # 中文按2个字符宽度算，英文/数字按1.2个字符宽度算
+                        line_len = sum(2 if ord(c) > 255 else 1.2 for c in line)
+                        if line_len > max_length:
+                            max_length = line_len
 
-            adjusted_width = min(max_length + 2, 60)
+            # 设置自适应宽度：加2作为缓冲空白，最高限制为100（防止极端异常数据导致列宽过大）
+            adjusted_width = min(max_length + 2, 100)
             worksheet.column_dimensions[col_letter].width = adjusted_width
 
     # 对存在的Sheet应用列宽自适应
@@ -1113,6 +1165,8 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         auto_fit_columns(ws_standard)
     if ws_bank:
         auto_fit_columns(ws_bank)
+    if ws_parties:
+        auto_fit_columns(ws_parties)
 
     # 5. 保存到内存并返回
     buffer = BytesIO()

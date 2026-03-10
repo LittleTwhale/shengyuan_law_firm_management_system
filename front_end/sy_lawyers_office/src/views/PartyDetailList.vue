@@ -5,6 +5,9 @@
 
       <template v-if="showBadge && p.party_type">
         <span v-if="theme === 'primary'" class="party-role-badge">{{ p.party_type }}</span>
+        <span v-else-if="theme === 'success'" class="party-role-badge success">{{
+          p.party_type
+        }}</span>
         <span v-else-if="theme === 'warning'" class="party-role-badge warning">{{
           p.party_type
         }}</span>
@@ -107,6 +110,11 @@ defineProps({
   background-color: #fdf6ec;
   color: #e6a23c;
   border-color: #faecd8;
+}
+.party-role-badge.success {
+  background-color: #f0f9eb;
+  color: #67c23a;
+  border-color: #e1f3d8;
 }
 .party-role-badge.info {
   background-color: #f4f4f5;

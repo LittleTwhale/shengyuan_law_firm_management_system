@@ -167,9 +167,7 @@
             <el-icon><Upload /></el-icon> 选择Excel文件
           </el-button>
           <template #tip>
-            <div class="el-upload__tip text-danger">
-              请确保Excel表头包含：业务号、业务类别
-            </div>
+            <div class="el-upload__tip text-danger">请确保Excel表头包含：业务号、业务类别</div>
           </template>
         </el-upload>
 
@@ -367,7 +365,13 @@
           <el-button @click="showExportDialog = false">取消</el-button>
           <el-button type="primary" :loading="isExporting" @click="submitExport">
             <el-icon v-if="!isExporting"><Download /></el-icon>
-            {{ isExporting ? '生成并导出中...' : '确认导出' }}
+            {{
+              isExporting
+                ? exportProgress > 0 && exportProgress < 100
+                  ? `下载中 ${exportProgress}%`
+                  : '生成并导出中...'
+                : '确认导出'
+            }}
           </el-button>
         </span>
       </template>
@@ -600,10 +604,13 @@ const handleExportClick = () => {
   showExportDialog.value = true
 }
 
+// 下载进度变量
+const exportProgress = ref(0)
 // 确认并提交导出
 const submitExport = async () => {
   try {
     isExporting.value = true
+    exportProgress.value = 0 // 每次导出前重置进度
 
     // 1️⃣ 构建请求 Payload (严格匹配后端的 CaseExportQuery 模型)
     const payload = {
@@ -617,9 +624,15 @@ const submitExport = async () => {
         exportForm.dateRange && exportForm.dateRange.length === 2 ? exportForm.dateRange[1] : null,
     }
 
-    // 2️⃣ 发起 POST 请求
+    // 2️⃣ 发起 POST 请求，加入进度监听
     const response = await request.post('/cases/export', payload, {
-      responseType: 'blob', // 告诉 axios 返回文件流
+      responseType: 'blob',
+      onDownloadProgress: (progressEvent) => {
+        // 当后端返回了 Content-Length 时，total 才有值
+        if (progressEvent.total) {
+          exportProgress.value = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+        }
+      },
     })
 
     // 3️⃣ 创建下载链接
@@ -653,6 +666,7 @@ const submitExport = async () => {
     ElMessage.error('导出失败，请检查网络或稍后重试 ❌')
   } finally {
     isExporting.value = false
+    exportProgress.value = 0 // 结束清空
   }
 }
 

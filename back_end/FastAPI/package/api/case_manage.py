@@ -126,6 +126,12 @@ def export_cases(
     """
     excel_io = export_cases_to_excel(db, current_user.id, current_user.role, query)
 
+    # --- 获取文件真实大小，用于前端进度条 ---
+    excel_io.seek(0, 2)  # 将指针移动到文件流末尾
+    file_size = excel_io.tell()  # 获取当前字节数（即文件大小）
+    excel_io.seek(0)  # 务必将指针移回开头，否则前端下载到的是空文件
+    # -----------------------------------------------
+
     filename = f"业务数据明细_{datetime.now().strftime('%Y%m%d%H%M')}.xlsx"
     encoded_filename = quote(filename)
 
@@ -134,7 +140,10 @@ def export_cases(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
             "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
-            "Access-Control-Expose-Headers": "Content-Disposition"
+            # 允许前端读取 Content-Length 响应头
+            "Access-Control-Expose-Headers": "Content-Disposition, Content-Length",
+            # 明确告知前端文件大小
+            "Content-Length": str(file_size)
         }
     )
 
