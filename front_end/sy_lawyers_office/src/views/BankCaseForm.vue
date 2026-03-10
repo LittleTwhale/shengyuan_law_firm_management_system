@@ -28,7 +28,21 @@
                   :rules="{ required: true, message: '请输入银行名称', trigger: 'blur' }"
                   label-width="90px"
                 >
-                  <el-input v-model="item.name" placeholder="请输入银行名称" />
+                  <el-select
+                    v-model="item.name"
+                    placeholder="请选择或输入银行名称"
+                    filterable
+                    allow-create
+                    default-first-option
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="bank in bankOptions"
+                      :key="bank"
+                      :label="bank"
+                      :value="bank"
+                    />
+                  </el-select>
                 </el-form-item>
               </el-col>
               <el-col :span="8">
@@ -490,7 +504,21 @@
 
         <el-col :span="12">
           <el-form-item label="支行名称" prop="bank_case_details.branch_name" label-width="120px">
-            <el-input v-model="formData.bank_case_details.branch_name" />
+            <el-select
+              v-model="formData.bank_case_details.branch_name"
+              placeholder="请选择或输入支行名称"
+              filterable
+              allow-create
+              default-first-option
+              style="width: 100%"
+            >
+              <el-option
+                v-for="branch in branchOptions"
+                :key="branch"
+                :label="branch"
+                :value="branch"
+              />
+            </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -1457,6 +1485,48 @@ defineProps({
 })
 
 const formData = inject('caseFormData')
+
+const bankOptions = [
+  '建设银行',
+  '邮政银行',
+  '农村商业银行',
+  '工商银行',
+  '交通银行',
+  '住房公积金',
+  '长沙村镇银行',
+  '中国银行',
+]
+
+const branchOptions = [
+  '保靖支行',
+  '凤凰支行',
+  '古丈支行',
+  '花垣支行',
+  '吉大支行',
+  '吉首支行',
+  '经开区支行支行',
+  '龙山支行',
+  '泸溪支行',
+  '乾城支行',
+  '乾州支行',
+  '人民路支行',
+  '营业部',
+  '永顺支行',
+  '矮寨支行',
+  '城东支行',
+  '城南支行',
+  '丹青支行',
+  '河溪支行',
+  '马颈坳支行',
+  '排吼支行',
+  '社塘坡支行',
+  '太平支行',
+  '雅溪支行',
+  '寒阳支行',
+  '峒河支行支行',
+  '团结西路支行',
+  '湘西州分行',
+]
 
 // 自动计算诉讼时效功能 (到期日往后推三年)
 const handleLoanDueDateChange = (val) => {
