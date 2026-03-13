@@ -1,7 +1,12 @@
 <template>
   <div class="bank-case-detail">
     <el-divider content-position="left" class="section-divider">当事人信息</el-divider>
-    <el-descriptions :column="1" border class="unified-descriptions">
+    <el-descriptions
+      :column="1"
+      :direction="isMobile ? 'vertical' : 'horizontal'"
+      border
+      class="unified-descriptions"
+    >
       <el-descriptions-item label="委托银行">
         <PartyDetailList :parties="partyClients" :show-badge="false" />
       </el-descriptions-item>
@@ -32,7 +37,12 @@
     </el-descriptions>
 
     <el-divider content-position="left" class="section-divider">一、 收案与基础信息</el-divider>
-    <el-descriptions :column="2" border class="unified-descriptions">
+    <el-descriptions
+      :column="isMobile ? 1 : 2"
+      :direction="isMobile ? 'vertical' : 'horizontal'"
+      border
+      class="unified-descriptions"
+    >
       <el-descriptions-item label="业务号">{{ caseData.case_number || '-' }}</el-descriptions-item>
       <el-descriptions-item label="案件来源">{{
         caseData.case_source || '-'
@@ -63,7 +73,7 @@
         formatCurrency(caseData.case_income)
       }}</el-descriptions-item>
 
-      <el-descriptions-item label="付款到期日" >{{
+      <el-descriptions-item label="付款到期日">{{
         formatDate(caseData.payment_due_date)
       }}</el-descriptions-item>
 
@@ -86,7 +96,12 @@
     </el-descriptions>
 
     <el-divider content-position="left" class="section-divider">二、 借贷基础信息</el-divider>
-    <el-descriptions :column="2" border class="unified-descriptions">
+    <el-descriptions
+      :column="isMobile ? 1 : 2"
+      :direction="isMobile ? 'vertical' : 'horizontal'"
+      border
+      class="unified-descriptions"
+    >
       <el-descriptions-item label="贷款类型">{{ details.loan_type || '-' }}</el-descriptions-item>
       <el-descriptions-item label="贷款账号">{{
         details.loan_account || '-'
@@ -125,7 +140,12 @@
     </el-descriptions>
 
     <el-divider content-position="left" class="section-divider">三、 诉讼与立案阶段</el-divider>
-    <el-descriptions :column="2" border class="unified-descriptions">
+    <el-descriptions
+      :column="isMobile ? 1 : 2"
+      :direction="isMobile ? 'vertical' : 'horizontal'"
+      border
+      class="unified-descriptions"
+    >
       <el-descriptions-item label="介入阶段">{{ caseData.stage || '-' }}</el-descriptions-item>
       <el-descriptions-item label="案由">{{ caseData.cause || '-' }}</el-descriptions-item>
 
@@ -173,7 +193,12 @@
     </el-descriptions>
 
     <el-divider content-position="left" class="section-divider">四、 财产保全阶段</el-divider>
-    <el-descriptions :column="2" border class="unified-descriptions">
+    <el-descriptions
+      :column="isMobile ? 1 : 2"
+      :direction="isMobile ? 'vertical' : 'horizontal'"
+      border
+      class="unified-descriptions"
+    >
       <el-descriptions-item label="是否保全" :span="caseData.has_preservation ? 1 : 2">
         <el-tag :type="caseData.has_preservation ? 'success' : 'info'">{{
           caseData.has_preservation ? '是' : '否'
@@ -194,7 +219,12 @@
     </el-descriptions>
 
     <el-divider content-position="left" class="section-divider">五、 裁判与诉讼结案</el-divider>
-    <el-descriptions :column="2" border class="unified-descriptions">
+    <el-descriptions
+      :column="isMobile ? 1 : 2"
+      :direction="isMobile ? 'vertical' : 'horizontal'"
+      border
+      class="unified-descriptions"
+    >
       <el-descriptions-item label="裁判时间">{{
         formatDate(details.judgment_date)
       }}</el-descriptions-item>
@@ -242,7 +272,12 @@
     <el-divider content-position="left" class="section-divider execution"
       >六、 执行阶段启动</el-divider
     >
-    <el-descriptions :column="2" border class="unified-descriptions">
+    <el-descriptions
+      :column="isMobile ? 1 : 2"
+      :direction="isMobile ? 'vertical' : 'horizontal'"
+      border
+      class="unified-descriptions"
+    >
       <el-descriptions-item label="执行主办律师">{{
         caseData.execution_lawyer?.real_name || '-'
       }}</el-descriptions-item>
@@ -291,7 +326,12 @@
     <el-divider content-position="left" class="section-divider execution"
       >七、 执行查控与财产处置</el-divider
     >
-    <el-descriptions :column="2" border class="unified-descriptions">
+    <el-descriptions
+      :column="isMobile ? 1 : 2"
+      :direction="isMobile ? 'vertical' : 'horizontal'"
+      border
+      class="unified-descriptions"
+    >
       <el-descriptions-item label="拍卖程序">{{
         details.auction_status || '-'
       }}</el-descriptions-item>
@@ -316,7 +356,12 @@
     <el-divider content-position="left" class="section-divider execution"
       >八、 执行结案与回款</el-divider
     >
-    <el-descriptions :column="2" border class="unified-descriptions">
+    <el-descriptions
+      :column="isMobile ? 1 : 2"
+      :direction="isMobile ? 'vertical' : 'horizontal'"
+      border
+      class="unified-descriptions"
+    >
       <el-descriptions-item label="调解到期日">{{
         formatDate(caseData.mediation_due_date)
       }}</el-descriptions-item>
@@ -351,7 +396,12 @@
     </el-descriptions>
 
     <el-divider content-position="left" class="section-divider">九、 补充详情</el-divider>
-    <el-descriptions :column="2" border class="unified-descriptions">
+    <el-descriptions
+      :column="isMobile ? 1 : 2"
+      :direction="isMobile ? 'vertical' : 'horizontal'"
+      border
+      class="unified-descriptions"
+    >
       <el-descriptions-item label="案件地点">{{ caseData.location || '-' }}</el-descriptions-item>
       <el-descriptions-item label="借款人工作单位">{{
         details.borrower_work_unit || '-'
@@ -364,9 +414,11 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import PartyDetailList from './PartyDetailList.vue'
 
+// 获取移动端状态，默认 false
+const isMobile = inject('isMobile', false)
 const props = defineProps({
   caseData: {
     type: Object,
@@ -462,5 +514,12 @@ const formatCurrency = (amount) => {
   line-height: 1.8;
   color: #444;
   padding: 5px 0;
+}
+/* 移动端适配 CSS */
+@media screen and (max-width: 768px) {
+  /* 调整卡片内边距 */
+  .unified-descriptions :deep(.el-descriptions__content) {
+    word-break: break-all;
+  }
 }
 </style>

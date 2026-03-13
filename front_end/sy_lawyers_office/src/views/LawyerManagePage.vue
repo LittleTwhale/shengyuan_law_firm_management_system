@@ -1,32 +1,34 @@
 <template>
   <div class="lawyer-management">
-    <!-- 顶部搜索与操作区 -->
     <div class="toolbar">
       <div class="toolbar-left">
         <el-input
+          class="search-input"
           v-model="searchKeyword"
           placeholder="请输入检索条件"
           clearable
           @clear="fetchUsers"
           @keyup.enter="fetchUsers"
-          style="width: 250px"
-        />
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
       </div>
       <div class="toolbar-right">
         <el-button type="primary" icon="el-icon-plus" @click="openDialog()"> 新增用户 </el-button>
       </div>
     </div>
 
-    <!-- 用户表格 -->
     <div class="content-area">
-      <el-table :data="pagedData" border stripe style="flex: 1">
-        <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="accounts" label="账号" width="150" />
-        <el-table-column prop="real_name" label="姓名" width="120" />
-        <el-table-column prop="role" label="角色" width="100" />
-        <el-table-column prop="position" label="职位" width="120" />
-        <el-table-column prop="created_at" label="创建时间" width="180" />
-        <el-table-column label="操作" width="220">
+      <el-table :data="pagedData" border stripe style="width: 100%; height: 100%">
+        <el-table-column prop="id" label="ID" min-width="70" />
+        <el-table-column prop="accounts" label="账号" min-width="130" show-overflow-tooltip />
+        <el-table-column prop="real_name" label="姓名" min-width="110" show-overflow-tooltip />
+        <el-table-column prop="role" label="角色" min-width="100" />
+        <el-table-column prop="position" label="职位" min-width="130" show-overflow-tooltip />
+        <el-table-column prop="created_at" label="创建时间" min-width="170" show-overflow-tooltip />
+        <el-table-column label="操作" min-width="130" fixed="right">
           <template #default="scope">
             <el-button
               size="small"
@@ -47,62 +49,74 @@
           </template>
         </el-table-column>
       </el-table>
-
-      <!-- 分页 -->
-      <div class="pagination-container">
-        <el-pagination
-          v-model:current-page="page"
-          v-model:page-size="pageSize"
-          :total="filteredList.length"
-          layout="total, prev, pager, next, sizes"
-          :page-sizes="[10, 15, 20]"
-        />
-      </div>
     </div>
 
-    <!-- 新增/编辑弹窗 -->
-    <el-dialog :title="editUser ? '编辑用户' : '新增用户'" v-model="dialogVisible">
-      <!-- 表单：绑定 formRules 实现验证 -->
-      <el-form :model="form" :rules="formRules" ref="formRef" label-width="100px">
-        <!-- 账号 -->
+    <div class="pagination-container">
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :total="filteredList.length"
+        layout="total, sizes, prev, pager, next"
+        :page-sizes="[10, 15, 20]"
+        background
+      />
+    </div>
+
+    <el-dialog
+      class="responsive-dialog"
+      :title="editUser ? '编辑用户' : '新增用户'"
+      v-model="dialogVisible"
+    >
+      <el-form
+        :model="form"
+        :rules="formRules"
+        ref="formRef"
+        label-width="80px"
+        class="custom-form"
+      >
         <el-form-item label="账号" prop="accounts">
-          <el-input v-model="form.accounts" :disabled="editUser" />
+          <el-input v-model="form.accounts" :disabled="editUser" placeholder="请输入账号" />
         </el-form-item>
 
-        <!-- 姓名 -->
         <el-form-item label="姓名" prop="real_name">
-          <el-input v-model="form.real_name" />
+          <el-input v-model="form.real_name" placeholder="请输入姓名" />
         </el-form-item>
 
-        <!-- 职位 -->
         <el-form-item label="职位" prop="position">
-          <el-input v-model="form.position" />
+          <el-input v-model="form.position" placeholder="请输入职位" />
         </el-form-item>
 
-        <!-- 角色选择 -->
         <el-form-item label="角色" prop="role">
-          <el-select v-model="form.role" :disabled="role === 'admin'">
+          <el-select v-model="form.role" :disabled="role === 'admin'" style="width: 100%">
             <el-option label="普通用户" value="user" />
             <el-option label="管理员" value="admin" v-if="role === 'owner'" />
           </el-select>
         </el-form-item>
 
-        <!-- 密码 -->
-        <!-- 编辑用户时可为空，不修改密码 -->
         <el-form-item label="密码" prop="password" v-if="editUser">
-          <el-input v-model="form.password" type="password" placeholder="不填则不修改密码" />
+          <el-input
+            v-model="form.password"
+            type="password"
+            placeholder="不填则不修改密码"
+            show-password
+          />
         </el-form-item>
 
-        <!-- 新增用户时密码必填 -->
         <el-form-item label="密码" prop="password" v-else>
-          <el-input v-model="form.password" type="password" />
+          <el-input
+            v-model="form.password"
+            type="password"
+            placeholder="请输入密码"
+            show-password
+          />
         </el-form-item>
       </el-form>
 
-      <!-- 弹窗底部按钮 -->
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSave">保存</el-button>
+        <div class="dialog-footer">
+          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="handleSave">保存</el-button>
+        </div>
       </template>
     </el-dialog>
   </div>
@@ -111,6 +125,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search } from '@element-plus/icons-vue' // 引入搜索图标
 import request from '@/utils/request'
 
 // 当前用户角色
@@ -269,35 +284,113 @@ onMounted(() => fetchUsers())
 </script>
 
 <style scoped>
+/* 容器采用卡片式设计，更具现代感 */
 .lawyer-management {
   display: flex;
   flex-direction: column;
-  height: 100vh; /* 整个页面高度 */
-  padding: 20px;
+  height: calc(100vh - 40px); /* 预留边距 */
+  margin: 20px;
+  padding: 24px;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  box-sizing: border-box;
 }
-/* 弹窗样式 */
+
+/* 顶部工具栏适配 */
 .toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 20px;
+  gap: 16px;
+  flex-wrap: wrap; /* 允许换行 */
 }
+
+.search-input {
+  width: 280px;
+}
+
+/* 表格区域 */
 .content-area {
-  display: flex;
-  flex-direction: column;
-  flex: 0.9; /* 占满剩余空间 */
-  overflow: hidden;
+  flex: 1;
+  overflow: hidden; /* 防止外层滚动，将滚动交给 el-table 内部 */
   position: relative;
+  border-radius: 4px;
+  border: 1px solid #ebeef5;
 }
-::v-deep(.el-table .cell) {
+
+/* 修复 Element Plus 文本溢出显示 */
+:deep(.el-table .cell) {
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-/* 分页容器居中 */
+
+/* 分页容器 */
 .pagination-container {
   width: 100%;
   margin-top: 20px;
-  text-align: center;
+  display: flex;
+  justify-content: flex-end; /* PC端靠右对齐更符合直觉 */
+}
+
+/* 弹窗全局宽度控制 */
+:deep(.responsive-dialog) {
+  width: 90% !important;
+  max-width: 500px !important;
+  border-radius: 8px;
+}
+
+/* --- 移动端响应式适配 (视口宽度 <= 768px) --- */
+@media (max-width: 768px) {
+  .lawyer-management {
+    margin: 10px;
+    padding: 16px;
+    height: calc(100vh - 20px);
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .toolbar-left,
+  .toolbar-right,
+  .search-input {
+    width: 100%;
+  }
+
+  .toolbar-right .el-button {
+    width: 100%; /* 移动端按钮撑满 */
+  }
+
+  /* --- 修复操作列过宽的问题 --- */
+  /* 缩小表格内按钮的内边距，节省空间 */
+  :deep(.el-table .el-button--small) {
+    padding: 5px 8px;
+    margin-left: 0;
+    margin-right: 4px;
+  }
+  :deep(.el-table .el-button--small:last-child) {
+    margin-right: 0;
+  }
+
+  /* --- 修复分页器溢出的问题 --- */
+  /* 在手机端隐藏“总条数”和“多少条/页”下拉框，只保留上下页和页码 */
+  :deep(.el-pagination__sizes),
+  :deep(.el-pagination__total),
+  :deep(.el-pagination__jump) {
+    display: none !important;
+  }
+
+  .pagination-container {
+    justify-content: center;
+    overflow-x: auto;
+    padding-bottom: 10px;
+    width: 100%;
+  }
+
+  :deep(.el-pagination) {
+    flex-wrap: nowrap;
+  }
 }
 </style>

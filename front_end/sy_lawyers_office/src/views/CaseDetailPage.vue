@@ -16,7 +16,12 @@
           <GeneralCaseDetail v-else :case-data="caseData" />
 
           <el-divider />
-          <el-descriptions title="系统信息" :column="2" border>
+          <el-descriptions
+            title="系统信息"
+            :column="isMobile ? 1 : 2"
+            :direction="isMobile ? 'vertical' : 'horizontal'"
+            border
+          >
             <el-descriptions-item label="创建时间">{{
               formatDateTime(caseData.created_at)
             }}</el-descriptions-item>
@@ -26,42 +31,85 @@
           </el-descriptions>
 
           <el-divider />
-          <el-descriptions title="业务附件" border>
-            <el-descriptions-item label="附件列表" :column="1">
+          <el-descriptions
+            title="业务附件"
+            border
+            :column="1"
+            :direction="isMobile ? 'vertical' : 'horizontal'"
+          >
+            <el-descriptions-item label="附件列表">
               <div class="attachment-list">
                 <div v-if="attachments.length === 0 && !loadingAttachments" class="no-attachments">
                   暂无附件
                 </div>
 
-                <el-table
-                  v-if="attachments.length > 0"
-                  :data="attachments"
-                  border
-                  style="width: 100%; margin-top: 10px"
-                >
-                  <el-table-column prop="file_name" label="文件名" />
-                  <el-table-column
-                    prop="uploader"
-                    label="上传人"
-                    :formatter="(row) => row.uploader?.real_name || '-'"
-                  />
-                  <el-table-column prop="file_size" label="文件大小" :formatter="formatFileSize" />
-                  <el-table-column
-                    prop="uploaded_at"
-                    label="上传时间"
-                    :formatter="(row, column, cellValue) => formatDateTime(cellValue)"
-                  />
-                  <el-table-column label="操作">
-                    <template #default="scope">
-                      <el-button size="small" @click="previewAttachment(scope.row)">
-                        预览
-                      </el-button>
-                      <el-button size="small" @click="downloadAttachment(scope.row)">
-                        下载
-                      </el-button>
-                    </template>
-                  </el-table-column>
-                </el-table>
+                <template v-else>
+                  <div v-if="!isMobile" class="table-responsive">
+                    <el-table
+                      :data="attachments"
+                      border
+                      style="width: 100%; margin-top: 10px; min-width: 500px"
+                    >
+                      <el-table-column prop="file_name" label="文件名" min-width="150" />
+                      <el-table-column
+                        prop="uploader"
+                        label="上传人"
+                        min-width="100"
+                        :formatter="(row) => row.uploader?.real_name || '-'"
+                      />
+                      <el-table-column
+                        prop="file_size"
+                        label="文件大小"
+                        width="100"
+                        :formatter="formatFileSize"
+                      />
+                      <el-table-column
+                        prop="uploaded_at"
+                        label="上传时间"
+                        min-width="160"
+                        :formatter="(row, column, cellValue) => formatDateTime(cellValue)"
+                      />
+                      <el-table-column label="操作" width="140" fixed="right">
+                        <template #default="scope">
+                          <el-button size="small" @click="previewAttachment(scope.row)">
+                            预览
+                          </el-button>
+                          <el-button size="small" @click="downloadAttachment(scope.row)">
+                            下载
+                          </el-button>
+                        </template>
+                      </el-table-column>
+                    </el-table>
+                  </div>
+
+                  <div v-else class="mobile-attachment-list">
+                    <el-card
+                      v-for="item in attachments"
+                      :key="item.attachment_id"
+                      class="mobile-attachment-card"
+                      shadow="hover"
+                    >
+                      <div class="file-header">
+                        <span class="file-name">{{ item.file_name }}</span>
+                      </div>
+                      <div class="file-info">
+                        <div class="info-item">上传人: {{ item.uploader?.real_name || '-' }}</div>
+                        <div class="info-item">大 小: {{ formatFileSize(item) }}</div>
+                        <div class="info-item">时 间: {{ formatDateTime(item.uploaded_at) }}</div>
+                      </div>
+                      <div class="file-actions">
+                        <el-button
+                          size="small"
+                          type="primary"
+                          plain
+                          @click="previewAttachment(item)"
+                          >预览</el-button
+                        >
+                        <el-button size="small" @click="downloadAttachment(item)">下载</el-button>
+                      </div>
+                    </el-card>
+                  </div>
+                </template>
               </div>
             </el-descriptions-item>
           </el-descriptions>
@@ -90,7 +138,6 @@
           alt="预览图片"
           @error="handleImageError"
         />
-
         <iframe v-else-if="previewType === 'pdf'" :src="previewUrl" class="pdf-iframe" />
       </div>
     </el-dialog>
@@ -98,7 +145,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
@@ -108,12 +155,33 @@ import GeneralCaseDetail from './GeneralCaseDetail.vue'
 import CaseVolumePanel from '@/views/CaseVolumePanel.vue'
 import BankCaseDetail from './BankCaseDetail.vue'
 
+// -------------------------- 响应式/移动端适配相关 --------------------------
+const isMobile = ref(false)
+const checkDeviceType = () => {
+  isMobile.value = window.innerWidth <= 768
+}
+
+onMounted(() => {
+  checkDeviceType()
+  window.addEventListener('resize', checkDeviceType)
+  loadCaseDetail()
+  // 如果 URL 参数中有 tab=volume，自动切换到卷宗 Tab
+  if (route.query.tab === 'volume') {
+    activeTab.value = 'volume'
+  }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkDeviceType)
+})
+
+// 向下层子组件提供移动端状态
+provide('isMobile', isMobile)
+// ---------------------------------------------------------------------------
+
 const route = useRoute()
 const router = useRouter()
-
-// >>>  Tab 控制变量 <<<
-const activeTab = ref('detail') // 默认显示详情
-
+const activeTab = ref('detail')
 const caseData = ref({})
 const loading = ref(false)
 const caseId = route.params.id
@@ -122,15 +190,6 @@ const caseId = route.params.id
 const attachments = ref([])
 const attachmentFileList = ref([])
 const loadingAttachments = ref(false)
-
-onMounted(() => {
-  loadCaseDetail()
-
-  // 如果 URL 参数中有 tab=volume，自动切换到卷宗 Tab
-  if (route.query.tab === 'volume') {
-    activeTab.value = 'volume'
-  }
-})
 
 const goBack = () => {
   // 从路由状态中获取来源页面路径，默认返回案件管理页面
@@ -173,7 +232,6 @@ const loadCaseDetail = async () => {
 // 加载案件附件
 const loadAttachments = async () => {
   if (!caseId) return
-
   loadingAttachments.value = true
   try {
     const res = await request.get(`/attachments/case/${caseId}`)
@@ -236,7 +294,7 @@ const downloadAttachment = async (attachment) => {
   }
 }
 
-// 新增预览相关变量
+// 预览相关
 const showFilePreview = ref(false)
 const previewUrl = ref('')
 const previewType = ref('') // 'image' 或 'pdf'
@@ -286,7 +344,6 @@ const previewAttachment = async (attachment) => {
       previewType.value = 'pdf'
       previewTitle.value = `PDF预览：${attachment.file_name}`
     }
-
     previewUrl.value = objectUrl
     showFilePreview.value = true
   } catch (err) {
@@ -321,7 +378,6 @@ const handleImageError = (e) => {
 
 const formatDateTime = (dateVal) => {
   if (!dateVal) return ''
-
   let timestamp
 
   // 处理时间戳（数字类型）
@@ -384,10 +440,6 @@ const formatDateTime = (dateVal) => {
 .case-detail {
   padding: 20px;
 }
-.detail-card {
-  margin-top: 10px;
-}
-/* 居中标题样式 */
 .page-title {
   text-align: center;
   font-size: 22px;
@@ -399,7 +451,6 @@ const formatDateTime = (dateVal) => {
   margin-top: 10px;
   line-height: 1.6;
 }
-/* 附件列表样式 */
 .attachment-list {
   margin-top: 10px;
 }
@@ -409,26 +460,78 @@ const formatDateTime = (dateVal) => {
   text-align: center;
 }
 
+/* 附件表格横向滚动适配 */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+/* 移动端附件卡片样式 */
+.mobile-attachment-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.mobile-attachment-card {
+  --el-card-padding: 12px;
+}
+.file-header {
+  margin-bottom: 8px;
+}
+.file-name {
+  font-weight: bold;
+  color: #303133;
+  word-break: break-all;
+  font-size: 14px;
+}
+.file-info {
+  font-size: 12px;
+  color: #606266;
+  margin-bottom: 12px;
+  line-height: 1.8;
+}
+.info-item {
+  display: flex;
+  justify-content: flex-start;
+}
+.file-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid #ebeef5;
+  padding-top: 10px;
+}
+
 .preview-container {
   width: 100%;
-  height: calc(90vh - 100px); /* 减去弹窗标题栏高度 */
+  height: calc(90vh - 100px);
   display: flex;
   justify-content: center;
   align-items: center;
   overflow: auto;
 }
-
 .image-preview {
   max-width: 100%;
   max-height: 100%;
-  object-fit: contain; /* 保持图片比例，避免拉伸 */
+  object-fit: contain;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
-
 .pdf-iframe {
   width: 100%;
   height: 100%;
   border: 1px solid #ffffff;
   border-radius: 4px;
+}
+
+/* 移动端细微样式调整 */
+@media screen and (max-width: 768px) {
+  .case-detail {
+    padding: 10px;
+  }
+  .page-title {
+    font-size: 18px;
+    margin: 10px 0 15px 0;
+  }
 }
 </style>

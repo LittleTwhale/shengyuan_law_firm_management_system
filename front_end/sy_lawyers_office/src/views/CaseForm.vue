@@ -2,13 +2,19 @@
   <el-dialog
     :title="dialogTitle"
     v-model="dialogVisible"
-    width="1000px"
+    :width="isMobile ? '95%' : '1000px'"
     destroy-on-close
     @close="handleCancel"
     top="5vh"
     class="custom-dialog"
   >
-    <el-form :model="formData" :rules="formRules" ref="formRef" label-width="160px">
+    <el-form
+      :model="formData"
+      :rules="formRules"
+      ref="formRef"
+      :label-width="isMobile ? 'auto' : '160px'"
+      :label-position="isMobile ? 'top' : 'right'"
+    >
       <el-form-item label="业务类别" prop="case_category">
         <el-select
           v-model="formData.case_category"
@@ -93,7 +99,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, computed, provide } from 'vue'
+import { ref, reactive, watch, computed, provide, onUnmounted, onMounted } from 'vue'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
@@ -101,6 +107,25 @@ import { UploadFilled } from '@element-plus/icons-vue'
 // 引入拆分后的子组件
 import GeneralCaseForm from '@/views/GeneralCaseForm.vue'
 import BankCaseForm from './BankCaseForm.vue'
+
+// -------------------------- 响应式/移动端适配相关 --------------------------
+const isMobile = ref(false)
+const checkDeviceType = () => {
+  isMobile.value = window.innerWidth <= 768
+}
+
+onMounted(() => {
+  checkDeviceType()
+  window.addEventListener('resize', checkDeviceType)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkDeviceType)
+})
+
+// 向下层子组件提供移动端状态，以备子组件需要做深层 JS 逻辑适配
+provide('isMobile', isMobile)
+// ---------------------------------------------------------------------------
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -738,5 +763,12 @@ const handleSubmit = async () => {
   font-size: 14px;
   font-weight: bold;
   color: #303133;
+}
+
+/* 添加针对移动端弹窗的兜底样式 */
+@media screen and (max-width: 768px) {
+  .custom-dialog {
+    margin: 0 auto !important;
+  }
 }
 </style>

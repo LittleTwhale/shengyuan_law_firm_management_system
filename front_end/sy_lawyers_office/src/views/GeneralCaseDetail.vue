@@ -1,6 +1,11 @@
 <template>
   <div class="general-case-detail">
-    <el-descriptions title="业务基本信息" :column="2" border>
+    <el-descriptions
+      title="业务基本信息"
+      :column="isMobile ? 1 : 2"
+      :direction="isMobile ? 'vertical' : 'horizontal'"
+      border
+    >
       <el-descriptions-item label="业务号">{{ caseData.case_number || '-' }}</el-descriptions-item>
       <el-descriptions-item label="业务类别">{{
         caseData.case_category || '-'
@@ -17,7 +22,12 @@
 
     <el-divider />
 
-    <el-descriptions title="当事人信息" :column="1" border>
+    <el-descriptions
+      title="当事人信息"
+      :column="1"
+      :direction="isMobile ? 'vertical' : 'horizontal'"
+      border
+    >
       <el-descriptions-item :label="clientLabel">
         <PartyDetailList :parties="partyClients" :show-badge="false" />
       </el-descriptions-item>
@@ -57,7 +67,12 @@
 
     <el-divider />
 
-    <el-descriptions title="费用信息" :column="2" border>
+    <el-descriptions
+      title="费用信息"
+      :column="isMobile ? 1 : 2"
+      :direction="isMobile ? 'vertical' : 'horizontal'"
+      border
+    >
       <el-descriptions-item label="收费方式">{{ caseData.fee_method || '-' }}</el-descriptions-item>
       <el-descriptions-item label="业务收入">{{
         caseData.case_income ? `${caseData.case_income} 元` : '-'
@@ -67,7 +82,12 @@
 
     <el-divider />
 
-    <el-descriptions title="律师信息" :column="2" border>
+    <el-descriptions
+      title="律师信息"
+      :column="isMobile ? 1 : 2"
+      :direction="isMobile ? 'vertical' : 'horizontal'"
+      border
+    >
       <el-descriptions-item label="主办律师">{{
         caseData.main_lawyer?.real_name || '-'
       }}</el-descriptions-item>
@@ -84,7 +104,12 @@
 
     <el-divider />
 
-    <el-descriptions title="审理与管辖信息" :column="2" border>
+    <el-descriptions
+      title="审理与管辖信息"
+      :column="isMobile ? 1 : 2"
+      :direction="isMobile ? 'vertical' : 'horizontal'"
+      border
+    >
       <el-descriptions-item label="上诉人">{{
         caseData.appellant_info || '-'
       }}</el-descriptions-item>
@@ -119,7 +144,12 @@
 
     <el-divider />
 
-    <el-descriptions title="业务状态" :column="2" border>
+    <el-descriptions
+      title="业务状态"
+      :column="isMobile ? 1 : 2"
+      :direction="isMobile ? 'vertical' : 'horizontal'"
+      border
+    >
       <el-descriptions-item label="审核状态">{{ caseData.review_status }}</el-descriptions-item>
       <el-descriptions-item label="审核人">{{
         caseData.reviewer?.real_name || '-'
@@ -149,7 +179,12 @@
 
     <el-divider />
 
-    <el-descriptions title="执行信息" :column="2" border>
+    <el-descriptions
+      title="执行信息"
+      :column="isMobile ? 1 : 2"
+      :direction="isMobile ? 'vertical' : 'horizontal'"
+      border
+    >
       <el-descriptions-item label="诉讼费缴费时间">{{
         formatDate(caseData.litigation_fee_payment_date)
       }}</el-descriptions-item>
@@ -184,8 +219,11 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import PartyDetailList from './PartyDetailList.vue' // 引入当事人列表组件
+
+// 获取移动端状态
+const isMobile = inject('isMobile', false)
 
 const props = defineProps({
   caseData: {
@@ -276,5 +314,11 @@ const formatDate = (dateVal) => {
   line-height: 1.8; /* 增加行高，提升长文本可读性 */
   color: #444; /* 可选：调整文本颜色，区分于标签 */
   padding: 5px 0; /* 可选：增加上下内边距，避免与其他内容拥挤 */
+}
+/* 移动端适配 CSS */
+@media screen and (max-width: 768px) {
+  :deep(.el-descriptions__content) {
+    word-break: break-all;
+  }
 }
 </style>

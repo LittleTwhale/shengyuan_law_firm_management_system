@@ -76,7 +76,7 @@
     <el-dialog
       v-model="previewVisible"
       title="文件预览"
-      width="80%"
+      width="min(95%, 800px)"
       top="5vh"
       destroy-on-close
       class="preview-dialog"
@@ -369,5 +369,35 @@ const formatDate = (val) => {
   width: 100%;
   height: 100%;
   background: #fff;
+}
+
+/* ============= 响应式/移动端适配 ============= */
+@media (max-width: 768px) {
+  .detail-page {
+    padding: 10px; /* 减小外围空白 */
+  }
+  .content-wrapper {
+    padding: 20px 15px; /* 减小内部留白 */
+  }
+  .title {
+    font-size: 22px; /* 缩小标题 */
+  }
+  .meta-info {
+    flex-direction: column; /* 手机上元数据垂直排列 */
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .article-content {
+    padding: 0;
+  }
+  .attach-item {
+    flex-direction: column; /* 附件列表在手机端纵向排列 */
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .file-actions {
+    width: 100%;
+    justify-content: flex-end; /* 操作按钮靠右对齐 */
+  }
 }
 </style>

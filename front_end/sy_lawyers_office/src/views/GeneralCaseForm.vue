@@ -928,4 +928,42 @@ const removeOtherParty = (index) => {
   border-radius: 4px;
   border: 1px dashed #dcdfe6;
 }
+/* =======================================
+   移动端响应式适配 CSS (追加到文件末尾)
+   ======================================= */
+@media screen and (max-width: 768px) {
+  /* 1. 强制所有 el-col 列占满 100% 宽度，打破原来的 span="8" 等限制 */
+  :deep(.el-col) {
+    max-width: 100% !important;
+    flex: 0 0 100% !important;
+  }
+
+  /* 2. 强制表单项纵向排列（标签在上，输入框在下） */
+  :deep(.el-form-item) {
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 18px;
+  }
+
+  /* 3. 覆盖子组件内联写的 label-width="150px" 等属性 */
+  :deep(.el-form-item__label) {
+    width: 100% !important;
+    justify-content: flex-start;
+    padding-bottom: 4px;
+    line-height: 20px;
+    text-align: left;
+  }
+
+  /* 4. 当事人卡片头部按钮和标签可能因为太长而重叠，允许换行 */
+  .party-card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* 5. 调整空状态提示的内边距 */
+  .empty-tip,
+  .empty-tip-simple {
+    padding: 10px;
+  }
+}
 </style>

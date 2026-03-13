@@ -1,6 +1,5 @@
 <template>
   <div class="case-review-page">
-    <!-- 页面头部 -->
     <div class="header">
       <h2>业务审核</h2>
       <div class="bulk-actions">
@@ -31,7 +30,6 @@
       </div>
     </div>
 
-    <!-- 审核表格 -->
     <el-table
       ref="caseTableRef"
       :data="casesList"
@@ -40,21 +38,21 @@
       v-loading="tableLoading"
       @selection-change="handleSelectionChange"
     >
-      <el-table-column type="selection" width="55" />
-      <el-table-column prop="case_id" label="案件ID" width="80" />
-      <el-table-column prop="case_number" label="案件编号" />
-      <el-table-column prop="client_name" label="委托人" />
-      <el-table-column prop="case_category" label="案件类别" />
-      <el-table-column prop="main_lawyer.real_name" label="主办律师" />
+      <el-table-column type="selection" width="55" fixed="left" />
+      <el-table-column prop="case_id" label="案件ID" min-width="80" />
+      <el-table-column prop="case_number" label="案件编号" min-width="150" />
+      <el-table-column prop="client_name" label="委托人" min-width="100" />
+      <el-table-column prop="case_category" label="案件类别" min-width="120" />
+      <el-table-column prop="main_lawyer.real_name" label="主办律师" min-width="100" />
       <el-table-column
         prop="created_at"
         label="创建时间"
         align="center"
+        min-width="160"
         :formatter="(row, column, cellValue) => formatDate(cellValue)"
       />
 
-      <!-- 操作详情列 -->
-      <el-table-column label="案件详情">
+      <el-table-column label="案件详情" min-width="140">
         <template #default="scope">
           <div
             class="detail-cell"
@@ -66,34 +64,36 @@
         </template>
       </el-table-column>
 
-      <!-- 操作按钮列 -->
-      <el-table-column label="操作">
+      <el-table-column label="操作" min-width="140" fixed="right">
         <template #default="scope">
-          <el-button type="success" size="small" @click="review(scope.row, '已审核')"
-            >通过</el-button
-          >
-          <el-button type="danger" size="small" @click="review(scope.row, '已拒绝')"
-            >拒绝</el-button
-          >
+          <div class="action-buttons">
+            <el-button type="success" size="small" @click="review(scope.row, '已审核')"
+              >通过</el-button
+            >
+            <el-button type="danger" size="small" @click="review(scope.row, '已拒绝')"
+              >拒绝</el-button
+            >
+          </div>
         </template>
       </el-table-column>
     </el-table>
 
-    <!-- 分页组件 -->
-    <el-pagination
-      background
-      layout="prev, pager, next, jumper, ->, total"
-      :current-page="page"
-      :page-size="pageSize"
-      :total="total"
-      @current-change="handlePageChange"
-      style="margin-top: 16px; text-align: right"
-    />
+    <div class="pagination-container">
+      <el-pagination
+        background
+        :layout="isMobile ? 'prev, pager, next' : 'prev, pager, next, jumper, ->, total'"
+        :current-page="page"
+        :page-size="pageSize"
+        :total="total"
+        :pager-count="isMobile ? 5 : 7"
+        @current-change="handlePageChange"
+      />
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
 import { useRouter } from 'vue-router'
@@ -107,6 +107,14 @@ const page = ref(1)
 const pageSize = ref(10)
 const tableLoading = ref(false)
 const caseTableRef = ref(null)
+
+// 响应式屏幕判断
+const screenWidth = ref(window.innerWidth)
+const isMobile = computed(() => screenWidth.value < 768)
+
+const handleResize = () => {
+  screenWidth.value = window.innerWidth
+}
 
 // 多选状态
 const selectedCases = ref([])
@@ -128,7 +136,6 @@ const toggleSelectAll = () => {
       caseTableRef.value.toggleRowSelection(row, true)
     })
   }
-  isAllSelected.value = !isAllSelected.value
 }
 
 // 利益冲突确认对话框
@@ -177,7 +184,6 @@ const showConflictDialog = (conflicts, caseId, caseNumber) => {
       type: 'warning',
       customClass: 'conflict-dialog',
       closeOnClickModal: false,
-      width: '600px',
     })
       .then(() => {
         resolve(true) // 用户选择强制通过
@@ -355,6 +361,12 @@ const formatDate = (dateVal) => {
 // 页面加载时初始化
 onMounted(() => {
   fetchPendingCases()
+  window.addEventListener('resize', handleResize)
+})
+
+// 组件卸载时移除监听
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
 })
 </script>
 
@@ -362,24 +374,64 @@ onMounted(() => {
 .case-review-page {
   padding: 20px;
 }
+
+/* 头部响应式布局 */
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  flex-wrap: wrap; /* 允许折叠换行 */
+  gap: 15px; /* 换行后的间距 */
 }
+
+.header h2 {
+  margin: 0;
+}
+
+.bulk-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .detail-cell {
   color: #409eff;
   cursor: pointer;
   text-decoration: underline;
+  white-space: nowrap; /* 保证文字不换行断裂 */
 }
 
-/* 冲突对话框样式 */
+.action-buttons {
+  display: flex;
+  gap: 5px;
+}
+
+/* 分页容器响应式排版 */
+.pagination-container {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 冲突对话框样式优化 */
 :deep(.conflict-dialog) {
-  max-width: 600px;
+  width: 90% !important; /* 移动端占满屏幕宽度 */
+  max-width: 600px !important; /* 桌面端最大宽度 */
 }
 :deep(.conflict-dialog .el-message-box__content) {
-  max-height: 400px;
+  max-height: 50vh; /* 使用视窗高度百分比，避免小屏幕超出 */
   overflow-y: auto;
+}
+
+/* 针对小屏幕(移动端)的进一步微调 */
+@media screen and (max-width: 768px) {
+  .case-review-page {
+    padding: 10px; /* 移动端减小内边距节省空间 */
+  }
+
+  .pagination-container {
+    justify-content: center; /* 移动端分页居中 */
+  }
 }
 </style>

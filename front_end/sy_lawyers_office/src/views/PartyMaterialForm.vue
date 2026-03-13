@@ -2,7 +2,7 @@
   <el-dialog
     :title="isEdit ? '编辑资料' : '发布新资料'"
     :model-value="visible"
-    width="900px"
+    width="min(95%, 900px)"
     @close="handleClose"
     :close-on-click-modal="false"
     destroy-on-close
@@ -14,8 +14,8 @@
         <el-input v-model="form.title" placeholder="请输入文章标题" />
       </el-form-item>
 
-      <el-row>
-        <el-col :span="12">
+      <el-row :gutter="20">
+        <el-col :xs="24" :sm="12">
           <el-form-item label="所属分类" prop="category_id">
             <el-select v-model="form.category_id" placeholder="请选择" style="width: 100%">
               <el-option
@@ -27,7 +27,7 @@
             </el-select>
           </el-form-item>
         </el-col>
-        <el-col :span="12">
+        <el-col :xs="24" :sm="12">
           <el-form-item label="文号" prop="document_number">
             <el-input v-model="form.document_number" placeholder="例如：湘生律党[2023]1号" />
           </el-form-item>
@@ -39,7 +39,7 @@
       </el-form-item>
 
       <el-form-item label="正文内容" prop="content">
-        <div style="border: 1px solid #ccc; width: 100%;z-index: 1000">
+        <div style="border: 1px solid #ccc; width: 100%; z-index: 1000">
           <Toolbar
             style="border-bottom: 1px solid #ccc"
             :editor="editorRef"
@@ -345,5 +345,32 @@ const removeAttachment = async (row) => {
 */
 .w-e-modal {
   z-index: 9999 !important;
+}
+
+/* ============= 响应式/移动端适配 ============= */
+@media (max-width: 768px) {
+  /* 在手机端，将表单强制转换为上下结构 (Label置顶) */
+  :deep(.el-form-item) {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  :deep(.el-form-item__label) {
+    width: auto !important;
+    margin-bottom: 8px;
+    line-height: 1;
+    text-align: left;
+  }
+
+  :deep(.el-form-item__content) {
+    margin-left: 0 !important;
+    width: 100%;
+  }
+
+  /* 富文本编辑器在移动端的高度可能需要微调 */
+  :deep(.w-e-text-container) {
+    height: 300px !important;
+  }
 }
 </style>

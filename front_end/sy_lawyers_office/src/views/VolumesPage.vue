@@ -10,14 +10,18 @@
 
       <div class="stat-group">
         <div class="stat-card">
-          <el-icon class="stat-icon bg-blue"><Files /></el-icon>
+          <div class="icon-wrapper bg-blue">
+            <el-icon class="stat-icon"><Files /></el-icon>
+          </div>
           <div class="stat-info">
             <div class="stat-label">总卷宗册</div>
             <div class="stat-num">{{ totalVolumes }}</div>
           </div>
         </div>
         <div class="stat-card">
-          <el-icon class="stat-icon bg-green"><Box /></el-icon>
+          <div class="icon-wrapper bg-green">
+            <el-icon class="stat-icon"><Box /></el-icon>
+          </div>
           <div class="stat-info">
             <div class="stat-label">已归档(合并)</div>
             <div class="stat-num success-text">{{ mergedCount }}</div>
@@ -54,7 +58,7 @@
 
           <el-select
             v-model="filters.case_category"
-            placeholder="案件类别"
+            placeholder="业务类别"
             class="filter-item-select"
             clearable
             @change="handleSearch"
@@ -90,7 +94,12 @@
         class="custom-table"
         header-cell-class-name="table-header-gray"
       >
-        <el-table-column label="关联业务号" width="220" align="center" fixed>
+        <el-table-column
+          label="关联业务号"
+          min-width="180"
+          align="center"
+          :fixed="isMobile ? false : 'left'"
+        >
           <template #default="{ row }">
             <el-link
               v-if="row.case"
@@ -105,7 +114,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="卷宗名称" min-width="200">
+        <el-table-column label="卷宗名称" min-width="220">
           <template #default="{ row }">
             <div class="vol-name-cell">
               <el-icon class="folder-icon"><Folder /></el-icon>
@@ -145,7 +154,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="case.case_category" label="案件类别" width="130" align="center">
+        <el-table-column prop="case.case_category" label="业务类别" min-width="130" align="center">
           <template #default="{ row }">
             <el-tag size="small" effect="plain">{{ row.case?.case_category || '-' }}</el-tag>
           </template>
@@ -154,27 +163,32 @@
         <el-table-column
           prop="case.main_lawyer.real_name"
           label="主办律师"
-          width="120"
+          min-width="120"
           align="center"
         />
 
-        <el-table-column label="文件数" width="100" align="center">
+        <el-table-column label="文件数" min-width="100" align="center">
           <template #default="{ row }">
             <span class="file-count">{{ row.files ? row.files.length : 0 }}</span> 份
           </template>
         </el-table-column>
 
-        <el-table-column prop="updated_at" label="最后更新" width="170" align="center">
+        <el-table-column prop="updated_at" label="最后更新" min-width="170" align="center">
           <template #default="{ row }">
             <span class="time-text">{{ formatTime(row.updated_at) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="120" align="center" fixed="right">
+        <el-table-column
+          label="操作"
+          min-width="120"
+          align="center"
+          :fixed="isMobile ? false : 'right'"
+        >
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="goToManage(row)"
-              >管理卷宗</el-button
-            >
+            <el-button link type="primary" size="small" @click="goToManage(row)">
+              管理卷宗
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -185,7 +199,8 @@
           v-model:page-size="pagination.limit"
           :total="pagination.total"
           :page-sizes="[15, 30, 50, 100]"
-          layout="total, sizes, prev, pager, next, jumper"
+          :layout="isMobile ? 'prev, pager, next' : 'total, sizes, prev, pager, next, jumper'"
+          :pager-count="isMobile ? 5 : 7"
           background
           @size-change="loadData"
           @current-change="loadData"
@@ -196,7 +211,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Folder, Search, Files, Box, Refresh, Location } from '@element-plus/icons-vue' // 新增 Location 图标
 import request from '@/utils/request'
@@ -209,6 +224,14 @@ const tableData = ref([])
 const lawyers = ref([])
 const totalVolumes = ref(0)
 const mergedCount = ref(0)
+
+// 响应式屏幕判断
+const screenWidth = ref(window.innerWidth)
+const isMobile = computed(() => screenWidth.value < 768)
+
+const handleResize = () => {
+  screenWidth.value = window.innerWidth
+}
 
 const pagination = reactive({
   page: 1,
@@ -278,11 +301,16 @@ const shortcuts = [
 ]
 
 onMounted(async () => {
+  window.addEventListener('resize', handleResize)
   await checkPermission()
   if (isAdmin.value) {
     await fetchLawyers()
   }
   await loadData()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
 })
 
 const checkPermission = async () => {
@@ -415,58 +443,80 @@ const formatTime = (val) => {
   display: block;
 }
 
+/* --- 统计卡片优化样式 --- */
 .stat-group {
   display: flex;
   gap: 24px;
 }
 
 .stat-card {
-  background: #fcfcfc;
+  background: #ffffff;
   border: 1px solid #ebeef5;
-  border-radius: 8px;
-  padding: 16px 24px;
+  border-radius: 12px; /* 圆角改大一点更现代 */
+  padding: 20px 24px;
   display: flex;
   align-items: center;
-  gap: 16px;
-  min-width: 180px;
-  transition: all 0.3s;
+  gap: 18px;
+  min-width: 200px;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.02); /* 默认微弱阴影 */
 }
 
 .stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08); /* 悬浮时阴影加深 */
 }
 
-.stat-icon {
-  font-size: 24px;
-  padding: 10px;
-  border-radius: 8px;
-  color: #fff;
+/* 核心修复：外层容器控制背景和形状，避免挤压图标 */
+.icon-wrapper {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
 }
+
+/* 控制图标的真实大小 */
+.stat-icon {
+  font-size: 26px;
+  color: #ffffff;
+}
+
+/* 颜色与发光效果 */
 .bg-blue {
   background-color: #409eff;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3); /* 同色系发光阴影 */
 }
+
 .bg-green {
   background-color: #67c23a;
+  box-shadow: 0 4px 12px rgba(103, 194, 58, 0.3);
 }
 
 .stat-info {
   display: flex;
   flex-direction: column;
+  gap: 4px; /* 调整标题和数字的间距 */
+}
+
+.stat-label {
+  font-size: 14px;
+  color: #606266;
+  font-weight: 500;
 }
 
 .stat-num {
-  font-size: 26px;
-  font-weight: 700;
+  font-size: 28px;
+  font-weight: bold;
   color: #303133;
-  line-height: 1.2;
+  line-height: 1;
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', sans-serif; /* 让数字字体更好看 */
 }
+
 .stat-num.success-text {
   color: #67c23a;
-}
-.stat-label {
-  font-size: 13px;
-  color: #909399;
 }
 
 .content-card {
@@ -503,6 +553,11 @@ const formatTime = (val) => {
 }
 .filter-item-select {
   width: 150px;
+}
+
+.filter-right {
+  display: flex;
+  gap: 10px;
 }
 
 .custom-table {
@@ -562,32 +617,102 @@ const formatTime = (val) => {
   justify-content: flex-end;
 }
 
+/* 响应式样式适配 */
 @media (max-width: 768px) {
+  /* 1. 基础容器适配，防止被内部元素撑开 */
+  .volume-dashboard {
+    padding: 12px;
+    box-sizing: border-box;
+    width: 100%;
+    overflow-x: hidden; /* 防止整页出现横向滚动条 */
+  }
   .dashboard-header-card {
     flex-direction: column;
     align-items: flex-start;
     gap: 20px;
+    padding: 16px;
+    box-sizing: border-box;
+    width: 100%;
   }
+  .content-card {
+    padding: 16px;
+    box-sizing: border-box;
+    width: 100%;
+  }
+
+  /* 2. 统计卡片适配 */
   .stat-group {
     width: 100%;
     justify-content: space-between;
+    gap: 12px;
+    box-sizing: border-box;
   }
   .stat-card {
     flex: 1;
-    min-width: auto;
+    min-width: 0; /* 覆盖 PC 端的 200px 最小宽度 */
+    padding: 12px;
   }
+  .stat-num {
+    font-size: 20px;
+  }
+
+  /* 3. 搜索和筛选栏适配 */
   .filter-bar {
     flex-direction: column;
     align-items: stretch;
+    width: 100%;
+    box-sizing: border-box;
   }
   .filter-left {
     flex-direction: column;
     align-items: stretch;
+    width: 100%;
+    box-sizing: border-box;
   }
+
+  /* 强制所有输入框宽度 100% 且包含 padding */
   .filter-item-input,
   .filter-item-date,
   .filter-item-select {
     width: 100% !important;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* 4. 核心修复：深度重置 el-date-picker 的内部强制宽度 */
+  :deep(.el-date-editor.el-input__wrapper) {
+    min-width: 0 !important; /* 必须去掉默认的最小宽度 */
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0 10px; /* 稍微缩小两边间距 */
+  }
+
+  :deep(.el-range-input) {
+    min-width: 0 !important; /* 允许内部输入框被极限压缩 */
+    width: 100%;
+    font-size: 13px; /* 稍微减小字号，避免日期文字溢出 */
+  }
+
+  :deep(.el-range-separator) {
+    flex-shrink: 0; /* 防止分隔符被过度挤压 */
+    padding: 0 5px;
+  }
+
+  /* 5. 按钮区域适配 */
+  .filter-right {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .filter-right .el-button {
+    flex: 1;
+    margin: 0; /* 修复可能存在的 margin 导致的排列问题 */
+  }
+  .filter-right .el-button + .el-button {
+    margin-left: 12px;
+  }
+
+  .pagination-wrapper {
+    justify-content: center;
   }
 }
 </style>

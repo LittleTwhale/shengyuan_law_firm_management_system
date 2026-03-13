@@ -414,9 +414,12 @@ const fetchSeals = async () => {
     const sealsWithImages = await Promise.all(
       res.data.map(async (s) => {
         try {
-          const imgRes = await request.get(`/electronic_seal/seals/${s.id}/image`, {
-            responseType: 'blob',
-          })
+          const imgRes = await request.get(
+            `/electronic_seal/seals/${s.id}/image?t=${new Date().getTime()}`,
+            {
+              responseType: 'blob',
+            },
+          )
           s.imageUrl = URL.createObjectURL(imgRes.data)
         } catch (e) {
           console.error(`无法加载印章 ${s.id} 的图片`, e)
@@ -610,9 +613,12 @@ const handleApproveAndStamp = async (row) => {
 
   try {
     // 预加载印章图片URL (因鉴权要求使用 Blob)
-    const sealImgRes = await request.get(`/electronic_seal/seals/${row.seal.id}/image`, {
-      responseType: 'blob',
-    })
+    const sealImgRes = await request.get(
+      `/electronic_seal/seals/${row.seal.id}/image?t=${new Date().getTime()}`,
+      {
+        responseType: 'blob',
+      },
+    )
     currentSealUrl.value = URL.createObjectURL(sealImgRes.data)
 
     // 1. 获取底图 PDF (ArrayBuffer)
@@ -761,9 +767,12 @@ const confirmStamping = async () => {
 
     // 2. 获取印章图片 ArrayBuffer (由于带权限需要通过 request 请求)
     const sealBytes = await request
-      .get(`/electronic_seal/seals/${currentAuditRow.value.seal.id}/image`, {
-        responseType: 'arraybuffer',
-      })
+      .get(
+        `/electronic_seal/seals/${currentAuditRow.value.seal.id}/image?t=${new Date().getTime()}`,
+        {
+          responseType: 'arraybuffer',
+        },
+      )
       .then((res) => res.data)
 
     // 3. 使用 pdf-lib 加载 PDF

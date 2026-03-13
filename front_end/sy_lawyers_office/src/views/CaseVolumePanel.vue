@@ -89,18 +89,18 @@
 
               <el-tag type="warning" effect="plain" v-if="!canEdit">仅查看模式</el-tag>
 
-              <el-radio-group v-model="viewMode" size="small" style="margin-left: 20px">
+              <el-radio-group v-model="viewMode" size="small" class="view-mode-group">
                 <el-radio-button label="list">列表排序</el-radio-button>
                 <el-radio-button label="group">按分类分组</el-radio-button>
               </el-radio-group>
 
               <div v-if="viewMode === 'list' && canEdit" class="drag-tip">
-                <el-icon><Rank /></el-icon> 提示：按住图标即可拖拽排序
+                <el-icon><Rank /></el-icon> 按住图标拖拽排序
               </div>
             </div>
             <div class="toolbar-right">
               <el-tooltip content="刷新当前列表数据" placement="top">
-                <el-button icon="Refresh" style="width: 40px" @click="refreshCurrentVolume"
+                <el-button icon="Refresh" @click="refreshCurrentVolume" class="tool-btn"
                   >刷新</el-button
                 >
               </el-tooltip>
@@ -110,13 +110,13 @@
                   type="primary"
                   :icon="Upload"
                   @click="showUploadDialog = true"
-                  style="width: 100px"
+                  class="tool-btn"
                   >上传文件</el-button
                 >
                 <el-button
                   type="success"
                   :icon="Connection"
-                  style="width: 110px"
+                  class="tool-btn"
                   :loading="merging"
                   @click="handleMergeVolume"
                   >生成电子卷宗</el-button
@@ -127,9 +127,9 @@
                 <el-button
                   v-if="currentVolume?.merged_file_path"
                   type="primary"
-                  style="width: 90px"
                   :icon="View"
                   plain
+                  class="tool-btn"
                   @click="previewMergedFile"
                   >预览全卷</el-button
                 >
@@ -139,9 +139,9 @@
                 <el-button
                   v-if="currentVolume?.merged_file_path"
                   type="warning"
-                  style="width: 110px"
                   :icon="Download"
                   plain
+                  class="tool-btn"
                   @click="downloadMergedFile"
                   >下载全卷PDF</el-button
                 >
@@ -197,7 +197,7 @@
               </template>
             </el-table-column>
 
-            <el-table-column label="标签" width="120">
+            <el-table-column label="标签" min-width="120">
               <template #default="{ row }">
                 <div class="tags-cell">
                   <el-tag v-for="t in row.tags || []" :key="t" size="small" type="info">{{
@@ -232,7 +232,12 @@
               </template>
             </el-table-column>
 
-            <el-table-column label="操作" width="220" align="center" fixed="right">
+            <el-table-column
+              label="操作"
+              :width="isMobile ? 200 : 220"
+              align="center"
+              :fixed="isMobile ? false : 'right'"
+            >
               <template #default="{ row }">
                 <el-button link type="primary" size="small" @click="handlePreview(row)"
                   >预览</el-button
@@ -295,7 +300,7 @@
                       <div v-if="row.summary" class="row-summary">{{ row.summary }}</div>
                     </template>
                   </el-table-column>
-                  <el-table-column label="标签">
+                  <el-table-column label="标签" min-width="100">
                     <template #default="{ row }">
                       <el-tag
                         v-for="t in row.tags || []"
@@ -328,7 +333,12 @@
                     </template>
                   </el-table-column>
 
-                  <el-table-column label="操作" width="180" align="center">
+                  <el-table-column
+                    label="操作"
+                    width="180"
+                    align="center"
+                    :fixed="isMobile ? false : 'right'"
+                  >
                     <template #default="{ row }">
                       <el-button link type="primary" size="small" @click="handlePreview(row)"
                         >预览</el-button
@@ -377,11 +387,16 @@
     <el-dialog
       v-model="volDialogVisible"
       :title="volDialogTitle"
-      width="450px"
+      :width="isMobile ? '95%' : '450px'"
       destroy-on-close
       append-to-body
     >
-      <el-form :model="volForm" label-width="90px" @submit.prevent>
+      <el-form
+        :model="volForm"
+        :label-width="isMobile ? 'auto' : '90px'"
+        :label-position="isMobile ? 'top' : 'right'"
+        @submit.prevent
+      >
         <el-form-item label="卷宗名称" required>
           <el-input
             v-model="volForm.name"
@@ -408,11 +423,15 @@
     <el-dialog
       v-model="editDialogVisible"
       title="编辑文件信息"
-      width="500px"
+      :width="isMobile ? '95%' : '500px'"
       destroy-on-close
       append-to-body
     >
-      <el-form :model="editForm" label-width="80px">
+      <el-form
+        :model="editForm"
+        :label-width="isMobile ? 'auto' : '80px'"
+        :label-position="isMobile ? 'top' : 'right'"
+      >
         <el-form-item label="文件名">
           <el-input v-model="editForm.file_name" />
         </el-form-item>
@@ -422,7 +441,12 @@
           </el-select>
         </el-form-item>
         <el-form-item label="排序权重">
-          <el-input-number v-model="editForm.sort_order" :min="0" controls-position="right" />
+          <el-input-number
+            v-model="editForm.sort_order"
+            :min="0"
+            controls-position="right"
+            style="width: 100%"
+          />
           <div class="form-tip">数字越小越靠前，用于合并PDF时的顺序</div>
         </el-form-item>
         <el-form-item label="标签">
@@ -454,7 +478,13 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="previewVisible" title="文件预览" width="80%" top="5vh" destroy-on-close>
+    <el-dialog
+      v-model="previewVisible"
+      title="文件预览"
+      :width="isMobile ? '100%' : '80%'"
+      top="5vh"
+      destroy-on-close
+    >
       <div
         class="preview-box"
         v-loading="previewLoading"
@@ -477,9 +507,7 @@
 </template>
 
 <script setup>
-// 引入了 onBeforeUnmount 用于清理轮询计时器
-import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
-// 新增引入 ElLoading 用于全局加载弹窗
+import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch, inject } from 'vue'
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import {
   Document,
@@ -499,7 +527,9 @@ import request from '@/utils/request'
 import BatchUploadDialog from '@/components/BatchUploadDialog.vue'
 import Sortable from 'sortablejs'
 
-// Props
+// 注入父组件传下来的响应式状态
+const isMobile = inject('isMobile', ref(false))
+
 const props = defineProps({
   caseId: {
     type: [Number, String],
@@ -526,7 +556,7 @@ const activeNames = ref([])
 // 轮询计时器引用
 let mergePollingTimer = null
 
-// --- 新增：卷宗 新建/编辑 State ---
+// --- 卷宗 新建/编辑 State ---
 const volDialogVisible = ref(false)
 const volDialogTitle = ref('')
 const volFormLoading = ref(false)
@@ -555,7 +585,7 @@ const previewVisible = ref(false)
 const previewUrl = ref('')
 const previewType = ref('pdf')
 const previewLoading = ref(false)
-// 新增：动态加载文字
+// 动态加载文字
 const previewLoadingText = ref('加载中...')
 
 // Drag Sort State
@@ -585,27 +615,23 @@ watch(
 
 const maxSortOrder = computed(() => {
   if (!fileList.value || fileList.value.length === 0) return 0
-  return fileList.value.reduce((acc, cur) => {
-    return (cur.sort_order || 0) > acc ? cur.sort_order : acc
-  }, 0)
+  return fileList.value.reduce(
+    (acc, cur) => ((cur.sort_order || 0) > acc ? cur.sort_order : acc),
+    0,
+  )
 })
-
 const groupedFiles = computed(() => {
   const groups = {}
   categoryOptions.forEach((c) => (groups[c] = []))
   groups['其他'] = []
-
   fileList.value.forEach((file) => {
     const cat = file.category || '其他'
     if (!groups[cat]) groups[cat] = []
     groups[cat].push(file)
   })
-
   Object.keys(groups).forEach((k) => {
     if (groups[k].length === 0) delete groups[k]
-    else {
-      groups[k].sort((a, b) => a.sort_order - b.sort_order)
-    }
+    else groups[k].sort((a, b) => a.sort_order - b.sort_order)
   })
   return groups
 })
@@ -616,27 +642,21 @@ watch(groupedFiles, (val) => {
 
 const initSortable = () => {
   if (!dragTableRef.value || !canEdit.value) return
-
   const el = dragTableRef.value.$el.querySelector('.el-table__body-wrapper tbody')
   if (!el) return
-
   if (sortableInstance) sortableInstance.destroy()
-
   sortableInstance = Sortable.create(el, {
     handle: '.drag-handle',
     animation: 150,
     ghostClass: 'sortable-ghost',
     onEnd: async ({ newIndex, oldIndex }) => {
       if (newIndex === oldIndex) return
-
       const targetRow = fileList.value.splice(oldIndex, 1)[0]
       fileList.value.splice(newIndex, 0, targetRow)
-
       const updates = fileList.value.map((item, index) => ({
         id: item.id,
         sort_order: (index + 1) * 10,
       }))
-
       try {
         await request.post('/electronic_volumes/files/batch_sort', updates)
         ElMessage.success('排序更新成功')
@@ -678,13 +698,10 @@ const fetchPermissions = async () => {
   try {
     const caseRes = await request.get(`/cases/${props.caseId}`)
     const caseInfo = caseRes.data
-
     const userRes = await request.get(`/user/profile/info?user_id=${userId}`)
     const userInfo = userRes.data
-
     const isSuper =
       userInfo.role === 'owner' || (userInfo.permissions && userInfo.permissions.volume_manage)
-
     const lawyerFields = [
       caseInfo.main_lawyer,
       caseInfo.assistant_lawyer,
@@ -695,10 +712,8 @@ const fetchPermissions = async () => {
       .map((lawyer) => lawyer?.id)
       .filter((id) => id !== undefined && id !== null)
       .map(String)
-
     const isRelated = relatedLawyerIds.includes(String(userId))
     const isApproved = caseInfo.review_status === '已审核'
-
     canEdit.value = (isSuper || isRelated) && isApproved
   } catch (err) {
     console.error('权限获取失败', err)
@@ -723,14 +738,12 @@ const loadVolumes = async () => {
     globalLoading.value = false
   }
 }
-
 const selectVolume = (vol) => {
   currentVolumeId.value = vol.id
   currentVolume.value = vol
   fileList.value = vol.files || []
   fileList.value.sort((a, b) => a.sort_order - b.sort_order)
 }
-
 const refreshCurrentVolume = async () => {
   if (!currentVolumeId.value) return
   try {
@@ -738,7 +751,6 @@ const refreshCurrentVolume = async () => {
     currentVolume.value = res.data
     fileList.value = res.data.files || []
     fileList.value.sort((a, b) => a.sort_order - b.sort_order)
-
     const idx = volumes.value.findIndex((v) => v.id === currentVolumeId.value)
     if (idx !== -1) {
       volumes.value[idx] = res.data
@@ -748,23 +760,17 @@ const refreshCurrentVolume = async () => {
   }
 }
 
-// --- 新增：卷宗增改逻辑 ---
+// --- 卷宗增改逻辑 ---
 const openCreateVolumeDialog = () => {
   volForm.value = { id: null, name: '', physical_location: '' }
   volDialogTitle.value = '新建卷宗'
   volDialogVisible.value = true
 }
-
 const openEditVolumeDialog = (vol) => {
-  volForm.value = {
-    id: vol.id,
-    name: vol.name,
-    physical_location: vol.physical_location,
-  }
+  volForm.value = { id: vol.id, name: vol.name, physical_location: vol.physical_location }
   volDialogTitle.value = '编辑卷宗信息'
   volDialogVisible.value = true
 }
-
 const submitVolumeForm = async () => {
   if (!volForm.value.name) {
     ElMessage.warning('请输入卷宗名称')
@@ -805,12 +811,9 @@ const submitVolumeForm = async () => {
     volFormLoading.value = false
   }
 }
-
 const handleVolumeCommand = async (cmd, vol) => {
-  if (cmd === 'edit_info') {
-    // 替换了原来的 'rename'
-    openEditVolumeDialog(vol)
-  } else if (cmd === 'delete') {
+  if (cmd === 'edit_info') openEditVolumeDialog(vol)
+  else if (cmd === 'delete') {
     try {
       await ElMessageBox.confirm('确定要删除该卷宗及其所有文件吗？此操作不可恢复！', '警告', {
         type: 'warning',
@@ -927,7 +930,6 @@ const downloadBlob = async (url, filename) => {
     }
   }
 }
-// ----------------------------------------------------------------------------
 
 const handleDownload = async (row) => {
   const url = `/electronic_volumes/files/${row.id}/download`
@@ -937,11 +939,9 @@ const handleDownload = async (row) => {
 // ---------------------- 合并卷宗支持后台异步 ----------------------
 const handleMergeVolume = async () => {
   if (!fileList.value.length) return ElMessage.warning('卷宗为空，无法合并')
-
   merging.value = true
   // 锁定触发时的卷宗ID
   const targetVolumeId = currentVolumeId.value
-
   try {
     ElMessage.info('合并任务已提交，系统正在后台处理，请耐心等待...')
 
@@ -961,7 +961,6 @@ const handleMergeVolume = async () => {
 // 轮询查询合并状态
 const startPollingMergeStatus = (volId) => {
   if (mergePollingTimer) clearInterval(mergePollingTimer)
-
   mergePollingTimer = setInterval(async () => {
     try {
       // 查询该卷宗的最新状态
@@ -972,7 +971,6 @@ const startPollingMergeStatus = (volId) => {
         // 合并完成，停止轮询
         clearInterval(mergePollingTimer)
         mergePollingTimer = null
-
         ElMessage.success('电子卷宗生成成功！')
 
         // 只有当用户还在看触发合并的那个卷宗时，才去直接更新视图的 state
@@ -994,13 +992,11 @@ const startPollingMergeStatus = (volId) => {
 // ---------------------- 核心改动：合并文件预览带进度提示 ----------------------
 const previewMergedFile = async () => {
   if (!currentVolume.value?.merged_file_path) return
-
   previewLoading.value = true
   previewVisible.value = true
   previewType.value = 'pdf'
   // 重置加载文本
   previewLoadingText.value = '正在请求全卷预览，请稍候...'
-
   try {
     const res = await request.get(`/electronic_volumes/${currentVolumeId.value}/preview_merged`, {
       responseType: 'blob',
@@ -1016,7 +1012,6 @@ const previewMergedFile = async () => {
         }
       },
     })
-
     const blob = new Blob([res.data], { type: 'application/pdf' })
     previewUrl.value = window.URL.createObjectURL(blob)
   } catch (err) {
@@ -1031,9 +1026,10 @@ const previewMergedFile = async () => {
 
 const downloadMergedFile = async () => {
   if (!currentVolume.value?.merged_file_path) return
-  const url = `/electronic_volumes/${currentVolumeId.value}/download_merged`
-  const filename = `${currentVolume.value.name}_全卷.pdf`
-  await downloadBlob(url, filename)
+  await downloadBlob(
+    `/electronic_volumes/${currentVolumeId.value}/download_merged`,
+    `${currentVolume.value.name}_全卷.pdf`,
+  )
 }
 
 // ---------------------- 核心改动：单文件预览带进度提示 ----------------------
@@ -1060,12 +1056,8 @@ const handlePreview = async (row) => {
     })
     const blob = new Blob([res.data], { type: res.headers['content-type'] })
     previewUrl.value = window.URL.createObjectURL(blob)
-
-    if (res.headers['content-type'].includes('image')) {
-      previewType.value = 'image'
-    } else {
-      previewType.value = 'pdf'
-    }
+    if (res.headers['content-type'].includes('image')) previewType.value = 'image'
+    else previewType.value = 'pdf'
   } catch (err) {
     console.error(err)
     ElMessage.error('预览失败或文件正在转换中')
@@ -1146,7 +1138,7 @@ const formatTime = (val) => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* 新增位置信息样式 */
+/* 位置信息样式 */
 .vol-location {
   font-size: 12px;
   color: #909399;
@@ -1158,7 +1150,6 @@ const formatTime = (val) => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .vol-meta {
   display: flex;
   gap: 5px;
@@ -1185,23 +1176,45 @@ const formatTime = (val) => {
   display: flex;
   flex-direction: column;
 }
+
+/* 修改点：允许工具栏换行并增加上下间距 */
 .toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
   margin-bottom: 15px;
   padding-bottom: 10px;
   border-bottom: 1px solid #ebeef5;
 }
+
+/* 修改点：允许左右两侧内部元素也响应式换行 */
 .toolbar-left {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
 }
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* 修改点：移除原本为了电脑端设置的 margin，交由 flex gap 控制间距 */
+.tool-btn {
+  margin-left: 0 !important;
+}
+
 .current-title {
   margin: 0;
   font-size: 18px;
   color: #303133;
+}
+.view-mode-group {
+  margin-left: 20px;
 }
 .file-name-cell {
   display: flex;
@@ -1298,5 +1311,54 @@ const formatTime = (val) => {
 }
 .drag-handle:active {
   cursor: grabbing;
+}
+
+/* =======================================
+   平板与移动端响应式适配 CSS
+   ======================================= */
+@media screen and (max-width: 992px) {
+  /* 强制上下分栏，兼容平板竖屏 */
+  .panel-layout {
+    flex-direction: column;
+  }
+
+  /* 顶部目录栏变为横向且高度受限，可内部滚动 */
+  .volume-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 2px solid #e4e7ed;
+    height: 180px; /* 给平板/移动端适当缩减目录高度 */
+    flex-shrink: 0;
+  }
+
+  .file-content {
+    padding: 10px;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  /* 仅针对小屏幕手机的极致适配 */
+
+  .view-mode-group {
+    margin-left: 0;
+    width: 100%; /* 让分组按钮占满一行 */
+  }
+
+  .toolbar-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  /* 让按钮均分宽度并防止文字截断 */
+  .tool-btn {
+    flex: 1;
+    min-width: 80px;
+    padding: 8px 10px;
+  }
+
+  /* 移动端强制显示三个点操作按钮，不需要 hover 才显示 */
+  .vol-actions {
+    opacity: 1;
+  }
 }
 </style>

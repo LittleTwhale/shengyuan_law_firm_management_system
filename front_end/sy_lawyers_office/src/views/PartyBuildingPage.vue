@@ -43,14 +43,42 @@
 
         <div class="toolbar">
           <div class="toolbar-left">
+            <div class="mobile-category-select">
+              <div style="display: flex; gap: 10px; margin-bottom: 10px; width: 100%">
+                <el-select
+                  v-model="activeCategoryId"
+                  @change="handleCategorySelect"
+                  placeholder="选择分类"
+                  style="flex: 1"
+                >
+                  <el-option label="全部资料" :value="0" />
+                  <el-option
+                    v-for="cat in categories"
+                    :key="cat.id"
+                    :label="cat.name"
+                    :value="cat.id"
+                  />
+                </el-select>
+                <el-button
+                  v-if="isAdmin"
+                  type="primary"
+                  plain
+                  icon="Setting"
+                  @click="openCategoryDialog()"
+                >
+                  管理
+                </el-button>
+              </div>
+            </div>
+
             <el-input
               v-model="queryParams.search"
               placeholder="搜索标题或文号"
               prefix-icon="Search"
               clearable
+              class="responsive-search"
               @clear="fetchMaterials"
               @keyup.enter="fetchMaterials"
-              style="width: 300px"
             />
           </div>
         </div>
@@ -68,19 +96,19 @@
             align="center"
             show-overflow-tooltip
           />
-          <el-table-column prop="category.name" label="分类" width="170" align="center">
+          <el-table-column prop="category.name" label="分类" width="180" align="center">
             <template #default="{ row }">
               <el-tag size="small" effect="plain">{{ row.category?.name || '无' }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="publisher_name" label="发布人" width="120" align="center" />
-          <el-table-column prop="view_count" label="阅读量" width="80" align="center" />
-          <el-table-column prop="created_at" label="发布时间" width="180" align="center">
+          <el-table-column prop="publisher_name" label="发布人" width="150" align="center" />
+          <el-table-column prop="view_count" label="阅读量" width="100" align="center" />
+          <el-table-column prop="created_at" label="发布时间" width="200" align="center">
             <template #default="{ row }">
               {{ formatDate(row.created_at) }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="160" fixed="right" align="center" v-if="isAdmin">
+          <el-table-column label="操作" width="120" fixed="right" align="center" v-if="isAdmin">
             <template #default="{ row }">
               <el-button link type="primary" @click="openMaterialDialog(row)">编辑</el-button>
               <el-button link type="danger" @click="handleDeleteMaterial(row)">删除</el-button>
@@ -107,7 +135,7 @@
       @refresh="fetchMaterials"
     />
 
-    <el-dialog title="分类管理" v-model="showCategoryDialog" width="500px">
+    <el-dialog title="分类管理" v-model="showCategoryDialog" width="min(95%, 500px)">
       <div class="category-manage-body">
         <el-table :data="categories" border size="small">
           <el-table-column prop="name" label="名称">
@@ -404,5 +432,63 @@ const formatDate = (val) => {
   padding-top: 15px;
   display: flex;
   align-items: center;
+  flex-wrap: wrap; /* 让内部元素在空间不足时换行 */
+  gap: 10px;
+}
+
+/* 移动端专属样式隐藏与显示 */
+.mobile-category-select {
+  display: none;
+}
+.responsive-search {
+  width: 300px;
+}
+
+/* ============= 响应式/移动端适配 ============= */
+@media (max-width: 768px) {
+  /* 隐藏左侧边栏 */
+  .category-aside {
+    display: none !important;
+  }
+
+  /* 显示移动端下拉分类 */
+  .mobile-category-select {
+    display: block;
+    width: 100%;
+  }
+
+  /* 调整工具栏布局 */
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar-left {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  /* 搜索框撑满屏幕 */
+  .responsive-search {
+    width: 100% !important;
+  }
+
+  /* 调整主区域边距 */
+  .main-content {
+    padding: 10px;
+  }
+
+  /* 调整头部字体和布局 */
+  .header h2 {
+    font-size: 20px;
+  }
+
+  /* 分类管理的输入框在移动端占满行 */
+  .add-cat-row .el-input,
+  .add-cat-row .el-input-number {
+    width: 100% !important;
+    margin-right: 0 !important;
+  }
 }
 </style>

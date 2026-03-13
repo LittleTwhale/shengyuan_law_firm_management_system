@@ -15,7 +15,7 @@
           clearable
           @clear="handleSearch"
           @keyup.enter="handleSearch"
-          style="width: 250px; margin-right: 15px"
+          class="toolbar-item search-input"
         />
 
         <el-select
@@ -24,7 +24,7 @@
           placeholder="主办律师筛选"
           clearable
           @change="handleSearch"
-          style="width: 200px; margin-right: 15px"
+          class="toolbar-item filter-select"
         >
           <el-option
             v-for="lawyer in lawyers"
@@ -39,77 +39,91 @@
           type="year"
           placeholder="选择年份"
           value-format="YYYY"
-          style="width: 120px"
           @change="handleSearch"
           clearable
+          class="toolbar-item year-picker"
         />
       </div>
     </div>
 
-    <el-table
-      :data="cases"
-      border
-      style="width: 100%"
-      v-loading="tableLoading"
-      @sort-change="handleSortChange"
-    >
-      <el-table-column prop="case_number" label="业务号" width="220" align="center" />
-      <el-table-column prop="client_name" label="委托银行" align="center" />
-      <el-table-column prop="case_category" label="案件类别" align="center" />
-      <el-table-column prop="main_lawyer.real_name" label="主办律师" align="center" />
-      <el-table-column prop="review_status" label="审核状态" align="center" />
-      <el-table-column
-        prop="created_at"
-        label="创建时间"
-        align="center"
-        sortable="custom"
-        :formatter="(row, column, cellValue) => formatDate(cellValue)"
-      />
-      <el-table-column label="操作" width="380" header-align="center" align="left">
-        <template #default="scope">
-          <el-button size="small" @click="viewCase(scope.row)">查看</el-button>
-          <el-button
-            size="small"
-            type="warning"
-            :disabled="currentUserRole === 'user' && scope.row.review_status === '已审核'"
-            @click="handleEditClick(scope.row)"
-            >编辑</el-button
-          >
-          <el-button
-            size="small"
-            type="danger"
-            :disabled="currentUserRole === 'user' && scope.row.review_status === '已审核'"
-            @click="deleteCase(scope.row.case_id)"
-            >删除</el-button
-          >
+    <div class="table-container">
+      <el-table
+        :data="cases"
+        border
+        style="width: 100%"
+        v-loading="tableLoading"
+        @sort-change="handleSortChange"
+      >
+        <el-table-column prop="case_number" label="业务号" min-width="200" align="center" />
+        <el-table-column prop="client_name" label="委托银行" min-width="220" align="center" />
+        <el-table-column prop="case_category" label="案件类别" min-width="120" align="center" />
+        <el-table-column
+          prop="main_lawyer.real_name"
+          label="主办律师"
+          min-width="120"
+          align="center"
+        />
+        <el-table-column prop="review_status" label="审核状态" min-width="150" align="center" />
+        <el-table-column
+          prop="created_at"
+          label="创建时间"
+          min-width="180"
+          align="center"
+          sortable="custom"
+          :formatter="(row, column, cellValue) => formatDate(cellValue)"
+        />
+        <el-table-column
+          label="操作"
+          min-width="400"
+          header-align="center"
+          align="left"
+          :fixed="isMobile ? false : 'right'"
+        >
+          <template #default="scope">
+            <el-button size="small" @click="viewCase(scope.row)">查看</el-button>
+            <el-button
+              size="small"
+              type="warning"
+              :disabled="currentUserRole === 'user' && scope.row.review_status === '已审核'"
+              @click="handleEditClick(scope.row)"
+              >编辑</el-button
+            >
+            <el-button
+              size="small"
+              type="danger"
+              :disabled="currentUserRole === 'user' && scope.row.review_status === '已审核'"
+              @click="deleteCase(scope.row.case_id)"
+              >删除</el-button
+            >
 
-          <el-button size="small" type="primary" plain @click="handleUploadClick(scope.row)">
-            <el-icon><Upload /></el-icon>
-            上传附件
-          </el-button>
+            <el-button size="small" type="primary" plain @click="handleUploadClick(scope.row)">
+              <el-icon><Upload /></el-icon>
+              上传附件
+            </el-button>
 
-          <el-button
-            v-if="scope.row.review_status === '已审核'"
-            link
-            type="primary"
-            size="small"
-            @click="handleDownloadApproval(scope.row)"
-          >
-            <el-icon><Document /></el-icon>
-            下载审批表
-          </el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+            <el-button
+              v-if="scope.row.review_status === '已审核'"
+              link
+              type="primary"
+              size="small"
+              @click="handleDownloadApproval(scope.row)"
+            >
+              <el-icon><Document /></el-icon>
+              下载审批表
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
 
     <el-pagination
       background
-      layout="prev, pager, next, jumper, ->, total"
+      :layout="isMobile ? 'prev, pager, next' : 'prev, pager, next, jumper, ->, total'"
       :current-page="page"
       :page-size="pageSize"
       :total="total"
       @current-change="handlePageChange"
-      style="margin-top: 16px; text-align: right"
+      style="margin-top: 16px; text-align: right; justify-content: flex-end; display: flex"
     />
 
     <CaseForm
@@ -126,7 +140,7 @@
     <el-dialog
       title="上传附件"
       v-model="uploadDialogVisible"
-      width="600px"
+      :width="isMobile ? '95%' : '600px'"
       :close-on-click-modal="false"
       destroy-on-close
       @close="resetUploadDialog"
@@ -180,10 +194,14 @@
     <el-dialog
       title="导出银行案件数据"
       v-model="showExportDialog"
-      width="550px"
+      :width="isMobile ? '95%' : '550px'"
       :close-on-click-modal="false"
     >
-      <el-form :model="exportForm" label-width="110px">
+      <el-form
+        :model="exportForm"
+        :label-width="isMobile ? 'auto' : '110px'"
+        :label-position="isMobile ? 'top' : 'right'"
+      >
         <el-form-item label="搜索关键词">
           <el-input v-model="exportForm.keyword" placeholder="按业务号/委托银行搜索" clearable />
         </el-form-item>
@@ -249,13 +267,19 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import CaseForm from './CaseForm.vue'
 import { useRouter } from 'vue-router'
 // 导入需要的图标
 import { Document, Upload, UploadFilled, Download } from '@element-plus/icons-vue'
+
+// -------------------------- 响应式/移动端适配相关 --------------------------
+const isMobile = ref(false)
+const checkDeviceType = () => {
+  isMobile.value = window.innerWidth <= 768
+}
 
 // 当前用户信息
 const currentUserID = ref(localStorage.getItem('user_id'))
@@ -287,7 +311,15 @@ const router = useRouter()
 
 // 初始化加载
 onMounted(() => {
+  checkDeviceType()
+  window.addEventListener('resize', checkDeviceType)
+
   Promise.all([loadLawyers(), loadBankCases()]).catch((err) => console.error('初始化失败:', err))
+})
+
+// 组件销毁前移除事件监听
+onUnmounted(() => {
+  window.removeEventListener('resize', checkDeviceType)
 })
 
 // 加载律师列表
@@ -629,6 +661,27 @@ const formatDate = (dateVal) => {
   border-bottom: 1px solid #eee;
 }
 
+/* 顶部搜索/筛选栏基础样式 */
+.toolbar {
+  margin-bottom: 15px;
+}
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap; /* 允许换行 */
+  gap: 15px; /* 使用 gap 代替原先复杂的 margin 控制 */
+}
+/* 提取原有的内联宽度到 class 中，方便媒体查询覆盖 */
+.search-input {
+  width: 250px;
+}
+.filter-select {
+  width: 200px;
+}
+.year-picker {
+  width: 120px;
+}
+
 /* 上传弹窗样式优化 */
 .upload-container {
   padding: 0 10px;
@@ -687,5 +740,47 @@ const formatDate = (dateVal) => {
   color: #909399;
   line-height: 1.4;
   margin-top: 4px;
+}
+
+/* =======================================
+   移动端响应式适配 CSS
+   ======================================= */
+@media screen and (max-width: 768px) {
+  /* 头部标题和按钮堆叠排列 */
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* 移除 Element 按钮自带的 margin-left，统一用 flex gap 管理间距 */
+  .action-buttons .el-button {
+    margin-left: 0 !important;
+  }
+
+  /* 搜索框和筛选条件垂直平铺 */
+  .toolbar-left {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  /* 所有筛选控件在移动端占满 100% 宽度 */
+  .toolbar-item {
+    width: 100% !important;
+  }
+
+  /* 调整弹窗内部文字排版 */
+  .case-info-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
 }
 </style>

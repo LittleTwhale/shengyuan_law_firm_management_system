@@ -2,7 +2,7 @@
   <el-dialog
     title="批量上传卷宗文件"
     :model-value="visible"
-    width="980px"
+    :width="isMobile ? '95%' : '980px'"
     @close="handleClose"
     :close-on-click-modal="false"
     destroy-on-close
@@ -66,7 +66,7 @@
               </template>
             </el-table-column>
 
-            <el-table-column label="归属分类" width="130" align="center">
+            <el-table-column label="归属分类" min-width="130" align="center">
               <template #default="{ row }">
                 <el-select v-model="row.category" size="small" placeholder="请选择">
                   <el-option v-for="opt in categoryOptions" :key="opt" :label="opt" :value="opt" />
@@ -74,7 +74,7 @@
               </template>
             </el-table-column>
 
-            <el-table-column label="标签 (回车添加)" width="150">
+            <el-table-column label="标签 (回车添加)" min-width="150">
               <template #default="{ row }">
                 <div class="tag-input-wrapper">
                   <el-tag
@@ -165,7 +165,7 @@
             <el-icon class="is-loading"><Loading /></el-icon> 正在处理列队... 请勿关闭窗口
           </span>
         </div>
-        <div>
+        <div class="footer-actions">
           <el-button @click="handleClose" :disabled="uploading">取 消</el-button>
           <el-button
             type="primary"
@@ -182,10 +182,13 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, inject } from 'vue'
 import { UploadFilled, Loading, Delete, Check, Warning, Document } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
+
+// 注入父组件传下来的响应式状态
+const isMobile = inject('isMobile', ref(false))
 
 const props = defineProps({
   visible: Boolean,
@@ -225,7 +228,6 @@ const handleFileChange = (uploadFile) => {
     category: '证据材料', // 默认分类
     sort_order: nextSort,
 
-    // === 新增字段 ===
     tags: [], // 存储标签数组
     tempTag: '', // 输入框临时值
     summary: '', // 摘要
@@ -235,7 +237,7 @@ const handleFileChange = (uploadFile) => {
   })
 }
 
-// 新增：添加标签逻辑
+// 添加标签逻辑
 const addTag = (row) => {
   const val = row.tempTag ? row.tempTag.trim() : ''
   if (val && !row.tags.includes(val)) {
@@ -412,7 +414,7 @@ const startUpload = async () => {
   color: #e6a23c;
 }
 
-/* 新增：标签输入样式 */
+/* 标签输入样式 */
 .tag-input-wrapper {
   display: flex;
   flex-wrap: wrap;
@@ -424,5 +426,26 @@ const startUpload = async () => {
   line-height: 24px;
   padding-top: 0;
   padding-bottom: 0;
+}
+
+/* =======================================
+   移动端响应式适配 CSS
+   ======================================= */
+@media screen and (max-width: 768px) {
+  .list-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .dialog-footer {
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .footer-actions {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+  }
 }
 </style>

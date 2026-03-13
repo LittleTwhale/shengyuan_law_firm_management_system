@@ -2,7 +2,7 @@
   <div class="finance-page">
     <div class="header-stats" v-loading="statsLoading">
       <el-row :gutter="20">
-        <el-col :span="6">
+        <el-col :xs="24" :sm="12" :md="6">
           <el-card shadow="hover" class="stat-card card-income">
             <div class="stat-content">
               <div class="stat-info">
@@ -15,7 +15,7 @@
             </div>
           </el-card>
         </el-col>
-        <el-col :span="6">
+        <el-col :xs="24" :sm="12" :md="6">
           <el-card shadow="hover" class="stat-card card-invoice">
             <div class="stat-content">
               <div class="stat-info">
@@ -28,7 +28,7 @@
             </div>
           </el-card>
         </el-col>
-        <el-col :span="6">
+        <el-col :xs="24" :sm="12" :md="6">
           <el-card shadow="hover" class="stat-card card-contract">
             <div class="stat-content">
               <div class="stat-info">
@@ -41,7 +41,7 @@
             </div>
           </el-card>
         </el-col>
-        <el-col :span="6">
+        <el-col :xs="24" :sm="12" :md="6">
           <el-card shadow="hover" class="stat-card card-records">
             <div class="stat-content">
               <div class="stat-info">
@@ -109,11 +109,13 @@
             />
           </el-select>
 
-          <el-button type="primary" icon="Search" @click="handleSearch">查询</el-button>
+          <el-button type="primary" icon="Search" @click="handleSearch" class="search-btn"
+            >查询</el-button
+          >
         </div>
 
         <div class="toolbar-right">
-          <el-button type="success" plain @click="handleExport">
+          <el-button type="success" plain @click="handleExport" class="export-btn">
             <el-icon><Download /></el-icon> 导出报表
           </el-button>
         </div>
@@ -127,7 +129,12 @@
         class="custom-table"
         :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: '600' }"
       >
-        <el-table-column prop="case.case_number" label="业务号" width="200" fixed>
+        <el-table-column
+          prop="case.case_number"
+          label="业务号"
+          min-width="200"
+          :fixed="isMobile ? false : 'left'"
+        >
           <template #default="{ row }">
             <el-link
               v-if="row.case"
@@ -253,7 +260,12 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="120" align="center" fixed="right">
+        <el-table-column
+          label="操作"
+          width="120"
+          align="center"
+          :fixed="isMobile ? false : 'right'"
+        >
           <template #default="{ row }">
             <el-button type="primary" link @click="openDetailDrawer(row)"> 财务详情 </el-button>
           </template>
@@ -263,7 +275,9 @@
       <div class="pagination-container">
         <el-pagination
           background
-          layout="total, sizes, prev, pager, next, jumper"
+          :small="isMobile"
+          :pager-count="isMobile ? 5 : 7"
+          :layout="isMobile ? 'prev, pager, next' : 'total, sizes, prev, pager, next, jumper'"
           :current-page="pagination.page"
           :page-size="pagination.pageSize"
           :total="pagination.total"
@@ -282,13 +296,13 @@
     <el-drawer
       v-model="drawerVisible"
       title="财务详情管理"
-      size="65%"
+      :size="drawerSize"
       destroy-on-close
       class="finance-drawer"
     >
       <div v-if="currentFinance" class="drawer-content">
-        <el-row :gutter="15" style="margin-bottom: 15px">
-          <el-col :span="6">
+        <el-row :gutter="15" class="responsive-row">
+          <el-col :xs="24" :sm="12" :md="6">
             <div class="detail-stat-box box-contract">
               <div class="icon-wrapper">
                 <el-icon><DocumentCopy /></el-icon>
@@ -299,7 +313,7 @@
               </div>
             </div>
           </el-col>
-          <el-col :span="6">
+          <el-col :xs="24" :sm="12" :md="6">
             <div class="detail-stat-box box-income">
               <div class="icon-wrapper">
                 <el-icon><Money /></el-icon>
@@ -312,7 +326,7 @@
               </div>
             </div>
           </el-col>
-          <el-col :span="6">
+          <el-col :xs="24" :sm="12" :md="6">
             <div class="detail-stat-box box-unpaid">
               <div class="icon-wrapper">
                 <el-icon><Warning /></el-icon>
@@ -329,7 +343,7 @@
               </div>
             </div>
           </el-col>
-          <el-col :span="6">
+          <el-col :xs="24" :sm="12" :md="6">
             <div class="detail-stat-box box-uninvoiced">
               <div class="icon-wrapper">
                 <el-icon><Tickets /></el-icon>
@@ -344,8 +358,8 @@
           </el-col>
         </el-row>
 
-        <el-row :gutter="15" style="margin-bottom: 25px">
-          <el-col :span="6">
+        <el-row :gutter="15" class="responsive-row last-stat-row">
+          <el-col :xs="24" :sm="12" :md="6">
             <div class="detail-stat-box box-withdraw">
               <div class="icon-wrapper">
                 <el-icon><Wallet /></el-icon>
@@ -358,7 +372,7 @@
               </div>
             </div>
           </el-col>
-          <el-col :span="6">
+          <el-col :xs="24" :sm="12" :md="6">
             <div class="detail-stat-box box-basic" style="background: #fdf6ec">
               <div class="info-wrapper" style="text-align: center">
                 <div class="label">扣减税费 (15%)</div>
@@ -375,7 +389,7 @@
               </div>
             </div>
           </el-col>
-          <el-col :span="6">
+          <el-col :xs="24" :sm="12" :md="6">
             <div class="detail-stat-box box-basic" style="background: #fef0f0">
               <div class="info-wrapper" style="text-align: center">
                 <div class="label">扣减风险金 (5%, 5w封顶)</div>
@@ -392,7 +406,7 @@
               </div>
             </div>
           </el-col>
-          <el-col :span="6">
+          <el-col :xs="24" :sm="12" :md="6">
             <div class="detail-stat-box box-basic" style="background: #f0f9eb">
               <div class="info-wrapper" style="text-align: center">
                 <div class="label">最终可用余额</div>
@@ -413,7 +427,7 @@
               >
             </div>
           </div>
-          <el-descriptions :column="2" border class="custom-descriptions">
+          <el-descriptions :column="isMobile ? 1 : 2" border class="custom-descriptions">
             <el-descriptions-item label="业务号">{{
               currentFinance.case ? currentFinance.case.case_number : '-'
             }}</el-descriptions-item>
@@ -426,7 +440,7 @@
             <el-descriptions-item label="合同金额">
               <span class="font-bold">{{ formatCurrency(currentFinance.contract_amount) }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="风险代理约定" :span="2">
+            <el-descriptions-item label="风险代理约定" :span="isMobile ? 1 : 2">
               <span style="white-space: pre-wrap">{{
                 currentFinance.risk_agency_content || '-'
               }}</span>
@@ -464,8 +478,8 @@
             style="margin-bottom: 20px"
             :header-cell-style="{ background: '#fafafa' }"
           >
-            <el-table-column prop="transaction_date" label="日期" width="110" />
-            <el-table-column prop="record_type" label="类型" width="90">
+            <el-table-column prop="transaction_date" label="日期" min-width="110" />
+            <el-table-column prop="record_type" label="类型" min-width="90">
               <template #default="{ row }">
                 <el-tag
                   :type="row.record_type === 'income' ? 'success' : 'danger'"
@@ -475,23 +489,29 @@
                 >
               </template>
             </el-table-column>
-            <el-table-column prop="amount" label="金额" align="right">
+            <el-table-column prop="amount" label="金额" align="right" min-width="100">
               <template #default="{ row }">
                 <span :class="row.record_type === 'income' ? 'text-green' : 'text-red'">
                   {{ row.record_type === 'income' ? '+' : '-' }} {{ formatCurrency(row.amount) }}
                 </span>
               </template>
             </el-table-column>
-            <el-table-column prop="payer" label="付款方/收款方" />
-            <el-table-column prop="remarks" label="备注" show-overflow-tooltip />
-            <el-table-column prop="operator_name" label="操作人" width="90">
+            <el-table-column prop="payer" label="付款方/收款方" min-width="120" />
+            <el-table-column prop="remarks" label="备注" min-width="150" show-overflow-tooltip />
+            <el-table-column prop="operator_name" label="操作人" min-width="90">
               <template #default="{ row }">
                 <span class="text-gray">{{
                   row.operator_name || getLawyerName(row.operator_id) || '-'
                 }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="80" align="center" v-if="hasPermission">
+            <el-table-column
+              label="操作"
+              width="80"
+              align="center"
+              v-if="hasPermission"
+              :fixed="isMobile ? false : 'right'"
+            >
               <template #default="{ row }">
                 <el-button type="danger" link size="small" @click="handleDeleteRecord(row.id)"
                   >删除</el-button
@@ -529,28 +549,34 @@
             style="margin-bottom: 20px"
             :header-cell-style="{ background: '#fafafa' }"
           >
-            <el-table-column prop="withdrawal_date" label="领款日期" width="110" />
-            <el-table-column label="领款律师" width="120">
+            <el-table-column prop="withdrawal_date" label="领款日期" min-width="110" />
+            <el-table-column label="领款律师" min-width="120">
               <template #default="{ row }">
                 <el-tag type="warning" size="small" effect="plain">
                   {{ row.lawyer_name || getLawyerName(row.lawyer_id) }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="amount" label="金额" align="right">
+            <el-table-column prop="amount" label="金额" align="right" min-width="100">
               <template #default="{ row }">
                 <span class="text-purple">{{ formatCurrency(row.amount) }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="remarks" label="备注" show-overflow-tooltip />
-            <el-table-column prop="operator_name" label="操作人" width="90">
+            <el-table-column prop="remarks" label="备注" min-width="150" show-overflow-tooltip />
+            <el-table-column prop="operator_name" label="操作人" min-width="90">
               <template #default="{ row }">
                 <span class="text-gray">{{
                   row.operator_name || getLawyerName(row.operator_id) || '-'
                 }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="80" align="center" v-if="hasPermission">
+            <el-table-column
+              label="操作"
+              width="80"
+              align="center"
+              v-if="hasPermission"
+              :fixed="isMobile ? false : 'right'"
+            >
               <template #default="{ row }">
                 <el-button type="danger" link size="small" @click="handleDeleteWithdrawal(row.id)"
                   >删除</el-button
@@ -587,29 +613,40 @@
             stripe
             :header-cell-style="{ background: '#fafafa' }"
           >
-            <el-table-column prop="invoice_date" label="开票日期" width="110" />
-            <el-table-column prop="invoice_number" label="发票号" width="120">
+            <el-table-column prop="invoice_date" label="开票日期" min-width="110" />
+            <el-table-column prop="invoice_number" label="发票号" min-width="120">
               <template #default="{ row }">
                 <el-tag type="info" size="small">{{ row.invoice_number }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="invoice_amount" label="金额" align="right">
+            <el-table-column prop="invoice_amount" label="金额" align="right" min-width="100">
               <template #default="{ row }">
                 {{ formatCurrency(row.invoice_amount) }}
               </template>
             </el-table-column>
-            <el-table-column prop="invoice_title" label="抬头" show-overflow-tooltip>
+            <el-table-column
+              prop="invoice_title"
+              label="抬头"
+              min-width="150"
+              show-overflow-tooltip
+            >
               <template #default="{ row }">{{ row.invoice_title || '-' }}</template>
             </el-table-column>
-            <el-table-column prop="remarks" label="备注" show-overflow-tooltip />
-            <el-table-column prop="operator_name" label="操作人" width="90">
+            <el-table-column prop="remarks" label="备注" min-width="150" show-overflow-tooltip />
+            <el-table-column prop="operator_name" label="操作人" min-width="90">
               <template #default="{ row }">
                 <span class="text-gray">{{
                   row.operator_name || getLawyerName(row.operator_id) || '-'
                 }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="80" align="center" v-if="hasPermission">
+            <el-table-column
+              label="操作"
+              width="80"
+              align="center"
+              v-if="hasPermission"
+              :fixed="isMobile ? false : 'right'"
+            >
               <template #default="{ row }">
                 <el-button type="danger" link size="small" @click="handleDeleteInvoice(row.id)"
                   >删除</el-button
@@ -624,10 +661,10 @@
     <el-dialog
       title="修改财务概览"
       v-model="showEditSummaryDialog"
-      width="550px"
+      :width="editDialogWidth"
       class="custom-dialog"
     >
-      <el-form :model="summaryForm" label-width="120px" status-icon>
+      <el-form :model="summaryForm" :label-width="isMobile ? '90px' : '120px'" status-icon>
         <el-form-item label="合同金额">
           <el-input-number
             v-model="summaryForm.contract_amount"
@@ -646,7 +683,7 @@
           />
         </el-form-item>
 
-        <div style="margin-bottom: 20px; padding: 0 20px">
+        <div style="margin-bottom: 20px; padding: 0 10px">
           <el-alert
             v-if="isAutoCalcMode"
             title="当前为标准模式：余额由系统自动计算"
@@ -663,7 +700,7 @@
           />
         </div>
 
-        <el-form-item label="未付金额(欠款)">
+        <el-form-item label="未付(欠款)">
           <el-input-number
             v-model="summaryForm.unpaid_amount"
             :precision="2"
@@ -697,10 +734,10 @@
     <el-dialog
       title="新增收支记录"
       v-model="showAddRecordDialog"
-      width="500px"
+      :width="dialogWidth"
       class="custom-dialog"
     >
-      <el-form :model="recordForm" label-width="100px">
+      <el-form :model="recordForm" :label-width="isMobile ? '80px' : '100px'">
         <el-form-item label="类型">
           <el-radio-group v-model="recordForm.record_type">
             <el-radio-button label="income">收款 (收入)</el-radio-button>
@@ -724,7 +761,7 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="付款/收款方">
+        <el-form-item label="收付款方">
           <el-input v-model="recordForm.payer" placeholder="例如：张三 / xx公司" />
         </el-form-item>
         <el-form-item label="备注">
@@ -740,10 +777,10 @@
     <el-dialog
       title="新增发票记录"
       v-model="showAddInvoiceDialog"
-      width="500px"
+      :width="dialogWidth"
       class="custom-dialog"
     >
-      <el-form :model="invoiceForm" label-width="100px">
+      <el-form :model="invoiceForm" :label-width="isMobile ? '80px' : '100px'">
         <el-form-item label="发票抬头">
           <el-input v-model="invoiceForm.invoice_title" placeholder="公司名称/个人姓名" />
         </el-form-item>
@@ -783,10 +820,10 @@
     <el-dialog
       title="新增律师领款"
       v-model="showAddWithdrawalDialog"
-      width="500px"
+      :width="dialogWidth"
       class="custom-dialog"
     >
-      <el-form :model="withdrawalForm" label-width="100px">
+      <el-form :model="withdrawalForm" :label-width="isMobile ? '80px' : '100px'">
         <el-form-item label="领款律师">
           <el-select
             v-model="withdrawalForm.lawyer_id"
@@ -832,7 +869,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import request from '@/utils/request'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -850,6 +887,16 @@ import {
 const API_BASE = '/finance'
 const currentUserId = localStorage.getItem('user_id')
 const router = useRouter()
+
+// --- 响应式尺寸适配逻辑 ---
+const isMobile = ref(false)
+const checkMobile = () => {
+  isMobile.value = window.innerWidth <= 768
+}
+
+const drawerSize = computed(() => (isMobile.value ? '100%' : '65%'))
+const dialogWidth = computed(() => (isMobile.value ? '95%' : '500px'))
+const editDialogWidth = computed(() => (isMobile.value ? '95%' : '550px'))
 
 // --- 状态数据 ---
 const statsLoading = ref(false)
@@ -984,9 +1031,17 @@ const shortcuts = [
 
 // --- 初始化 ---
 onMounted(async () => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+
   await fetchUserProfile()
   await fetchLawyers()
   await loadData()
+})
+
+// 清除监听事件
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
 })
 
 const fetchUserProfile = async () => {
@@ -1378,6 +1433,7 @@ const formatCurrency = (val) => {
   border-radius: 8px;
   overflow: hidden;
   transition: all 0.3s ease;
+  height: 100%;
 }
 .stat-card:hover {
   transform: translateY(-4px);
@@ -1618,6 +1674,7 @@ const formatCurrency = (val) => {
   display: flex;
   align-items: center;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  height: 100%;
 }
 .icon-wrapper {
   width: 40px;
@@ -1712,5 +1769,96 @@ const formatCurrency = (val) => {
 .custom-dialog :deep(.el-dialog__body) {
   padding-top: 10px;
   padding-bottom: 10px;
+}
+
+/* ---------------- 移动端适配媒体查询 ---------------- */
+@media (max-width: 767px) {
+  .finance-page {
+    padding: 12px;
+  }
+
+  /* 头部卡片和抽屉内卡片的垂直间距 */
+  .header-stats .el-col,
+  .responsive-row .el-col {
+    margin-bottom: 12px;
+  }
+  .last-stat-row .el-col:last-child {
+    margin-bottom: 0;
+  }
+
+  .main-content-card :deep(.el-card__body) {
+    padding: 16px 12px;
+  }
+
+  /* 筛选工具栏改为纵向排列 */
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar-left {
+    flex-direction: column;
+    width: 100%;
+    gap: 10px;
+  }
+
+  .toolbar-right {
+    width: 100%;
+    margin-top: 5px;
+  }
+
+  /* 强行撑满输入框和按钮，并解决日期选择器溢出问题 */
+  .search-input,
+  .date-input,
+  .select-input,
+  .search-btn,
+  .export-btn {
+    width: 100% !important;
+    max-width: 100%;
+    box-sizing: border-box; /* 确保 padding 不会导致溢出 */
+  }
+
+  /* 强制重置 Element Plus 日期范围选择器的内部最小宽度 */
+  :deep(.el-date-editor.el-input__wrapper) {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  :deep(.el-date-editor--daterange) {
+    max-width: 100%;
+  }
+
+  .export-btn {
+    margin-left: 0 !important;
+  }
+
+  /* 移动端分页容器居中并允许横向滑动 */
+  .pagination-container {
+    justify-content: center;
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 10px;
+  }
+
+  /* 防止分页器在极窄屏幕下被强行换行 */
+  .pagination-container :deep(.el-pagination) {
+    flex-wrap: nowrap;
+  }
+
+  /* 抽屉内部头部适配 */
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  /* 调整弹窗内部 padding，防止手机端显得太挤 */
+  .custom-dialog :deep(.el-dialog__body) {
+    padding: 15px 10px;
+  }
+
+  /* 调整描述列表左侧 Label 宽度 */
+  .custom-descriptions :deep(.el-descriptions__label) {
+    width: 90px;
+  }
 }
 </style>
