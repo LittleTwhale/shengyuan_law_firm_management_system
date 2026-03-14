@@ -78,6 +78,7 @@ class Case(Base):
     execution_application_date = Column(Date, nullable=True, comment="申请执行日")
     mediation_due_date = Column(Date, nullable=True, comment="调解到期日")
     execution_due_date = Column(Date, nullable=True, comment="执行到期日")
+    advisory_due_date = Column(Date, nullable=True, comment="顾问到期日")
 
     # 时间戳
     created_at = Column(TIMESTAMP, server_default=func.now(), comment="创建时间")

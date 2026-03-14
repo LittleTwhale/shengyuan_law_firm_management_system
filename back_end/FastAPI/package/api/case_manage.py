@@ -577,6 +577,9 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
                 stage=str(row_data.get("介入阶段", "")).strip() or None,
                 agency_power=str(row_data.get("代理权限", "")).strip() or None,
                 court=str(row_data.get("审理法院", "")).strip() or None,
+                investigative_agency=str(row_data.get("侦查机关", "")).strip() or None,
+                procuratorate=str(row_data.get("检察院", "")).strip() or None,
+                second_instance_procuratorate=str(row_data.get("二审检察机关", "")).strip() or None,
                 hearing_date=parse_date(row_data.get("开庭时间")),
                 filing_date=parse_date(row_data.get("立案日")),
                 closing_date=parse_date(row_data.get("结案时间")),
@@ -607,7 +610,8 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
 
                 execution_application_date=parse_date(row_data.get("申请执行日")),
                 mediation_due_date=parse_date(row_data.get("调解到期日")),
-                execution_due_date=parse_date(row_data.get("执行到期日"))
+                execution_due_date=parse_date(row_data.get("执行到期日")),
+                advisory_due_date=parse_date(row_data.get("顾问到期日"))
             )
 
             # ---------------- 5. 写入数据库 ----------------

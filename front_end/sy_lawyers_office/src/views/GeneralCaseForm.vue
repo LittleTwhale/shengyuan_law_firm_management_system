@@ -688,6 +688,16 @@
           />
         </el-form-item>
       </el-col>
+      <el-col :span="8" v-if="formData.case_category === '法律顾问业务'">
+        <el-form-item label="顾问到期日" prop="advisory_due_date">
+          <el-date-picker
+            v-model="formData.advisory_due_date"
+            type="date"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-col>
     </el-row>
   </div>
 </template>

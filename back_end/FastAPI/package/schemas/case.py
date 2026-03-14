@@ -251,6 +251,7 @@ class CaseCreate(BaseModel):
     execution_application_date: Optional[date] = None
     mediation_due_date: Optional[date] = None
     execution_due_date: Optional[date] = None
+    advisory_due_date: Optional[date] = Field(None, description="顾问到期日 / Advisory due date")
 
     class Config:
         from_attributes = True
@@ -326,6 +327,7 @@ class CaseUpdate(BaseModel):
     execution_application_date: Optional[date] = Field(None, description="申请执行日 / Execution application date")
     mediation_due_date: Optional[date] = Field(None, description="调解到期日 / Mediation due date")
     execution_due_date: Optional[date] = Field(None, description="执行到期日 / Execution due date")
+    advisory_due_date: Optional[date] = Field(None, description="顾问到期日 / Advisory due date")
 
     class Config:
         from_attributes = True
@@ -393,6 +395,7 @@ class CaseOut(BaseModel):
     execution_application_date: Optional[date] = Field(None, description="申请执行日 / Execution application date")
     mediation_due_date: Optional[date] = Field(None, description="调解到期日 / Mediation due date")
     execution_due_date: Optional[date] = Field(None, description="执行到期日 / Execution due date")
+    advisory_due_date: Optional[date] = Field(None, description="顾问到期日 / Advisory due date")
 
     # 律师信息
     main_lawyer: Optional[UserOut] = None

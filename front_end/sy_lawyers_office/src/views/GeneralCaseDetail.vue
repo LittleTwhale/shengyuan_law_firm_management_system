@@ -214,6 +214,9 @@
       <el-descriptions-item label="执行到期日">{{
         formatDate(caseData.execution_due_date)
       }}</el-descriptions-item>
+      <el-descriptions-item label="顾问到期日" v-if="caseData.case_category === '法律顾问业务'">{{
+        formatDate(caseData.advisory_due_date)
+      }}</el-descriptions-item>
     </el-descriptions>
   </div>
 </template>

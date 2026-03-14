@@ -793,6 +793,7 @@ def get_upcoming_events(db: Session, user_id: int, days: int = 30) -> List[dict]
             ("调解到期", case.mediation_due_date),
             ("执行到期", case.execution_due_date),
             ("付款到期", case.payment_due_date),
+            ("顾问到期", case.advisory_due_date),
         ]
 
         for event_type, event_date in check_points:
@@ -908,7 +909,7 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         "案件地点", "案件详情", "主办律师", "助理律师", "执行主办律师", "执行助理律师", "审核状态", "审核人",
         "是否重大", "是否纸质卷宗", "是否解除", "是否笔录", "是否保全", "保全开始日", "保全终止日",
         "案号", "结案状态", "结案方式", "诉讼费缴费时间", "诉讼费缴费金额", "诉讼费退费时间", "诉讼费退费金额",
-        "申请执行日", "调解到期日", "执行到期日", "创建时间", "更新时间"
+        "申请执行日", "调解到期日", "执行到期日","顾问到期日", "创建时间", "更新时间"
     ]
 
     # 银行案件特有字段 (BankCase)
@@ -1059,6 +1060,7 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
             format_date(case.execution_application_date),
             format_date(case.mediation_due_date),
             format_date(case.execution_due_date),
+            format_date(case.advisory_due_date),
             format_datetime(case.created_at),
             format_datetime(case.updated_at)
         ]

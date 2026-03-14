@@ -282,6 +282,7 @@ const formData = reactive({
   execution_application_date: null,
   mediation_due_date: null,
   execution_due_date: null,
+  advisory_due_date: null,
 
   // 诉讼费
   litigation_fee_payment_date: null,
