@@ -12,6 +12,8 @@ class BankCaseBase(BaseModel):
 
     # 支行名称
     branch_name: Optional[str] = None
+    # 案件状态
+    case_status: Optional[str] = Field(None, description="案件状态")
     # 抵/质押物信息
     collateral_info: Optional[str] = None
     # 抵押物位置
@@ -341,7 +343,7 @@ class CaseOut(BaseModel):
     case_id: int = Field(..., description="案件ID / Case ID")
     case_number: str = Field(..., description="案件号 / Case number")
     commission_date: Optional[date] = Field(None, description="委托日期 / Commission date")
-    client_name: str = Field(..., description="委托人 / Client name")
+    client_name: Optional[str] = Field(None, description="委托人 / Client name")
     client_id_number: Optional[str] = Field(None, description="身份证号/税号 / ID or Tax number")
     client_phone: Optional[str] = Field(None, description="电话 / Phone number")
 
@@ -418,7 +420,7 @@ class CaseOut(BaseModel):
 class CaseSimpleOut(BaseModel):
     case_id: int = Field(..., description="案件ID / Case ID")
     case_number: str = Field(..., description="案件号 / Case number")
-    client_name: str = Field(..., description="委托人 / Client name")
+    client_name: Optional[str] = Field(None, description="委托人 / Client name")
     case_category: str = Field(..., description="案件类别 / Case category")
     review_status: str = Field(..., description="案件审核状态 / Review status")
     main_lawyer: Optional[UserOut] = Field(None, description="主办律师 / Main lawyer")

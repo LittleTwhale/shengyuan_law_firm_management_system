@@ -502,6 +502,25 @@
           </el-form-item>
         </el-col>
 
+        <el-col :span="8">
+          <el-form-item label="案件状态" prop="bank_case_details.case_status" label-width="120px">
+            <el-select
+              v-model="formData.bank_case_details.case_status"
+              placeholder="请选择案件状态"
+              filterable
+              clearable
+              style="width: 100%"
+            >
+              <el-option
+                v-for="status in caseStatusOptions"
+                :key="status"
+                :label="status"
+                :value="status"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+
         <el-col :span="12">
           <el-form-item label="支行名称" prop="bank_case_details.branch_name" label-width="120px">
             <el-select
@@ -1526,6 +1545,36 @@ const branchOptions = [
   '峒河支行支行',
   '团结西路支行',
   '湘西州分行',
+]
+
+// 案件状态选项数组
+const caseStatusOptions = [
+  '写诉讼状中',
+  '资料不足',
+  '移交法院排队立案',
+  '诉讼立案',
+  '已开庭',
+  '已裁判',
+  '债务履行完毕结案',
+  '银行要求撤诉',
+  '终结执行',
+  '跟进调解履行情况',
+  '写执行申请资料',
+  '移交法院执行手续',
+  '执行排队立案中',
+  '执行和解',
+  '网络查控资产情况',
+  '扣划工资工积金处置抵押物',
+  '询价查看不动产情况',
+  '拍卖抵押物',
+  '终本',
+  '恢复执行中',
+  '银行要求暂不起诉',
+  '银行未交诉讼费撤诉',
+  '被告已还清不起诉',
+  '被告已还清撤诉',
+  '执行盖章中',
+  '诉讼盖章中',
 ]
 
 // 自动计算诉讼时效功能 (到期日往后推三年)

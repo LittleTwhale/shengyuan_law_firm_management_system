@@ -54,6 +54,7 @@
         formatDate(details.case_acceptance_date)
       }}</el-descriptions-item>
 
+      <el-descriptions-item label="案件状态">{{ details.case_status || '-' }}</el-descriptions-item>
       <el-descriptions-item label="支行名称">{{ details.branch_name || '-' }}</el-descriptions-item>
 
       <el-descriptions-item label="客户经理">{{
@@ -402,6 +403,14 @@
       border
       class="unified-descriptions"
     >
+      <el-descriptions-item label="审核状态">
+        <el-tag :type="caseData.review_status === '已通过' ? 'success' : (caseData.review_status === '已驳回' ? 'danger' : 'warning')">
+          {{ caseData.review_status || '待审核' }}
+        </el-tag>
+      </el-descriptions-item>
+      <el-descriptions-item label="审核人">{{
+          caseData.reviewer?.real_name || '-'
+        }}</el-descriptions-item>
       <el-descriptions-item label="案件地点">{{ caseData.location || '-' }}</el-descriptions-item>
       <el-descriptions-item label="借款人工作单位">{{
         details.borrower_work_unit || '-'

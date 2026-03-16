@@ -150,6 +150,7 @@ const lawyerOptions = ref([])
 const initialBankDetails = {
   // --- 收案与基础信息 ---
   branch_name: null,
+  case_status: null,
   account_manager: null,
   material_fetcher: null,
   case_acceptance_date: null,

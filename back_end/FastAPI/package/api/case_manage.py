@@ -506,6 +506,7 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
             if case_category == "银行案件":
                 bank_details = {
                     "branch_name": str(row_data.get("支行名称", "")).strip() or None,
+                    "case_status": str(row_data.get("案件状态", "")).strip() or None,
                     "collateral_info": str(row_data.get("抵/质押物信息", "")).strip() or None,
                     "collateral_location": str(row_data.get("抵押物位置", "")).strip() or None,
                     "account_manager": str(row_data.get("客户经理", "")).strip() or None,

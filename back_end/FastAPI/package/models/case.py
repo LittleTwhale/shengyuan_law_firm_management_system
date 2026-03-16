@@ -109,7 +109,7 @@ class BankCase(Base):
 
     # 借贷基础信息
     branch_name = Column(String(100), comment="支行名称")
-
+    case_status = Column(String(50), nullable=True, comment="案件状态")
     collateral_info = Column(Text, comment="抵/质押物信息")
     collateral_location = Column(String(255), comment="抵押物位置")
     account_manager = Column(String(50), comment="客户经理")
