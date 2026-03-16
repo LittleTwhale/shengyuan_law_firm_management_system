@@ -1,7 +1,11 @@
 # api/case_manage.py
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import StreamingResponse
 from collections import defaultdict
+
+from sqlalchemy import or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -25,6 +29,8 @@ from urllib.parse import quote
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, Alignment
 from datetime import datetime
+
+from ..utils.keywords_helper import determine_party_side, get_valid_keywords
 
 router = APIRouter(
     prefix="/cases",
@@ -206,20 +212,8 @@ def check_interest_conflict(
         current_user: User = Depends(get_current_active_user)
 ):
     """
-    基于 CaseParty 表的全维度利益冲突检测 (重构版)
-    完全弃用 Case.client_name 字段，仅依赖 party_type='委托人' 识别身份。
-
-    逻辑流程：
-    1. 从提交的 parties 中提取 '委托人' 名字列表。
-    2. 确定委托人在本案中的诉讼阵营 (A:原告方 vs B:被告方)，从而锁定“对手名单”。
-    3. 检测代理冲突：对手名单中的人，是否是我们历史案件的委托人？
-    4. 检测自益冲突：当前委托人，是否在我们历史案件中处于对立面？
+    基于 CaseParty 表的全维度利益冲突检测 (混合匹配版：确切+模糊)
     """
-
-    # 定义阵营集合
-    side_a = {'原告', '申请人', '上诉人'}
-    side_b = {'被告', '被告人', '被申请人', '被上诉人'}
-
     input_parties = case_data.parties or []
 
     # ---------------------------------------------------------
@@ -227,171 +221,207 @@ def check_interest_conflict(
     # ---------------------------------------------------------
     new_client_names = set()
     for p in input_parties:
-        if p.party_type == '委托人' and p.name:
+        # 使用模糊匹配识别委托人类型（以防录入成"第一委托人"等）
+        if p.party_type and "委托" in p.party_type and p.name:
             new_client_names.add(p.name.strip())
 
-    # 如果没填委托人（这在业务上不应该发生，但需防御），尝试用 Case.client_name 兜底或报错
     if not new_client_names and case_data.client_name:
         new_client_names.add(case_data.client_name.strip())
 
     if not new_client_names:
-        # 如果还没找到，无法进行检测，直接返回（或根据业务需求报错）
         return {"has_conflict": False, "details": []}
 
     # ---------------------------------------------------------
     # 2. 确定委托人阵营 & 锁定对手 (New Opponents)
     # ---------------------------------------------------------
     client_side = "A"  # 默认为原告方
-
-    # 2.1 尝试通过名字匹配，看委托人是否兼任了原告或被告
     found_side = None
-    for p in input_parties:
-        if p.name.strip() in new_client_names:
-            if p.party_type in side_b:
-                found_side = "B"
-                break
-            elif p.party_type in side_a:
-                found_side = "A"
-                # 不 break，继续找看是否有更明确的 B 角色（极少见）
+    has_side_b = False
+    has_side_a = False
 
+    for p in input_parties:
+        p_name = p.name.strip() if p.name else ""
+        if not p_name: continue
+
+        # 名字双向包含判断：这个当事人是我们的委托人吗？(解决全称/简称不一致)
+        is_our_client = any(
+            (client_name in p_name or p_name in client_name)
+            for client_name in new_client_names
+        )
+
+        current_side = determine_party_side(p.party_type)
+        if current_side == "B":
+            has_side_b = True
+        elif current_side == "A":
+            has_side_a = True
+
+        # 如果确认是委托人，记录下他的诉讼阵营
+        if is_our_client and found_side is None:
+            if current_side in ["A", "B"]:
+                found_side = current_side
+
+    # 推断委托人阵营
     if found_side:
         client_side = found_side
     else:
-        # 2.2 如果委托人没挂诉讼头衔，通过“其他人是谁”来反推
-        # 如果列表里有被告，那委托人大概率是原告
-        has_side_b = any(p.party_type in side_b for p in input_parties)
         if has_side_b:
             client_side = "A"
+        elif has_side_a:
+            client_side = "B"
         else:
-            # 如果列表里只有原告，且委托人名字不在其中，那委托人可能是被告（较少见，通常是被告委托）
-            has_side_a = any(p.party_type in side_a for p in input_parties)
-            if has_side_a:
-                client_side = "B"
+            client_side = "A"
 
-    # 2.3 提取对手名字
-    target_opponent_types = side_a if client_side == "B" else side_b
+    # ---------------------------------------------------------
+    # 3. 提取本案对手名字
+    # ---------------------------------------------------------
+    target_side_to_find = "B" if client_side == "A" else "A"
     new_case_opponents = set()
 
     for p in input_parties:
-        if p.party_type in target_opponent_types and p.name:
-            new_case_opponents.add(p.name.strip())
+        p_name = p.name.strip() if p.name else ""
+        if not p_name: continue
 
-    # 兼容旧字段 (如果前端还在用 defendant 字段)
+        if determine_party_side(p.party_type) == target_side_to_find:
+            # 二次拦截：绝不能把（被模糊匹配为）委托人自己当成对手，防止左右互搏
+            is_self = any((client_name in p_name or p_name in client_name) for client_name in new_client_names)
+            if not is_self:
+                new_case_opponents.add(p_name)
+
+    # 兼容旧字段
     if not new_case_opponents and case_data.defendant and client_side == "A":
         separators = ["、", ",", "，", " ", "；", ";"]
-        new_case_opponents = [d.strip() for d in split_with_separators(case_data.defendant, separators) if
-                              d.strip()]
+        new_case_opponents = set(d.strip() for d in split_with_separators(case_data.defendant, separators) if d.strip())
 
     precise_conflicts = []
-    # 用于去重 (case_id, conflict_type)
     processed_conflicts = set()
 
     # =========================================================================
-    # 检测 A: 代理冲突 (Representation Conflict)
-    # 核心问题：新案件的对手，是我们正在服务的客户吗？
+    # 检测 A: 代理冲突 (起诉现有客户)
     # =========================================================================
+    valid_opponents = get_valid_keywords(new_case_opponents)
 
-    if new_case_opponents:
-        # 查询数据库：CaseParty 中 type='委托人' 且 name 在对手名单中的记录
-        # 且关联的 Case 未删除
+    if valid_opponents:
+        like_conditions = [CaseParty.name.like(f"%{opp}%") for opp in valid_opponents]
 
         existing_client_conflicts = db.query(CaseParty).join(Case).filter(
-            CaseParty.party_type == '委托人',
-            CaseParty.name.in_(new_case_opponents),
+            CaseParty.party_type.like('%委托%'),
+            or_(*like_conditions),
             Case.is_deleted == False
         ).all()
 
         for record in existing_client_conflicts:
-            case = record.case
+            db_name = record.name.strip()
+            match_level = None
 
+            # 1. 优先判断是否为确切匹配（跟用户输入的某个原名一模一样）
+            if db_name in new_case_opponents:
+                match_level = "exact"
+            else:
+                # 2. 如果不是确切匹配，再判断是否为模糊匹配（双向包含核心词）
+                for opp in valid_opponents:
+                    if opp in db_name or db_name in opp:
+                        match_level = "fuzzy"
+                        break
+
+            # 如果既不是完全相等，也不包含核心词（被 SQL LIKE 误杀的），直接跳过
+            if not match_level:
+                continue
+
+            case = record.case
             conflict_key = (case.case_id, "agency_conflict")
             if conflict_key in processed_conflicts: continue
+
+            # 根据匹配等级动态生成文案
+            prefix_text = "冲突匹配" if match_level == "exact" else "疑似冲突"
+            match_reason = f"完全匹配 '{db_name}'" if match_level == "exact" else f"匹配到关键字 '{record.name}'"
 
             conflict_info = {
                 "case_number": case.case_number,
                 "other_lawyer_name": case.main_lawyer.real_name if case.main_lawyer else "未知",
                 "conflict_type": "利益冲突（起诉现有客户）",
-                "role": "委托人",  # 在历史案件中，他是委托人
-                "message": f"新案件的对手方 '{record.name}' 是我所现有案件【{case.case_number}】的委托人。"
+                "match_level": match_level,  # 动态赋值：'exact' 或 'fuzzy'
+                "role": "委托人",
+                "message": f"{prefix_text}：新案件对手方（{match_reason}）是我所现有案件【{case.case_number}】的委托人/顾问单位。"
             }
-            if case.case_category == "法律顾问业务":
-                conflict_info["message"] = f"新案件的对手方 '{record.name}' 是我所法律顾问单位。"
-
             precise_conflicts.append(conflict_info)
             processed_conflicts.add(conflict_key)
 
     # =========================================================================
-    # 检测 B: 自益冲突 (Self-Interest Conflict)
-    # 核心问题：新案件的委托人，是我们正在起诉的人吗？
+    # 检测 B: 自益冲突 (正在起诉该客户)
     # =========================================================================
+    valid_new_clients = get_valid_keywords(new_client_names)
 
-    # 1. 找出新委托人参与过的所有未结案件 (作为任意角色)
-    history_participations = db.query(CaseParty).join(Case).filter(
-        CaseParty.name.in_(new_client_names),
-        Case.is_deleted == False,
-    ).all()
+    if valid_new_clients:
+        client_like_conditions = [CaseParty.name.like(f"%{client}%") for client in valid_new_clients]
 
-    for party_record in history_participations:
-        case = party_record.case
-
-        # 跳过新委托人就是该历史案件委托人的情况（这是回头客，不是冲突）
-        # 这里需要查一下该 case 的委托人是谁
-
-        # 2. 查询该历史案件的委托人 (Host Clients)
-        host_clients = db.query(CaseParty).filter(
-            CaseParty.case_id == case.case_id,
-            CaseParty.party_type == '委托人'
+        history_participations = db.query(CaseParty).join(Case).filter(
+            or_(*client_like_conditions),
+            Case.is_deleted == False,
         ).all()
-        host_client_names = {hc.name for hc in host_clients}
 
-        # 如果新委托人也是历史案件的委托人 -> 相同阵营，无冲突
-        if party_record.name in host_client_names:
-            continue
+        for party_record in history_participations:
+            db_name = party_record.name.strip()
+            match_level = None
 
-        # 3. 判断阵营对立
-        # 历史案件的委托人阵营 (Host Client Side)
-        # 我们需要知道历史案件的委托人是 原告(A) 还是 被告(B)
-        # 既然数据都存 CaseParty，我们查一下历史案件里有没有同名的“原告”或“被告”记录
+            # 1. 确切匹配
+            if db_name in new_client_names:
+                match_level = "exact"
+            else:
+                # 2. 模糊匹配
+                for c in valid_new_clients:
+                    if c in db_name or db_name in c:
+                        match_level = "fuzzy"
+                        break
 
-        # 查该案件所有当事人
-        all_case_parties = case.parties  # 利用 relationship 加载
+            if not match_level:
+                continue
 
-        host_side = "A"  # 默认历史客户是原告
+            case = party_record.case
 
-        # 3.1 确定历史客户的阵营
-        has_host_as_defendant = any(
-            p.name in host_client_names and p.party_type in side_b
-            for p in all_case_parties
-        )
-        if has_host_as_defendant:
-            host_side = "B"
+            # 查询该历史案件的委托人
+            host_clients = db.query(CaseParty).filter(
+                CaseParty.case_id == case.case_id,
+                CaseParty.party_type.like('%委托%')
+            ).all()
+            host_client_names = {hc.name for hc in host_clients}
 
-        # 3.2 确定新委托人(在历史案件中)的阵营
-        target_role_side = "Unknown"
-        if party_record.party_type in side_a:
-            target_role_side = "A"
-        elif party_record.party_type in side_b:
-            target_role_side = "B"
+            # 模糊判断回头客
+            is_returning_client = any(
+                party_record.name in hc_name or hc_name in party_record.name
+                for hc_name in host_client_names
+            )
+            if is_returning_client: continue
 
-        # 3.3 比较：如果阵营不同，且都不是未知，则判定冲突
-        if target_role_side != "Unknown" and host_side != target_role_side:
+            # 判定历史阵营
+            host_side = "A"
+            all_case_parties = case.parties
+            has_host_as_defendant = any(
+                (hc_name in p.name or p.name in hc_name) and determine_party_side(p.party_type) == "B"
+                for p in all_case_parties for hc_name in host_client_names
+            )
+            if has_host_as_defendant: host_side = "B"
 
-            conflict_key = (case.case_id, "self_conflict")
-            if conflict_key in processed_conflicts: continue
+            # 判定目标在新案件中的阵营
+            target_role_side = determine_party_side(party_record.party_type)
 
-            conflict_info = {
-                "case_number": case.case_number,
-                "other_lawyer_name": case.main_lawyer.real_name if case.main_lawyer else "未知",
-                "conflict_type": "利益冲突（正在起诉该客户）",
-                "role": party_record.party_type,
-                "message": (
-                    f"新委托人 '{party_record.name}' 在现有案件【{case.case_number}】中"
-                    f"是【{party_record.party_type}】，"
-                    f"处于我方委托人（{','.join(host_client_names)}）的对立面。"
-                )
-            }
-            precise_conflicts.append(conflict_info)
-            processed_conflicts.add(conflict_key)
+            if target_role_side != "Unknown" and host_side != target_role_side:
+                conflict_key = (case.case_id, "self_conflict")
+                if conflict_key in processed_conflicts: continue
+
+                # 根据匹配等级动态生成文案
+                prefix_text = "冲突匹配" if match_level == "exact" else "疑似冲突"
+                match_reason = f"完全匹配 '{db_name}'" if match_level == "exact" else f"匹配到关键字 '{db_name}'"
+
+                conflict_info = {
+                    "case_number": case.case_number,
+                    "other_lawyer_name": case.main_lawyer.real_name if case.main_lawyer else "未知",
+                    "conflict_type": "利益冲突（正在起诉该客户）",
+                    "match_level": match_level,
+                    "role": party_record.party_type,
+                    "message": f"{prefix_text}：本案委托人（{match_reason}）在现有案件【{case.case_number}】中是【{party_record.party_type}】，处于对立面。"
+                }
+                precise_conflicts.append(conflict_info)
+                processed_conflicts.add(conflict_key)
 
     if precise_conflicts:
         return {"has_conflict": True, "details": precise_conflicts}
@@ -400,9 +430,10 @@ def check_interest_conflict(
 
 
 @router.post("/import", status_code=200)
-def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(get_db),
+                            current_user: User = Depends(get_current_active_user)):
     """
-    📦 批量导入业务接口
+    📦 批量导入业务接口 (支持双轨制当事人录入)
     """
     try:
         if not file.filename.endswith(('.xlsx', '.xls')):
@@ -423,7 +454,7 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
     finally:
         file.file.close()
 
-    # ---------------- 1. 解析【当事人列表】 ----------------
+    # ---------------- 1. 解析【当事人列表】(高优先级详细数据) ----------------
     parties_headers = [str(cell.value).strip() if cell.value else "" for cell in ws_parties[1]]
     parties_dict = defaultdict(list)  # 格式: { "案件号": [party1, party2, ...] }
 
@@ -478,15 +509,16 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
         # 1. 先组装字典
         row_data = dict(zip(cases_headers, row))
 
-        # 2. 提取业务号
-        case_number = str(row_data.get("业务号", "")).strip()
+        # 2. 提取业务号并进行严格判空
+        raw_case_number = row_data.get("业务号")
 
-        # 3. 检查是否为空行
-        if not case_number:
+        # 3. 检查是否为空行（拦截真正的空值，以及字符串"None"、"NaN"等）
+        if not raw_case_number or str(raw_case_number).strip().lower() in ["none", "nan", "null", ""]:
             continue
 
+        case_number = str(raw_case_number).strip()
+
         total_rows += 1
-        row_data = dict(zip(cases_headers, row))
 
         try:
             # 获取律师ID (兼容为空的情况)
@@ -558,15 +590,47 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
                     "mediation_tracking": str(row_data.get("调解案件履行跟踪情况", "")).strip() or None,
                 }
 
-            # ---------------- 4. 组装 CaseCreate ----------------
-            # 💡 核心：通过 case_number 从字典中提取对应的当事人列表
-            matched_parties = parties_dict.get(case_number, [])
+            # ---------------- 4. 【新增】合并双轨制当事人列表 ----------------
+            matched_detailed_parties = parties_dict.get(case_number, [])
+            merged_parties_map = {}
 
+            # 步骤A：优先将【当事人列表】中的详细信息载入字典，以类型+姓名为唯一键
+            for p in matched_detailed_parties:
+                unique_key = f"{p['party_type']}_{p['name']}"
+                merged_parties_map[unique_key] = p
+
+            # 步骤B：解析处理【业务列表】中的快捷字段
+            def add_quick_parties(party_type, names_str):
+                if not names_str:
+                    return
+                # 正则分割：支持中文/英文的逗号、分号、顿号、换行符和多余空格
+                names = [n.strip() for n in re.split(r'[;；,，、\n]+', str(names_str)) if n.strip()]
+                for name in names:
+                    unique_key = f"{party_type}_{name}"
+                    # 去重逻辑：只有在子表没填这个人的时候，才把简略信息加进去
+                    if unique_key not in merged_parties_map:
+                        merged_parties_map[unique_key] = {
+                            "party_type": party_type,
+                            "name": name,
+                            "phone": None,
+                            "id_number": None,
+                            "address": None,
+                            "legal_representative": None
+                        }
+
+            add_quick_parties("原告", row_data.get("快捷原告", ""))
+            add_quick_parties("被告", row_data.get("快捷被告", ""))
+            add_quick_parties("委托人", row_data.get("快捷委托人", ""))
+
+            # 生成最终无重复的当事人List
+            final_parties = list(merged_parties_map.values())
+
+            # ---------------- 5. 组装 CaseCreate ----------------
             new_case = CaseCreate(
-                case_number=case_number,  # 必须传入以保持关联
+                case_number=case_number,
                 commission_date=parse_date(row_data.get("委托日期")),
                 case_category=case_category,
-                parties=matched_parties,  # 将关联的当事人列表直接塞入
+                parties=final_parties,  # 🌟 将合并去重后的当事人列表传入
                 bank_case_details=bank_details,
 
                 case_source=str(row_data.get("案件来源", "")).strip() or None,
@@ -615,7 +679,7 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
                 advisory_due_date=parse_date(row_data.get("顾问到期日"))
             )
 
-            # ---------------- 5. 写入数据库 ----------------
+            # ---------------- 6. 写入数据库 ----------------
             create_case(db=db, case_in=new_case)
             db.commit()
             success_rows += 1

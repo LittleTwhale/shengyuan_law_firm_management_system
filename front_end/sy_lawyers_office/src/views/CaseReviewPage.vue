@@ -141,43 +141,52 @@ const toggleSelectAll = () => {
 // 利益冲突确认对话框
 const showConflictDialog = (conflicts, caseId, caseNumber) => {
   return new Promise((resolve) => {
-    // 动态生成 HTML，增加跳转链接
-    // 注意：这里的字段名要对应后端 check_interest_conflict_for_case 返回的字典 key
+    // 提取并映射 HTML
+    const conflictItemsHtml = conflicts
+      .map((c) => {
+        const isFuzzy = c.match_level === 'fuzzy'
+        const themeColor = isFuzzy ? '#E6A23C' : '#f56c6c'
+        const tagText = isFuzzy ? '疑似匹配' : '匹配冲突'
+
+        return `
+        <li style="margin-bottom: 15px; line-height: 1.5; border-bottom: 1px dashed #ebeef5; padding-bottom: 10px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+            <span style="font-weight: bold; color: #303133;">${c.conflict_type}</span>
+            <span style="font-size: 12px; color: ${themeColor}; border: 1px solid ${themeColor}; padding: 1px 6px; border-radius: 3px; background-color: ${isFuzzy ? '#fdf6ec' : '#fef0f0'};">
+              ${tagText}
+            </span>
+          </div>
+          <div style="font-size: 13px; color: #606266; margin-bottom: 4px;">
+            关联业务：
+            <a href="/main/cases/${c.case_id}" target="_blank" style="color: #409eff; text-decoration: underline; font-weight: bold;">
+              ${c.case_number}
+            </a>
+            <span style="margin-left: 10px;">(主办: ${c.other_lawyer_name})</span>
+          </div>
+          <div style="font-size: 13px; color: ${themeColor};">
+            说明：${c.message}
+          </div>
+        </li>
+      `
+      })
+      .join('')
+
     let conflictHtml = `<div style="max-height: 400px; overflow-y: auto;">
-      <p style="color: #e6a23c; margin-bottom: 15px; font-size: 16px;">
+      <p style="color: #e6a23c; margin-bottom: 15px; font-size: 15px;">
         <i class="el-icon-warning"></i>
-        案件 <strong>${caseNumber}</strong> 可能存在利益冲突，管理员操作需谨慎。
+        案件 <strong>${caseNumber}</strong> 存在潜在的利益冲突风险，请仔细核实。
       </p>
-      <div style="background: #fff5f5; padding: 15px; border-radius: 4px; border: 1px solid #fab6b6;">
-        <h4 style="margin: 0 0 10px 0; color: #f56c6c;">冲突详情：</h4>
-        <ul style="margin: 0; padding-left: 20px;">
-          ${conflicts
-            .map(
-              (c) => `
-            <li style="margin-bottom: 12px; line-height: 1.5;">
-              <div style="font-weight: bold; color: #303133;">${c.conflict_type}</div>
-              <div style="font-size: 13px; color: #606266;">
-                冲突案件：
-                <a href="/main/cases/${c.case_id}" target="_blank" style="color: #409eff; text-decoration: underline; font-weight: bold;">
-                  ${c.case_number}
-                </a>
-                <span style="margin-left: 10px;">(主办: ${c.other_lawyer_name})</span>
-              </div>
-              <div style="font-size: 13px; color: #F56C6C;">
-                说明：${c.message}
-              </div>
-            </li>
-          `,
-            )
-            .join('')}
+      <div style="background: #fafafa; padding: 15px; border-radius: 4px; border: 1px solid #ebeef5;">
+        <ul style="margin: 0; padding-left: 15px;">
+          ${conflictItemsHtml}
         </ul>
       </div>
       <p style="margin-top: 15px; font-size: 13px; color: #909399;">
-        提示：点击业务号可新窗口打开详情。确认"强制通过"将忽略此冲突。
+        提示：点击业务号可新窗口打开详情。确认“强制通过”将忽略上述冲突。
       </p>
     </div>`
 
-    ElMessageBox.confirm(conflictHtml, '可能存在利益冲突', {
+    ElMessageBox.confirm(conflictHtml, '存在利益冲突风险', {
       dangerouslyUseHTMLString: true,
       confirmButtonText: '强制通过',
       cancelButtonText: '取消审核',

@@ -668,17 +668,30 @@ const handleSubmit = async () => {
 
           if (conflictRes.data.has_conflict) {
             const detailsHtml = conflictRes.data.details
-              .map(
-                (item, index) => `
-              <div style="margin-bottom: 10px; padding: 8px; background-color: #fef0f0; border-radius: 4px; border: 1px solid #fde2e2;">
-                <div style="font-weight: bold; color: #f56c6c;">${index + 1}. ${item.conflict_type}</div>
-                <div style="font-size: 13px; margin: 4px 0;">${item.message}</div>
-                <div style="font-size: 12px; color: #909399;">
-                  冲突案件: ${item.case_number} | 承办律师: ${item.other_lawyer_name}
+              .map((item, index) => {
+                // 判断是否为模糊匹配
+                const isFuzzy = item.match_level === 'fuzzy'
+                // 模糊匹配用橙黄色(Warning)，确切匹配用红色(Danger)
+                const themeColor = isFuzzy ? '#E6A23C' : '#f56c6c'
+                const bgColor = isFuzzy ? '#fdf6ec' : '#fef0f0'
+                const borderColor = isFuzzy ? '#faecd8' : '#fde2e2'
+                const tagText = isFuzzy ? '疑似冲突' : '匹配冲突'
+
+                return `
+                <div style="margin-bottom: 10px; padding: 10px; background-color: ${bgColor}; border-radius: 4px; border: 1px solid ${borderColor};">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <span style="font-weight: bold; color: ${themeColor};">${index + 1}. ${item.conflict_type}</span>
+                    <span style="font-size: 12px; color: ${themeColor}; border: 1px solid ${themeColor}; padding: 1px 6px; border-radius: 10px; background-color: #ffffff;">
+                      ${tagText}
+                    </span>
+                  </div>
+                  <div style="font-size: 13px; margin-bottom: 6px; color: #303133; line-height: 1.4;">${item.message}</div>
+                  <div style="font-size: 12px; color: #909399;">
+                    冲突案件: <span style="color: #606266; font-weight: bold;">${item.case_number}</span> | 承办律师: ${item.other_lawyer_name}
+                  </div>
                 </div>
-              </div>
-            `,
-              )
+              `
+              })
               .join('')
 
             const warningHtml = `
