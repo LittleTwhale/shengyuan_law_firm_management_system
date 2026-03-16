@@ -769,13 +769,17 @@ def get_upcoming_events(db: Session, user_id: int, days: int = 30) -> List[dict]
     查询用户（主办或助理）未来 X 天内的关键事项
     """
     from datetime import date, timedelta
+    from sqlalchemy.orm import joinedload # 引入 joinedload 以优化查询
 
     today = date.today()
-    target_date = today + timedelta(days=days)
+    # 只有 days > 0 时才需要计算目标日期
+    if days > 0:
+        target_date = today + timedelta(days=days)
 
     # 1. 查询该律师相关的所有未删除、未归档(可选)的案件
-    # 这里假设 '已结案' 的案件不需要提醒，或者根据实际需求调整
-    cases = db.query(Case).filter(
+    cases = db.query(Case).options(
+        joinedload(Case.bank_case_details)
+    ).filter(
         Case.is_deleted == False,
         or_(
             Case.main_lawyer_id == user_id,
@@ -796,11 +800,17 @@ def get_upcoming_events(db: Session, user_id: int, days: int = 30) -> List[dict]
             ("顾问到期", case.advisory_due_date),
         ]
 
+        # ========== 将银行案件的诉讼时效加入检查点 ==========
+        if case.case_category == "银行案件" and case.bank_case_details:
+            check_points.append(("诉讼时效到期", case.bank_case_details.statute_of_limitations))
+        # ==========================================================
+
         for event_type, event_date in check_points:
             if event_date:
-                # 检查日期是否在 [今天, 目标日期] 范围内
-                # 注意：如果是保全到期，通常建议包含今天之前已过期的（作为警告），这里仅演示未来提醒
-                if today <= event_date <= target_date:
+                # 检查日期是否符合条件：
+                # 1. 如果 days == 0，表示查询全部未来的待办（只限制大于等于今天即可）
+                # 2. 如果 days > 0，表示查询 [今天, 目标日期] 范围内的待办
+                if (days == 0 and event_date >= today) or (days > 0 and today <= event_date <= target_date):
                     days_remaining = (event_date - today).days
                     events.append({
                         "case_id": case.case_id,
