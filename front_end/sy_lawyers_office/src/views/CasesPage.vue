@@ -99,14 +99,9 @@
         >
           <template #default="scope">
             <el-button size="small" @click="viewCase(scope.row)">查看</el-button>
-            <el-button
-              size="small"
-              type="warning"
-              :disabled="currentUserRole === 'user' && scope.row.review_status === '已审核'"
-              @click="handleEditClick(scope.row)"
+            <el-button size="small" type="warning" @click="handleEditClick(scope.row)"
+              >编辑</el-button
             >
-              编辑
-            </el-button>
             <el-button
               size="small"
               type="danger"
@@ -153,6 +148,7 @@
       :current-user-id="currentUserID"
       :current-user-role="currentUserRole"
       :case-id="formMode === 'edit' ? currentCaseId : null"
+      :review-status="currentReviewStatus"
       @submit="handleFormSubmit"
     />
 
@@ -553,16 +549,21 @@ const handlePageChange = (p) => {
 // -------------------------- 新增案件相关 --------------------------
 const showFormDialog = ref(false)
 const handleAddClick = () => {
-  formMode.value = 'add' // 切换为新增模式
-  // 清空表单数据（避免残留编辑数据）
+  formMode.value = 'add'
+  currentCaseId.value = null // 确保编辑 ID 清空
+  currentReviewStatus.value = '' // 重置审核状态
+  // 清空表单数据（避免残留）
   Object.assign(formData, JSON.parse(JSON.stringify({})))
   showFormDialog.value = true
 }
 
 // -------------------------- 编辑案件相关 --------------------------
+// 记录当前操作案件的审核状态
+const currentReviewStatus = ref('')
 const handleEditClick = async (row) => {
   formMode.value = 'edit'
   currentCaseId.value = row.case_id
+  currentReviewStatus.value = row.review_status
   try {
     // 调接口获取完整案件详情（CaseOut）
     const res = await request.get(`/cases/${row.case_id}`)

@@ -81,11 +81,7 @@
         >
           <template #default="scope">
             <el-button size="small" @click="viewCase(scope.row)">查看</el-button>
-            <el-button
-              size="small"
-              type="warning"
-              :disabled="currentUserRole === 'user' && scope.row.review_status === '已审核'"
-              @click="handleEditClick(scope.row)"
+            <el-button size="small" type="warning" @click="handleEditClick(scope.row)"
               >编辑</el-button
             >
             <el-button
@@ -134,6 +130,7 @@
       :current-user-id="currentUserID"
       :current-user-role="currentUserRole"
       :case-id="currentCaseId"
+      :review-status="currentReviewStatus"
       @submit="handleFormSubmit"
     />
 
@@ -405,10 +402,13 @@ const viewCase = (row) => {
   window.open(routeData.href, '_blank')
 }
 
+// 记录当前操作案件的审核状态
+const currentReviewStatus = ref('')
 // 编辑案件
 const handleEditClick = async (row) => {
   formMode.value = 'edit'
   currentCaseId.value = row.case_id
+  currentReviewStatus.value = row.review_status
   try {
     const res = await request.get(`/cases/${row.case_id}`)
     Object.assign(formData, JSON.parse(JSON.stringify(res.data)))

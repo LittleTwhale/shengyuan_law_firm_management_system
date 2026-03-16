@@ -80,6 +80,7 @@
                 type="danger"
                 size="small"
                 @click="deleteFormAttachment(scope.row.uid)"
+                :disabled="isRestricted"
               >
                 删除
               </el-button>
@@ -131,7 +132,17 @@ const props = defineProps({
   visible: { type: Boolean, default: false },
   caseId: { type: [Number, String], default: null },
   currentUserId: { type: [Number, String], default: null },
+  currentUserRole: { type: String, default: '' },
+  reviewStatus: { type: String, default: '' },
 })
+
+// 计算是否为受限状态：是普通用户 且 案件已审核
+const isRestricted = computed(() => {
+  return props.currentUserRole === 'user' && props.reviewStatus === '已审核'
+})
+
+// 将受限状态下发给子组件
+provide('isRestricted', isRestricted)
 
 const emit = defineEmits(['update:visible', 'submit'])
 
