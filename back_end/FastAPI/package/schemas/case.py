@@ -14,6 +14,8 @@ class BankCaseBase(BaseModel):
     branch_name: Optional[str] = None
     # 案件状态
     case_status: Optional[str] = Field(None, description="案件状态")
+    # 银行要求案件状态
+    bank_required_case_status: Optional[str] = Field(None, description="银行要求案件状态")
     # 抵/质押物信息
     collateral_info: Optional[str] = None
     # 抵押物位置
@@ -49,6 +51,8 @@ class BankCaseBase(BaseModel):
 
     # 取材料人
     material_fetcher: Optional[str] = None
+    # 缺少具体材料
+    missing_specific_materials: Optional[str] = Field(None, description="缺少具体材料")
     # 诉前催收情况
     pre_litigation_collection: Optional[str] = None
     # 盖章日

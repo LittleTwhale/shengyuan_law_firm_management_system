@@ -626,7 +626,7 @@
           </el-form-item>
         </el-col>
 
-        <el-col :span="8">
+        <el-col :span="12">
           <el-form-item label="案件状态" prop="bank_case_details.case_status" label-width="120px">
             <el-select
               v-model="formData.bank_case_details.case_status"
@@ -637,6 +637,33 @@
             >
               <el-option
                 v-for="status in caseStatusOptions"
+                :key="status"
+                :label="status"
+                :value="status"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+
+        <el-col :span="12">
+          <el-form-item prop="bank_case_details.bank_required_case_status" label-width="120px">
+            <template #label>
+              <span>银行要求状态</span>
+              <el-tooltip content="银行要求的案件状态" placement="top">
+                <el-icon style="margin-left: 4px; vertical-align: middle"
+                  ><QuestionFilled
+                /></el-icon>
+              </el-tooltip>
+            </template>
+            <el-select
+              v-model="formData.bank_case_details.bank_required_case_status"
+              placeholder="请选择"
+              filterable
+              clearable
+              style="width: 100%"
+            >
+              <el-option
+                v-for="status in bankRequiredCaseStatusOptions"
                 :key="status"
                 :label="status"
                 :value="status"
@@ -945,6 +972,19 @@
             label-width="150px"
           >
             <el-input v-model="formData.bank_case_details.material_fetcher" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="16">
+          <el-form-item
+            label="缺少具体材料"
+            prop="bank_case_details.missing_specific_materials"
+            label-width="150px"
+          >
+            <el-input
+              type="textarea"
+              :rows="1"
+              v-model="formData.bank_case_details.missing_specific_materials"
+            />
           </el-form-item>
         </el-col>
         <el-col :span="8">
@@ -1624,7 +1664,7 @@
 
 <script setup>
 import { inject } from 'vue'
-import { Plus, Delete, OfficeBuilding, Warning } from '@element-plus/icons-vue'
+import { Plus, Delete, OfficeBuilding, Warning, QuestionFilled } from '@element-plus/icons-vue'
 
 defineProps({
   lawyerOptions: {
@@ -1711,6 +1751,25 @@ const caseStatusOptions = [
   '被告已还清撤诉',
   '执行盖章中',
   '诉讼盖章中',
+]
+
+// 银行要求案件状态选项数组
+const bankRequiredCaseStatusOptions = [
+  '资料未齐全',
+  '资料齐全律所正在准备诉状或正在盖章',
+  '资料齐全已移交法院排队',
+  '立案后调解',
+  '立案前调解',
+  '已立案我行申请撤诉',
+  '未立案我行申请不诉',
+  '已立案未判决',
+  '已立案判决未申请执行',
+  '已申请执行',
+  '执行和解',
+  '执行中',
+  '终结本次执行',
+  '终结执行',
+  '执行完毕',
 ]
 
 // 自动计算诉讼时效功能 (到期日往后推三年)

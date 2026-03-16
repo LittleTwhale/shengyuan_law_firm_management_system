@@ -55,6 +55,9 @@
       }}</el-descriptions-item>
 
       <el-descriptions-item label="案件状态">{{ details.case_status || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="银行要求案件状态">{{
+        details.bank_required_case_status || '-'
+      }}</el-descriptions-item>
       <el-descriptions-item label="支行名称">{{ details.branch_name || '-' }}</el-descriptions-item>
 
       <el-descriptions-item label="客户经理">{{
@@ -162,6 +165,9 @@
 
       <el-descriptions-item label="取材料人">{{
         details.material_fetcher || '-'
+      }}</el-descriptions-item>
+      <el-descriptions-item label="缺少具体材料">{{
+        details.missing_specific_materials || '-'
       }}</el-descriptions-item>
       <el-descriptions-item label="盖章日">{{
         formatDate(details.seal_date)
@@ -404,13 +410,21 @@
       class="unified-descriptions"
     >
       <el-descriptions-item label="审核状态">
-        <el-tag :type="caseData.review_status === '已通过' ? 'success' : (caseData.review_status === '已驳回' ? 'danger' : 'warning')">
+        <el-tag
+          :type="
+            caseData.review_status === '已通过'
+              ? 'success'
+              : caseData.review_status === '已驳回'
+                ? 'danger'
+                : 'warning'
+          "
+        >
           {{ caseData.review_status || '待审核' }}
         </el-tag>
       </el-descriptions-item>
       <el-descriptions-item label="审核人">{{
-          caseData.reviewer?.real_name || '-'
-        }}</el-descriptions-item>
+        caseData.reviewer?.real_name || '-'
+      }}</el-descriptions-item>
       <el-descriptions-item label="案件地点">{{ caseData.location || '-' }}</el-descriptions-item>
       <el-descriptions-item label="借款人工作单位">{{
         details.borrower_work_unit || '-'

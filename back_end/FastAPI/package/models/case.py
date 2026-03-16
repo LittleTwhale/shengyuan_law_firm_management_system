@@ -110,6 +110,7 @@ class BankCase(Base):
     # 借贷基础信息
     branch_name = Column(String(100), comment="支行名称")
     case_status = Column(String(50), nullable=True, comment="案件状态")
+    bank_required_case_status = Column(String(100), nullable=True, comment="银行要求案件状态")
     collateral_info = Column(Text, comment="抵/质押物信息")
     collateral_location = Column(String(255), comment="抵押物位置")
     account_manager = Column(String(50), comment="客户经理")
@@ -129,6 +130,7 @@ class BankCase(Base):
 
     # 诉讼流程细节
     material_fetcher = Column(String(50), comment="取材料人")
+    missing_specific_materials = Column(Text, nullable=True, comment="缺少具体材料")
     pre_litigation_collection = Column(Text, comment="诉前催收情况")
     seal_date = Column(Date, comment="盖章日")
     material_submission_date = Column(Date, comment="材料提交法院日")

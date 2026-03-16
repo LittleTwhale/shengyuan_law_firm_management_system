@@ -924,7 +924,7 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
 
     # 银行案件特有字段 (BankCase)
     bank_specific_headers = [
-        "支行名称", "案件状态","抵/质押物信息", "抵押物位置", "客户经理", "贷款类型", "贷款账号",
+        "支行名称", "案件状态", "银行要求案件状态", "缺少具体材料","抵/质押物信息", "抵押物位置", "客户经理", "贷款类型", "贷款账号",
         "贷款本金", "诉讼标的金额(含利息)", "信用卡违约金", "借款日", "到期日", "诉讼时效", "收案日期",
         "取材料人", "诉前催收情况", "盖章日", "材料提交法院日", "承办法官", "裁判时间", "裁判方式",
         "裁判摘要", "支持律师费金额", "被告支付律师费金额", "是否还清", "是否有二审/再审",
@@ -1081,6 +1081,8 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
             bank_specific_data = [
                 bank.branch_name if bank else "",
                 bank.case_status if bank else "",
+                bank.bank_required_case_status if bank else "",
+                bank.missing_specific_materials if bank else "",
                 bank.collateral_info if bank else "",
                 bank.collateral_location if bank else "",
                 bank.account_manager if bank else "",

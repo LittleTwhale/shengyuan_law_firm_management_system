@@ -162,8 +162,10 @@ const initialBankDetails = {
   // --- 收案与基础信息 ---
   branch_name: null,
   case_status: null,
+  bank_required_case_status: null,
   account_manager: null,
   material_fetcher: null,
+  missing_specific_materials: null,
   case_acceptance_date: null,
 
   // --- 借贷基础信息 ---

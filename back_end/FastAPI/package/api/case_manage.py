@@ -539,6 +539,7 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
                 bank_details = {
                     "branch_name": str(row_data.get("支行名称", "")).strip() or None,
                     "case_status": str(row_data.get("案件状态", "")).strip() or None,
+                    "bank_required_case_status": str(row_data.get("银行要求案件状态", "")).strip() or None,
                     "collateral_info": str(row_data.get("抵/质押物信息", "")).strip() or None,
                     "collateral_location": str(row_data.get("抵押物位置", "")).strip() or None,
                     "account_manager": str(row_data.get("客户经理", "")).strip() or None,
@@ -552,6 +553,7 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
                     "statute_of_limitations": parse_date(row_data.get("诉讼时效")),
                     "case_acceptance_date": parse_date(row_data.get("收案日期")),
                     "material_fetcher": str(row_data.get("取材料人", "")).strip() or None,
+                    "missing_specific_materials": str(row_data.get("缺少具体材料", "")).strip() or None,
                     "pre_litigation_collection": str(row_data.get("诉前催收情况", "")).strip() or None,
                     "seal_date": parse_date(row_data.get("盖章日")),
                     "material_submission_date": parse_date(row_data.get("材料提交法院日")),
