@@ -165,6 +165,7 @@
 
         <el-upload
           class="upload-area"
+          drag
           ref="uploadRef"
           action="#"
           :auto-upload="false"
@@ -174,11 +175,13 @@
           :limit="1"
           :on-exceed="handleExceed"
         >
-          <el-button type="primary" :loading="isUploading">
-            <el-icon><Upload /></el-icon> 选择Excel文件
-          </el-button>
+          <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+          <div class="el-upload__text">将 Excel 文件拖到此处，或 <em>点击选择</em></div>
+
           <template #tip>
-            <div class="el-upload__tip text-danger">请确保Excel表头包含：业务号、业务类别</div>
+            <div class="el-upload__tip text-danger" style="margin-top: 10px">
+              请确保Excel表头包含：业务号、业务类别
+            </div>
           </template>
         </el-upload>
 
@@ -1008,7 +1011,7 @@ const handleDownloadApproval = async (row) => {
 
     // 设置文件名：优先使用后端 header 中的 filename，如果没有则手动拼接
     // 也可以直接用: `案件审批表_${row.case_number}.docx`
-    link.download = `案件审批表_${row.case_number}.docx`
+    link.download = `业务审批表_${row.case_number}.docx`
 
     // 触发下载
     document.body.appendChild(link)
@@ -1067,18 +1070,6 @@ const handleDownloadApproval = async (row) => {
   margin: 0 0 15px 0;
   color: #666;
   font-size: 14px;
-}
-
-.upload-area {
-  border: 2px dashed #ccc;
-  border-radius: 6px;
-  padding: 40px 20px;
-  text-align: center;
-  transition: border-color 0.3s;
-}
-
-.upload-area:hover {
-  border-color: #409eff;
 }
 
 .result-stats {

@@ -148,7 +148,7 @@ def generate_approval_form(
 
     try:
         # 4. 获取填充数据
-        context = get_case_approval_context(case)
+        context = get_case_approval_context(case,db)
 
         # 5. 渲染模板 (使用 docxtpl)
         # docxtpl 会自动匹配 Word 中的 {{client_name}} 和 context 字典中的 key
@@ -161,7 +161,7 @@ def generate_approval_form(
             tmp_path = tmp.name
 
         # 7. 设置下载文件名
-        filename = f"案件审批表_{case.case_number}.docx"
+        filename = f"业务审批表_{case.case_number}.docx"
         from urllib.parse import quote
         encoded_filename = quote(filename)
 

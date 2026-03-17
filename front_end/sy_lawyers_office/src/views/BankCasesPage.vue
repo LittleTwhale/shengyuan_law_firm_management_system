@@ -455,7 +455,7 @@ const handleDownloadApproval = async (row) => {
 
     const link = document.createElement('a')
     link.href = window.URL.createObjectURL(blob)
-    link.download = `案件审批表_${row.case_number}.docx`
+    link.download = `业务审批表_${row.case_number}.docx`
 
     document.body.appendChild(link)
     link.click()

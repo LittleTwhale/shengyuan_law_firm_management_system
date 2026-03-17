@@ -298,7 +298,7 @@ def replace_text_in_paragraph(paragraph, context):
         paragraph.text = current_text
 
 
-def get_case_approval_context(case: Case) -> Dict[str, Any]:
+def get_case_approval_context(case: Case,db: Session) -> Dict[str, Any]:
     """
     将 Case 对象转换为案件审批表模版所需的上下文 context
     适配 CaseParty 数据结构
@@ -359,7 +359,18 @@ def get_case_approval_context(case: Case) -> Dict[str, Any]:
     def join_str(str_list):
         return "、".join(str_list) if str_list else ""
 
-    # 4. 构建模版上下文 (Key 必须与 docx 模版中的 {{key}} 对应)
+    # 4.判断是否重大案件
+    is_major_str = "是" if case.is_major else "否"
+
+    # 5. 调用已有的利益冲突检测函数
+    conflict_result = check_interest_conflict_for_case(db, case.case_id)
+    if conflict_result.get("has_conflict"):
+        # 如果存在冲突，可以简述，或者提示去系统查看详情
+        conflict_status = "存在疑似利益冲突 (请核对系统详情)"
+    else:
+        conflict_status = "未发现利益冲突"
+
+    # 6. 构建模版上下文 (Key 必须与 docx 模版中的 {{key}} 对应)
     context = {
         # --- 替换旧字段逻辑 ---
         "client_name": join_str(clients),
@@ -382,6 +393,8 @@ def get_case_approval_context(case: Case) -> Dict[str, Any]:
         "assistant_lawyer_name": case.assistant_lawyer.real_name if case.assistant_lawyer else "",
         "fee_method": case.fee_method or "",
         "case_income": str(case.case_income or 0),
+        "is_major": is_major_str,
+        "conflict_status": conflict_status,
         "details": case.details or "无",
 
         # 审核相关
