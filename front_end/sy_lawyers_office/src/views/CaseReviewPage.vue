@@ -81,14 +81,52 @@
     <div class="pagination-container">
       <el-pagination
         background
-        :layout="isMobile ? 'prev, pager, next' : 'prev, pager, next, jumper, ->, total'"
-        :current-page="page"
-        :page-size="pageSize"
+        :layout="isMobile ? 'prev, pager, next' : 'total, sizes, prev, pager, next, jumper'"
+        :page-sizes="[10, 20, 50, 100]"
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
         :total="total"
         :pager-count="isMobile ? 5 : 7"
         @current-change="handlePageChange"
+        @size-change="handleSizeChange"
       />
     </div>
+
+    <el-dialog
+      v-model="showBatchProgress"
+      title="批量审核进度"
+      width="400px"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      :show-close="false"
+    >
+      <div style="text-align: center; padding: 20px 0">
+        <el-progress
+          type="dashboard"
+          :percentage="batchTotal === 0 ? 0 : Math.round((batchProgress / batchTotal) * 100)"
+        >
+          <template #default>
+            <span style="font-size: 20px; font-weight: bold"
+              >{{ batchProgress }} / {{ batchTotal }}</span
+            >
+          </template>
+        </el-progress>
+        <div style="margin-top: 20px; font-size: 14px; color: #606266">
+          <span style="color: #67c23a; margin-right: 15px">
+            <i class="el-icon-check"></i> 成功: {{ batchSuccessCount }}
+          </span>
+          <span style="color: #f56c6c">
+            <i class="el-icon-close"></i> 跳过/失败: {{ batchFailCount }}
+          </span>
+        </div>
+        <p
+          v-if="batchProgress < batchTotal"
+          style="margin-top: 15px; color: #909399; font-size: 12px"
+        >
+          正在处理中，遇到冲突会弹窗提示，请勿刷新页面...
+        </p>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -119,6 +157,13 @@ const handleResize = () => {
 // 多选状态
 const selectedCases = ref([])
 const isAllSelected = ref(false)
+
+// 批量审核进度相关状态
+const showBatchProgress = ref(false)
+const batchProgress = ref(0)
+const batchTotal = ref(0)
+const batchSuccessCount = ref(0)
+const batchFailCount = ref(0)
 
 // 监听勾选变化
 const handleSelectionChange = (val) => {
@@ -265,24 +310,76 @@ const batchReview = async (status) => {
       { type: status === '已审核' ? 'success' : 'warning' },
     )
 
-    await Promise.all(
-      selectedCases.value.map((item) =>
-        request.put(`/case_review/${item.case_id}/review`, null, {
-          params: { review_status: status },
-        }),
-      ),
-    )
+    // 初始化进度条数据
+    batchTotal.value = selectedCases.value.length
+    batchProgress.value = 0
+    batchSuccessCount.value = 0
+    batchFailCount.value = 0
+    showBatchProgress.value = true
 
-    ElMessage.success(
-      `已成功批量${status === '已审核' ? '通过' : '拒绝'} ${selectedCases.value.length} 个案件`,
-    )
-    selectedCases.value = []
-    isAllSelected.value = false
-    await fetchPendingCases()
+    // 改为串行请求，防止瞬间并发压垮后端导致超时，并处理利益冲突中断
+    for (const item of selectedCases.value) {
+      try {
+        // 第一次尝试请求 (force = false)
+        await sendReviewRequest(item, status, false)
+        batchSuccessCount.value++
+      } catch (err) {
+        // 捕获 409 冲突
+        if (err.response?.status === 409 && err.response?.data?.detail?.conflicts) {
+          const conflictData = err.response.data.detail
+
+          // 弹出对话框并等待用户选择
+          const userConfirmed = await showConflictDialog(
+            conflictData.conflicts,
+            item.case_id,
+            item.case_number,
+          )
+
+          if (userConfirmed) {
+            // 用户确认强制通过，再次请求 (force = true)
+            try {
+              await sendReviewRequest(item, status, true)
+              batchSuccessCount.value++
+            } catch (retryErr) {
+              console.error(`案件 ${item.case_number} 强制审核失败:`, retryErr)
+              batchFailCount.value++
+            }
+          } else {
+            // 用户取消审核当前案件，视为跳过
+            batchFailCount.value++
+          }
+        } else {
+          // 其他常规错误
+          console.error(`案件 ${item.case_number} 审核失败:`, err)
+          batchFailCount.value++
+        }
+      } finally {
+        // 无论当前案件成功或失败，都推进进度条
+        batchProgress.value++
+      }
+    }
+
+    // 延时关闭进度条，让用户看到 100% 状态
+    setTimeout(() => {
+      showBatchProgress.value = false
+      ElMessage({
+        message: `批量操作结束！成功 ${batchSuccessCount.value} 笔，跳过/失败 ${batchFailCount.value} 笔。`,
+        type: batchFailCount.value > 0 ? 'warning' : 'success',
+        duration: 5000,
+      })
+
+      // 清空选择并刷新列表
+      selectedCases.value = []
+      isAllSelected.value = false
+      if (caseTableRef.value) {
+        caseTableRef.value.clearSelection()
+      }
+      fetchPendingCases()
+    }, 800)
   } catch (err) {
     if (err !== 'cancel') {
-      console.error('批量审核失败:', err)
-      ElMessage.error(err.response?.data?.detail || '批量审核失败')
+      console.error('批量审核发生错误:', err)
+      ElMessage.error('批量审核发生错误')
     }
   }
 }
@@ -318,6 +415,13 @@ const navigateToDetail = (caseId) => {
     },
   })
   window.open(routeData.href, '_blank')
+}
+
+// 切换每页显示条数
+const handleSizeChange = (size) => {
+  pageSize.value = size
+  page.value = 1 // 切换条数后回到第一页
+  fetchPendingCases()
 }
 
 // 分页切换

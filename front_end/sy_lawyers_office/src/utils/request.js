@@ -7,7 +7,7 @@ import { ElMessage } from 'element-plus' // 引入 Element Plus 的提示框
 const service = axios.create({
   // 根据你的报错日志，后端地址是这个
   baseURL: 'http://127.0.0.1:8002',
-  timeout: 5000, // 请求超时时间
+  timeout: 30000, // 请求超时时间
 })
 
 // 2. 请求拦截器：自动加 Token
