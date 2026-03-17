@@ -592,7 +592,7 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
                     "mediation_tracking": str(row_data.get("调解案件履行跟踪情况", "")).strip() or None,
                 }
 
-            # ---------------- 4. 【新增】合并双轨制当事人列表 ----------------
+            # ---------------- 4. 合并双轨制当事人列表 ----------------
             matched_detailed_parties = parties_dict.get(case_number, [])
             merged_parties_map = {}
 
@@ -601,28 +601,40 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
                 unique_key = f"{p['party_type']}_{p['name']}"
                 merged_parties_map[unique_key] = p
 
-            # 步骤B：解析处理【业务列表】中的快捷字段
+            # 步骤B：解析处理【业务列表】中的快捷字段 (升级版：支持 姓名-身份证号 解析)
             def add_quick_parties(party_type, names_str):
                 if not names_str:
                     return
-                # 正则分割：支持中文/英文的逗号、分号、顿号、换行符和多余空格
-                names = [n.strip() for n in re.split(r'[;；,，、\n]+', str(names_str)) if n.strip()]
-                for name in names:
+                # 1. 先按逗号、分号、顿号、换行符分割出多个人
+                entries = [n.strip() for n in re.split(r'[;；,，、\n]+', str(names_str)) if n.strip()]
+
+                for entry in entries:
+                    # 2. 对单个人员字符串再次分割，识别 "姓名-身份证号" 格式
+                    # 使用 maxsplit=1 防止身份证内部有奇怪符号被切断，兼容中英文横杠、下划线、破折号
+                    parts = re.split(r'[-—－_]+', entry, maxsplit=1)
+
+                    name = parts[0].strip()
+                    id_number = parts[1].strip() if len(parts) > 1 else None
+
                     unique_key = f"{party_type}_{name}"
-                    # 去重逻辑：只有在子表没填这个人的时候，才把简略信息加进去
+
+                    # 3. 去重逻辑：只有在子表没填这个人的时候，才把简略信息加进去
                     if unique_key not in merged_parties_map:
                         merged_parties_map[unique_key] = {
                             "party_type": party_type,
                             "name": name,
                             "phone": None,
-                            "id_number": None,
+                            "id_number": id_number,  # 将解析出的身份证号存入
                             "address": None,
                             "legal_representative": None
                         }
 
+            # 载入各类快捷当事人
             add_quick_parties("原告", row_data.get("快捷原告", ""))
             add_quick_parties("被告", row_data.get("快捷被告", ""))
             add_quick_parties("委托人", row_data.get("快捷委托人", ""))
+            add_quick_parties("担保人", row_data.get("快捷担保人", ""))
+            add_quick_parties("第三人", row_data.get("快捷第三人", ""))
 
             # 生成最终无重复的当事人List
             final_parties = list(merged_parties_map.values())
