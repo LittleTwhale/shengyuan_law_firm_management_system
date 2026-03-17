@@ -903,13 +903,13 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
     # ---------------- 表头定义 ----------------
     base_headers_part1 = ["业务ID", "业务号", "委托日期", "业务类别"]
 
-    # 拆分当事人列头
+    # 拆分当事人列头 (扩展电话和身份证)
     party_headers = [
-        "委托人",
-        "原告/申请人/上诉人",
-        "被告(人)/被申请人/被上诉人",
-        "第三人",
-        "其他当事人"
+        "委托人", "委托人联系电话", "委托人证件号",
+        "原告/申请人/上诉人", "原告/申请人/上诉人联系电话", "原告/申请人/上诉人证件号",
+        "被告(人)/被申请人/被上诉人", "被告(人)/被申请人/被上诉人联系电话", "被告(人)/被申请人/被上诉人证件号",
+        "第三人", "第三人联系电话", "第三人证件号",
+        "其他当事人", "其他当事人联系电话", "其他当事人证件号"
     ]
 
     base_headers_part2 = [
@@ -919,12 +919,13 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         "案件地点", "案件详情", "主办律师", "助理律师", "执行主办律师", "执行助理律师", "审核状态", "审核人",
         "是否重大", "是否纸质卷宗", "是否解除", "是否笔录", "是否保全", "保全开始日", "保全终止日",
         "案号", "结案状态", "结案方式", "诉讼费缴费时间", "诉讼费缴费金额", "诉讼费退费时间", "诉讼费退费金额",
-        "申请执行日", "调解到期日", "执行到期日","顾问到期日", "创建时间", "更新时间"
+        "申请执行日", "调解到期日", "执行到期日", "顾问到期日", "创建时间", "更新时间"
     ]
 
     # 银行案件特有字段 (BankCase)
     bank_specific_headers = [
-        "支行名称", "案件状态", "银行要求案件状态", "缺少具体材料","抵/质押物信息", "抵押物位置", "客户经理", "贷款类型", "贷款账号",
+        "支行名称", "案件状态", "银行要求案件状态", "缺少具体材料", "抵/质押物信息", "抵押物位置", "客户经理",
+        "贷款类型", "贷款账号",
         "贷款本金", "诉讼标的金额(含利息)", "信用卡违约金", "借款日", "到期日", "诉讼时效", "收案日期",
         "取材料人", "诉前催收情况", "盖章日", "材料提交法院日", "承办法官", "裁判时间", "裁判方式",
         "裁判摘要", "支持律师费金额", "被告支付律师费金额", "是否还清", "是否有二审/再审",
@@ -976,11 +977,12 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
 
     # ---------------- 填充数据 ----------------
     for case in cases:
-        clients = []
-        plaintiffs = []
-        defendants = []
-        thirds = []
-        others = []
+        # 初始化分类当事人信息列表：(姓名, 电话, 证件号)
+        clients_name, clients_phone, clients_id = [], [], []
+        plaintiffs_name, plaintiffs_phone, plaintiffs_id = [], [], []
+        defendants_name, defendants_phone, defendants_id = [], [], []
+        thirds_name, thirds_phone, thirds_id = [], [], []
+        others_name, others_phone, others_id = [], [], []
 
         # 遍历当事人，分发数据
         if case.parties:
@@ -1001,25 +1003,39 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
                 ptype = p.party_type or ""
                 pname = p.name or "未知姓名"
 
+                # 提取电话和证件号，如果为空则用 "-" 占位，保证换行对齐
+                p_phone = p.phone or "-"
+                p_id = p.id_number or "-"
+
                 if "委托人" in ptype:
-                    clients.append(pname)
+                    clients_name.append(pname)
+                    clients_phone.append(p_phone)
+                    clients_id.append(p_id)
                 elif ptype in ["原告", "申请人", "上诉人"]:
-                    plaintiffs.append(pname)
+                    plaintiffs_name.append(pname)
+                    plaintiffs_phone.append(p_phone)
+                    plaintiffs_id.append(p_id)
                 elif ptype in ["被告", "被告人", "被申请人", "被上诉人"]:
-                    defendants.append(pname)
+                    defendants_name.append(pname)
+                    defendants_phone.append(p_phone)
+                    defendants_id.append(p_id)
                 elif ptype == "第三人":
-                    thirds.append(pname)
+                    thirds_name.append(pname)
+                    thirds_phone.append(p_phone)
+                    thirds_id.append(p_id)
                 else:
                     # 其他当事人追加身份后缀
-                    others.append(f"{pname}({ptype})" if ptype else pname)
+                    others_name.append(f"{pname}({ptype})" if ptype else pname)
+                    others_phone.append(p_phone)
+                    others_id.append(p_id)
 
-        # 构建主表的5列当事人数据 (使用 \n 回车换行拼接)
+        # 构建主表的15列当事人数据 (使用 \n 回车换行拼接)
         party_columns_data = [
-            "\n".join(clients),
-            "\n".join(plaintiffs),
-            "\n".join(defendants),
-            "\n".join(thirds),
-            "\n".join(others)
+            "\n".join(clients_name), "\n".join(clients_phone), "\n".join(clients_id),
+            "\n".join(plaintiffs_name), "\n".join(plaintiffs_phone), "\n".join(plaintiffs_id),
+            "\n".join(defendants_name), "\n".join(defendants_phone), "\n".join(defendants_id),
+            "\n".join(thirds_name), "\n".join(thirds_phone), "\n".join(thirds_id),
+            "\n".join(others_name), "\n".join(others_phone), "\n".join(others_id)
         ]
 
         base_data_part1 = [
@@ -1137,8 +1153,8 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
             ]
             row_data = base_data_part1 + party_columns_data + base_data_part2 + bank_specific_data
             ws_bank.append(row_data)
-            # 给5个当事人列（E, F, G, H, I列，即第5到第9列）设置自动换行和居中对齐
-            for col_idx in range(5, 10):
+            # 给15个当事人列（即第5到第19列）设置自动换行和居中对齐
+            for col_idx in range(5, 20):
                 ws_bank.cell(row=ws_bank.max_row, column=col_idx).alignment = Alignment(wrap_text=True,
                                                                                         vertical="center")
 
@@ -1146,8 +1162,8 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         elif case.case_category != "银行案件" and ws_standard:
             row_data = base_data_part1 + party_columns_data + base_data_part2
             ws_standard.append(row_data)
-            # 同样为当事人列设置换行
-            for col_idx in range(5, 10):
+            # 给15个当事人列（即第5到第19列）设置自动换行和居中对齐
+            for col_idx in range(5, 20):
                 ws_standard.cell(row=ws_standard.max_row, column=col_idx).alignment = Alignment(wrap_text=True,
                                                                                                 vertical="center")
 

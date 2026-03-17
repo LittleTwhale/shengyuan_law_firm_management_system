@@ -601,40 +601,91 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
                 unique_key = f"{p['party_type']}_{p['name']}"
                 merged_parties_map[unique_key] = p
 
-            # 步骤B：解析处理【业务列表】中的快捷字段 (升级版：支持 姓名-身份证号 解析)
-            def add_quick_parties(party_type, names_str):
+            # 辅助函数：清理 Excel 中的空值（处理 NaN, None 等）
+            def clean_excel_val(val):
+                if val is None: return None
+                s = str(val).strip()
+                if s.lower() in ["none", "nan", "null", ""]: return None
+                return s
+
+            # 步骤B：解析处理【业务列表】中的快捷字段 (支持单人独立列 + 多人横杠解析)
+            def add_quick_parties(party_type, names_str, id_col_str=None, phone_col_str=None):
+                names_str = clean_excel_val(names_str)
                 if not names_str:
                     return
+
                 # 1. 先按逗号、分号、顿号、换行符分割出多个人
-                entries = [n.strip() for n in re.split(r'[;；,，、\n]+', str(names_str)) if n.strip()]
+                entries = [n.strip() for n in re.split(r'[;；,，、\n]+', names_str) if n.strip()]
+
+                # 判断当前单元格是否只有一个人
+                is_single_person = (len(entries) == 1)
+
+                # 获取独立列的数据
+                explicit_id = clean_excel_val(id_col_str)
+                explicit_phone = clean_excel_val(phone_col_str)
 
                 for entry in entries:
                     # 2. 对单个人员字符串再次分割，识别 "姓名-身份证号" 格式
-                    # 使用 maxsplit=1 防止身份证内部有奇怪符号被切断，兼容中英文横杠、下划线、破折号
                     parts = re.split(r'[-—－_]+', entry, maxsplit=1)
 
                     name = parts[0].strip()
-                    id_number = parts[1].strip() if len(parts) > 1 else None
+                    parsed_id = parts[1].strip() if len(parts) > 1 else None
+
+                    # 3. 决定最终要写入的 身份证 和 电话
+                    final_id = parsed_id  # 默认使用横杠解析出来的身份证
+                    final_phone = None
+
+                    # 如果只有一个人，且独立列填了数据，则优先使用独立列的数据覆盖
+                    if is_single_person:
+                        if explicit_id:
+                            final_id = explicit_id
+                        if explicit_phone:
+                            final_phone = explicit_phone
 
                     unique_key = f"{party_type}_{name}"
 
-                    # 3. 去重逻辑：只有在子表没填这个人的时候，才把简略信息加进去
+                    # 4. 去重逻辑：只有在子表没填这个人的时候，才把简略信息加进去
                     if unique_key not in merged_parties_map:
                         merged_parties_map[unique_key] = {
                             "party_type": party_type,
                             "name": name,
-                            "phone": None,
-                            "id_number": id_number,  # 将解析出的身份证号存入
+                            "phone": final_phone,  # 存入电话
+                            "id_number": final_id,  # 存入身份证号
                             "address": None,
                             "legal_representative": None
                         }
 
-            # 载入各类快捷当事人
-            add_quick_parties("原告", row_data.get("快捷原告", ""))
-            add_quick_parties("被告", row_data.get("快捷被告", ""))
-            add_quick_parties("委托人", row_data.get("快捷委托人", ""))
-            add_quick_parties("担保人", row_data.get("快捷担保人", ""))
-            add_quick_parties("第三人", row_data.get("快捷第三人", ""))
+            # 载入各类快捷当事人，依次传入：类型、姓名列、身份证列、电话列
+            add_quick_parties("原告",
+                              row_data.get("快捷原告"),
+                              row_data.get("快捷原告身份证号"),
+                              row_data.get("快捷原告电话"))
+
+            add_quick_parties("被告",
+                              row_data.get("快捷被告"),
+                              row_data.get("快捷被告身份证号"),
+                              row_data.get("快捷被告电话"))
+
+            add_quick_parties("委托人",
+                              row_data.get("快捷委托人"),
+                              row_data.get("快捷委托人身份证号"),
+                              row_data.get("快捷委托人电话"))
+
+            # 借款人,担保人和第三人也同理应用
+            add_quick_parties("借款人",
+                              row_data.get("快捷借款人"),
+                              row_data.get("快捷借款人身份证号"),
+                              row_data.get("快捷借款人电话"))
+
+            add_quick_parties("担保人",
+                              row_data.get("快捷担保人"),
+                              row_data.get("快捷担保人身份证号"),
+                              row_data.get("快捷担保人电话"))
+
+            add_quick_parties("第三人",
+                              row_data.get("快捷第三人"),
+                              row_data.get("快捷第三人身份证号"),
+                              row_data.get("快捷第三人电话"))
 
             # 生成最终无重复的当事人List
             final_parties = list(merged_parties_map.values())
