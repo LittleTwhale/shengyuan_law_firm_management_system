@@ -82,7 +82,7 @@ const getUrgencyColor = (days) => {
 const getEventTypeColor = (type) => {
   if (type === '开庭') return 'danger'
   if (type === '保全到期') return 'warning'
-  return ''
+  return 'primary'
 }
 
 const goToCase = (caseId) => {

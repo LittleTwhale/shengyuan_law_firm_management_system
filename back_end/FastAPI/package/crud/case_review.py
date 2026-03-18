@@ -16,6 +16,7 @@ def list_pending_cases(db: Session, skip: int = 0, limit: int = 100) -> List[Cas
         joinedload(Case.assistant_lawyer),
         joinedload(Case.execution_lawyer),
         joinedload(Case.execution_assistant),
+        joinedload(Case.parties),
     ).filter(
         Case.review_status == "待审核",  # 只筛选待审核案件
         Case.is_deleted == False
@@ -49,7 +50,8 @@ def update_review_status(db: Session, case_id: int, review_status: str, reviewer
         raise ValueError("审核状态必须是'已审核'或'已拒绝'")
 
     case.review_status = review_status
-    case.reviewer_id = reviewer_id  # 记录审核人ID
+    case.reviewer_id = reviewer_id      # 记录审核人ID
+    case.reviewed_at = datetime.now()   # 记录审核时间
     db.commit()
     db.refresh(case)
     return cast(Case, case)
@@ -59,7 +61,7 @@ def count_reviewed_cases(db: Session, lawyer_id: int, year: Optional[int] = None
     """统计审核过的案件数量"""
     query = db.query(Case).filter(Case.is_deleted == False, Case.reviewer_id == lawyer_id)
     if year:
-        query = query.filter(func.extract('year', Case.commission_date) == year)
+        query = query.filter(func.extract('year', Case.reviewed_at) == year)
     return query.count()
 
 

@@ -31,6 +31,7 @@ def get_case_by_id(db: Session, case_id: int) -> Optional[Case]:
             joinedload(Case.execution_lawyer),
             joinedload(Case.execution_assistant),
             joinedload(Case.bank_case_details),
+            joinedload(Case.parties),
         )
         .filter(
             Case.case_id == case_id,
@@ -62,6 +63,7 @@ def list_cases_by_user_role(
         joinedload(Case.assistant_lawyer),
         joinedload(Case.execution_lawyer),
         joinedload(Case.execution_assistant),
+        joinedload(Case.parties)
     ).filter(Case.is_deleted == False)
 
     if year:
@@ -175,6 +177,7 @@ def list_bank_cases_by_user_role(
         joinedload(Case.assistant_lawyer),
         joinedload(Case.execution_lawyer),
         joinedload(Case.execution_assistant),
+        joinedload(Case.parties)
     ).filter(Case.is_deleted == False,Case.case_category == "银行案件")
 
     # 角色筛选
@@ -778,7 +781,8 @@ def get_upcoming_events(db: Session, user_id: int, days: int = 30) -> List[dict]
 
     # 1. 查询该律师相关的所有未删除、未归档(可选)的案件
     cases = db.query(Case).options(
-        joinedload(Case.bank_case_details)
+        joinedload(Case.bank_case_details),
+        joinedload(Case.parties)
     ).filter(
         Case.is_deleted == False,
         or_(
@@ -805,6 +809,10 @@ def get_upcoming_events(db: Session, user_id: int, days: int = 30) -> List[dict]
             check_points.append(("诉讼时效到期", case.bank_case_details.statute_of_limitations))
         # ==========================================================
 
+        # 动态获取当事人列表中的委托人名称
+        clients = [p.name for p in case.parties if p.party_type and '委托' in p.party_type and p.name]
+        real_client_name = "、".join(clients) if clients else (case.client_name or "")
+
         for event_type, event_date in check_points:
             if event_date:
                 # 检查日期是否符合条件：
@@ -815,7 +823,7 @@ def get_upcoming_events(db: Session, user_id: int, days: int = 30) -> List[dict]
                     events.append({
                         "case_id": case.case_id,
                         "case_number": case.case_number,
-                        "client_name": case.client_name,
+                        "client_name": real_client_name,
                         "event_type": event_type,
                         "event_date": event_date,
                         "days_remaining": days_remaining

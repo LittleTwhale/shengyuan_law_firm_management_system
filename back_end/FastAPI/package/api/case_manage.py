@@ -77,7 +77,15 @@ def get_cases(
         main_lawyer_id=main_lawyer_id,
         year=year,
     )
-    cases_simple = [CaseSimpleOut.model_validate(c) for c in cases]
+    # 拦截转换：用 CaseParty 覆盖 client_name
+    cases_simple = []
+    for c in cases:
+        simple = CaseSimpleOut.model_validate(c)
+        # 提取类型包含“委托”的当事人名称
+        clients = [p.name for p in c.parties if p.party_type and '委托' in p.party_type and p.name]
+        if clients:
+            simple.client_name = "、".join(clients)
+        cases_simple.append(simple)
     return {"items": cases_simple, "total": total}
 
 # 2️⃣ 获取银行案件列表
@@ -116,7 +124,15 @@ def get_bank_cases(
         main_lawyer_id=main_lawyer_id,
         year=year,
     )
-    cases_simple = [CaseSimpleOut.model_validate(c) for c in cases]
+    # 拦截转换：用 CaseParty 覆盖 client_name
+    cases_simple = []
+    for c in cases:
+        simple = CaseSimpleOut.model_validate(c)
+        # 提取类型包含“委托”的当事人名称
+        clients = [p.name for p in c.parties if p.party_type and '委托' in p.party_type and p.name]
+        if clients:
+            simple.client_name = "、".join(clients)
+        cases_simple.append(simple)
     return {"items": cases_simple, "total": total}
 
 

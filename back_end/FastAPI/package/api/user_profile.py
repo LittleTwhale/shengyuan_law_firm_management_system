@@ -46,6 +46,7 @@ def get_case_statistics(
         "category_stats": case_category_stats
     }
 
+    # 统计审核案件数
     if current_user.role in ["admin", "owner"]:
         review_count = count_reviewed_cases(db, current_user.id, year)
         result["review_case_count"] = review_count

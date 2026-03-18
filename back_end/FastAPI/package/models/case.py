@@ -83,6 +83,7 @@ class Case(Base):
     # 时间戳
     created_at = Column(TIMESTAMP, server_default=func.now(), comment="创建时间")
     updated_at = Column(TIMESTAMP, server_default=func.now(), server_onupdate=func.now(), comment="更新时间")
+    reviewed_at = Column(TIMESTAMP, nullable=True, comment="审核时间")
 
     # ORM 关系
     main_lawyer = relationship("User", back_populates="main_cases", foreign_keys="Case.main_lawyer_id")

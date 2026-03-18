@@ -56,7 +56,15 @@ def get_pending_cases(
 
     cases = list_pending_cases(db, skip=skip, limit=limit)
     total = count_pending_cases(db)
-    cases_simple = [CaseSimpleOut.model_validate(case) for case in cases]
+    # 拦截转换：用 CaseParty 中的委托人覆盖旧的 client_name
+    cases_simple = []
+    for case in cases:
+        simple = CaseSimpleOut.model_validate(case)
+        # 动态提取类型包含“委托”的当事人名称
+        clients = [p.name for p in case.parties if p.party_type and '委托' in p.party_type and p.name]
+        if clients:
+            simple.client_name = "、".join(clients)
+        cases_simple.append(simple)
     return {"items": cases_simple, "total": total}
 
 
