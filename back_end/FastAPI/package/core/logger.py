@@ -101,15 +101,18 @@ def setup_logging():
             uvicorn_logger.addHandler(file_handler)
 
     # ---------------------------------------------------------------
-    # 配置 SQLAlchemy 日志 (核心修改：移除手动控制台Handler，避免重复)
+    # 配置 SQLAlchemy 日志 (核心修改：关闭普通 SQL 输出，解除多线程 I/O 阻塞)
     # ---------------------------------------------------------------
     db_logger = logging.getLogger("sqlalchemy.engine")
-    db_logger.setLevel(logging.INFO)  # 设置为 INFO 才能看到 SQL 语句
-    # 仅添加文件处理器，不手动加控制台Handler（由uvicorn的控制台Handler统一输出）
+
+    # 1. 改为 WARNING，只有报错或警告时才记录，彻底关闭海量的常规 SQL 打印
+    db_logger.setLevel(logging.WARNING)
+
     if not any(isinstance(h, DailyPathFileHandler) for h in db_logger.handlers):
         db_logger.addHandler(file_handler)
-    # 可选：如果仍有重复，开启此行（阻止日志向上多层冒泡）
-    # db_logger.propagate = False
+
+    # 2. 务必取消注释：彻底阻止日志向上层（控制台）冒泡
+    db_logger.propagate = False
 
     # ---------------------------------------------------------------
     # 配置应用自己的 Logger (shengyuan_app)

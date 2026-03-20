@@ -469,3 +469,9 @@ class CaseExportQuery(BaseModel):
     year: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+
+# 批量审核请求
+class BatchReviewRequest(BaseModel):
+    case_ids: List[int]
+    review_status: str
+    force_ids: List[int] = []  # 存放需要强制忽略冲突的案件ID

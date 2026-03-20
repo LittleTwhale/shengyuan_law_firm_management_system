@@ -82,7 +82,7 @@
       <el-pagination
         background
         :layout="isMobile ? 'prev, pager, next' : 'total, sizes, prev, pager, next, jumper'"
-        :page-sizes="[10, 20, 50, 100]"
+        :page-sizes="[10, 20, 50, 100, 500, 1000]"
         v-model:current-page="page"
         v-model:page-size="pageSize"
         :total="total"
@@ -299,7 +299,7 @@ const sendReviewRequest = async (row, status, force) => {
   })
 }
 
-// 批量审核
+// 批量审核（分片高并发+断点续传机制）
 const batchReview = async (status) => {
   if (!selectedCases.value.length) return
 
@@ -317,45 +317,61 @@ const batchReview = async (status) => {
     batchFailCount.value = 0
     showBatchProgress.value = true
 
-    // 改为串行请求，防止瞬间并发压垮后端导致超时，并处理利益冲突中断
-    for (const item of selectedCases.value) {
+    const CHUNK_SIZE = 50 // 设定每个批次发送 50 条给后端，兼顾进度条刷新频率和服务器压力
+
+    // 核心拆分循环
+    for (let i = 0; i < selectedCases.value.length; i += CHUNK_SIZE) {
+      const chunk = selectedCases.value.slice(i, i + CHUNK_SIZE)
+      const chunkIds = chunk.map((item) => item.case_id)
+
       try {
-        // 第一次尝试请求 (force = false)
-        await sendReviewRequest(item, status, false)
-        batchSuccessCount.value++
-      } catch (err) {
-        // 捕获 409 冲突
-        if (err.response?.status === 409 && err.response?.data?.detail?.conflicts) {
-          const conflictData = err.response.data.detail
+        // 请求新的批量接口
+        const res = await request.post('/case_review/batch_review', {
+          case_ids: chunkIds,
+          review_status: status,
+          force_ids: [], // 首次跑批都不强制通过
+        })
 
-          // 弹出对话框并等待用户选择
-          const userConfirmed = await showConflictDialog(
-            conflictData.conflicts,
-            item.case_id,
-            item.case_number,
-          )
+        const { success_cases, conflict_cases, error_cases } = res.data
 
-          if (userConfirmed) {
-            // 用户确认强制通过，再次请求 (force = true)
-            try {
-              await sendReviewRequest(item, status, true)
-              batchSuccessCount.value++
-            } catch (retryErr) {
-              console.error(`案件 ${item.case_number} 强制审核失败:`, retryErr)
+        // 1. 无冲突的直接推进进度
+        batchSuccessCount.value += success_cases.length
+        batchFailCount.value += error_cases.length
+        batchProgress.value += success_cases.length + error_cases.length
+
+        // 2. 单独处理本批次被拦截的冲突案件
+        if (conflict_cases && conflict_cases.length > 0) {
+          for (const conflictItem of conflict_cases) {
+            // 弹出对话框并等待用户选择
+            const userConfirmed = await showConflictDialog(
+              conflictItem.conflicts,
+              conflictItem.case_id,
+              conflictItem.case_number,
+            )
+
+            if (userConfirmed) {
+              // 用户确认强制通过，发送单条强制请求补录 (force = true)
+              try {
+                // 传入对象包装 case_id，兼容原有的 sendReviewRequest 结构
+                await sendReviewRequest({ case_id: conflictItem.case_id }, status, true)
+                batchSuccessCount.value++
+              } catch (retryErr) {
+                console.error(`案件 ${conflictItem.case_number} 强制审核失败:`, retryErr)
+                batchFailCount.value++
+              }
+            } else {
+              // 用户取消审核当前案件，视为跳过
               batchFailCount.value++
             }
-          } else {
-            // 用户取消审核当前案件，视为跳过
-            batchFailCount.value++
+            // 无论当前冲突案件强制通过还是跳过，都推进进度条
+            batchProgress.value++
           }
-        } else {
-          // 其他常规错误
-          console.error(`案件 ${item.case_number} 审核失败:`, err)
-          batchFailCount.value++
         }
-      } finally {
-        // 无论当前案件成功或失败，都推进进度条
-        batchProgress.value++
+      } catch (err) {
+        // 如果整个网络请求崩了，这批次全部算失败，进度条继续走下一批
+        console.error(`批次处理失败:`, err)
+        batchFailCount.value += chunk.length
+        batchProgress.value += chunk.length
       }
     }
 
