@@ -15,7 +15,7 @@
       <div class="toolbar-left">
         <el-input
           v-model="searchKeyword"
-          placeholder="请输入业务号或委托人"
+          placeholder="请输入业务号或当事人"
           clearable
           @clear="handleSearch"
           @keyup.enter="handleSearch"

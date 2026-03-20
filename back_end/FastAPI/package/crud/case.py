@@ -40,18 +40,19 @@ def get_case_by_id(db: Session, case_id: int) -> Optional[Case]:
         .first()
     )
 
+
 def list_cases_by_user_role(
-    db: Session,
-    user_id: int,
-    role: str,
-    skip: int = 0,
-    limit: int = 100,
-    keyword: Optional[str] = None,  # 关键词查询
-    category: Optional[str] = None,  # 案件类型筛选
-    main_lawyer_id: Optional[int] = None,    # 主办律师筛选
-    year: Optional[str] = None,  # 年份筛选
-    sort_field: str = "created_at",  # 排序字段，默认按创建时间
-    sort_dir: str = "desc"  # 排序方向，默认降序（最新在前）
+        db: Session,
+        user_id: int,
+        role: str,
+        skip: int = 0,
+        limit: int = 100,
+        keyword: Optional[str] = None,  # 关键词查询
+        category: Optional[str] = None,  # 案件类型筛选
+        main_lawyer_id: Optional[int] = None,  # 主办律师筛选
+        year: Optional[str] = None,  # 年份筛选
+        sort_field: str = "created_at",  # 排序字段，默认按创建时间
+        sort_dir: str = "desc"  # 排序方向，默认降序（最新在前）
 ) -> List[Case]:
     """
     根据用户角色返回案件列表
@@ -88,11 +89,13 @@ def list_cases_by_user_role(
     if category:
         query = query.filter(Case.case_category == category)
 
-    # 关键词搜索
+    # 关键词搜索：支持按案号或【任何当事人名称】进行全维度检索
     if keyword:
         query = query.filter(
-            (Case.case_number.like(f"%{keyword}%")) |
-            (Case.client_name.like(f"%{keyword}%"))
+            or_(
+                Case.case_number.like(f"%{keyword}%"),
+                Case.parties.any(CaseParty.name.like(f"%{keyword}%"))
+            )
         )
 
     # 排序逻辑
@@ -113,14 +116,15 @@ def list_cases_by_user_role(
     cases = query.offset(skip).limit(limit).all()
     return cast(list[Case], cast(object, cases))
 
+
 def count_cases_by_user_role(
-    db: Session,
-    user_id: int,
-    role: str,
-    keyword: Optional[str] = None,  # 关键词查询
-    category: Optional[str] = None,  # 案件类型筛选
-    main_lawyer_id: Optional[int] = None,  # 主办律师筛选
-    year: Optional[str] = None  #  年份筛选
+        db: Session,
+        user_id: int,
+        role: str,
+        keyword: Optional[str] = None,  # 关键词查询
+        category: Optional[str] = None,  # 案件类型筛选
+        main_lawyer_id: Optional[int] = None,  # 主办律师筛选
+        year: Optional[str] = None  # 年份筛选
 ) -> int:
     """
     根据用户角色统计案件总数
@@ -146,26 +150,29 @@ def count_cases_by_user_role(
     if category:
         query = query.filter(Case.case_category == category)
 
-    # 关键词搜索
+    # 关键词搜索：支持按案号或【任何当事人名称】进行全维度检索
     if keyword:
         query = query.filter(
-            (Case.case_number.like(f"%{keyword}%")) |
-            (Case.client_name.like(f"%{keyword}%"))
+            or_(
+                Case.case_number.like(f"%{keyword}%"),
+                Case.parties.any(CaseParty.name.like(f"%{keyword}%"))
+            )
         )
 
     return query.count()
 
+
 def list_bank_cases_by_user_role(
-    db: Session,
-    user_id: int,
-    role: str,
-    skip: int = 0,
-    limit: int = 100,
-    keyword: Optional[str] = None,  # 新增
-    main_lawyer_id: Optional[int] = None,    # 主办律师筛选
-    year: Optional[str] = None,
-    sort_field: str = "created_at",  # 排序字段，默认按创建时间
-    sort_dir: str = "desc"  # 排序方向，默认降序（最新在前）
+        db: Session,
+        user_id: int,
+        role: str,
+        skip: int = 0,
+        limit: int = 100,
+        keyword: Optional[str] = None,  # 新增
+        main_lawyer_id: Optional[int] = None,  # 主办律师筛选
+        year: Optional[str] = None,
+        sort_field: str = "created_at",  # 排序字段，默认按创建时间
+        sort_dir: str = "desc"  # 排序方向，默认降序（最新在前）
 ) -> List[Case]:
     """
     根据用户角色返回银行案件列表
@@ -178,7 +185,7 @@ def list_bank_cases_by_user_role(
         joinedload(Case.execution_lawyer),
         joinedload(Case.execution_assistant),
         joinedload(Case.parties)
-    ).filter(Case.is_deleted == False,Case.case_category == "银行案件")
+    ).filter(Case.is_deleted == False, Case.case_category == "银行案件")
 
     # 角色筛选
     if role not in ["admin", "owner"]:
@@ -193,12 +200,15 @@ def list_bank_cases_by_user_role(
         if main_lawyer_id is not None:
             query = query.filter(Case.main_lawyer_id == main_lawyer_id)
 
-    # 关键词搜索（案件号或委托人）
+    # 关键词搜索：支持按案号或【任何当事人名称】进行全维度检索
     if keyword:
         query = query.filter(
-            (Case.case_number.like(f"%{keyword}%")) |
-            (Case.client_name.like(f"%{keyword}%"))
+            or_(
+                Case.case_number.like(f"%{keyword}%"),
+                Case.parties.any(CaseParty.name.like(f"%{keyword}%"))
+            )
         )
+
     # 委托年份筛选
     if year:
         query = query.filter(extract('year', Case.commission_date) == year)
@@ -221,18 +231,19 @@ def list_bank_cases_by_user_role(
     cases = query.offset(skip).limit(limit).all()
     return cast(list[Case], cast(object, cases))
 
+
 def count_bank_cases_by_user_role(
-    db: Session,
-    user_id: int,
-    role: str,
-    keyword: Optional[str] = None,  # 新增
-    main_lawyer_id: Optional[int] = None,
-    year: Optional[str] = None
+        db: Session,
+        user_id: int,
+        role: str,
+        keyword: Optional[str] = None,  # 新增
+        main_lawyer_id: Optional[int] = None,
+        year: Optional[str] = None
 ) -> int:
     """
     根据用户角色统计案件总数
     """
-    query = db.query(Case).filter(Case.is_deleted == False,Case.case_category == "银行案件")
+    query = db.query(Case).filter(Case.is_deleted == False, Case.case_category == "银行案件")
     # 角色筛选
     if role not in ["admin", "owner"]:
         query = query.filter(
@@ -246,11 +257,13 @@ def count_bank_cases_by_user_role(
         if main_lawyer_id is not None:
             query = query.filter(Case.main_lawyer_id == main_lawyer_id)
 
-    # 关键词搜索
+    # 关键词搜索：支持按案号或【任何当事人名称】进行全维度检索
     if keyword:
         query = query.filter(
-            (Case.case_number.like(f"%{keyword}%")) |
-            (Case.client_name.like(f"%{keyword}%"))
+            or_(
+                Case.case_number.like(f"%{keyword}%"),
+                Case.parties.any(CaseParty.name.like(f"%{keyword}%"))
+            )
         )
 
     # 委托年份筛选
@@ -511,7 +524,6 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
     # 检查是否修改了案件类别
     category_changed = (new_category != old_category)
 
-
     # 更新主表数据
     # 先批量更新其他字段，但跳过案件类别，避免提前改变
     case_data = case_in.model_dump(exclude_unset=True, exclude={"bank_case_details", "parties"})
@@ -694,6 +706,7 @@ def list_cases_by_lawyer(db: Session, lawyer_id: int) -> List[Case]:
              .all()),
     )
 
+
 # 导出数据查询
 def export_cases_by_user_role(
         db: Session,
@@ -706,11 +719,12 @@ def export_cases_by_user_role(
     # 权限过滤
     if role not in ["admin", "owner"]:
         query = query.filter(or_(
-                Case.main_lawyer_id == user_id,
-                Case.assistant_lawyer_id == user_id
-            ),Case.is_deleted == False)
+            Case.main_lawyer_id == user_id,
+            Case.assistant_lawyer_id == user_id
+        ), Case.is_deleted == False)
 
     return cast(list[Case], cast(object, query.all()))
+
 
 def export_bank_cases_by_user_role(
         db: Session,
@@ -723,11 +737,12 @@ def export_bank_cases_by_user_role(
     # 权限过滤
     if role not in ["admin", "owner"]:
         query = query.filter(or_(
-                Case.main_lawyer_id == user_id,
-                Case.assistant_lawyer_id == user_id
-            ),Case.is_deleted == False)
+            Case.main_lawyer_id == user_id,
+            Case.assistant_lawyer_id == user_id
+        ), Case.is_deleted == False)
 
     return cast(list[Case], cast(object, query.all()))
+
 
 def count_main_cases(db: Session, lawyer_id: int, year: Optional[int] = None) -> int:
     """统计主办案件数量"""
@@ -757,6 +772,7 @@ def count_cases_by_category(db: Session, lawyer_id: int, year: Optional[int] = N
     categories = query.group_by(Case.case_category).all()
     return {category: count for category, count in categories}
 
+
 # 拆分字符串工具
 def split_with_separators(s: str, separators: list) -> list:
     """按多个分隔符拆分字符串"""
@@ -772,7 +788,7 @@ def get_upcoming_events(db: Session, user_id: int, days: int = 30) -> List[dict]
     查询用户（主办或助理）未来 X 天内的关键事项
     """
     from datetime import date, timedelta
-    from sqlalchemy.orm import joinedload # 引入 joinedload 以优化查询
+    from sqlalchemy.orm import joinedload  # 引入 joinedload 以优化查询
 
     today = date.today()
     # 只有 days > 0 时才需要计算目标日期
@@ -861,11 +877,12 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         )
 
     # 2. 动态筛选条件
+    # 关键词搜索：支持按案号或【任何当事人名称】进行全维度检索
     if query_params.keyword:
         query = query.filter(
             or_(
                 Case.case_number.like(f"%{query_params.keyword}%"),
-                Case.client_name.like(f"%{query_params.keyword}%")
+                Case.parties.any(CaseParty.name.like(f"%{query_params.keyword}%"))
             )
         )
     if query_params.case_category:

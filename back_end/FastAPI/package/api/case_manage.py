@@ -37,6 +37,15 @@ router = APIRouter(
     tags=["case_manage"]
 )
 
+# 辅助函数：统一提取并格式化委托人名称
+def aggregate_client_names(case_obj: Case) -> str:
+    """从 CaseParty 中提取委托人名称并拼接"""
+    if not case_obj.parties:
+        return case_obj.client_name or ""
+    clients = [p.name for p in case_obj.parties if p.party_type and '委托' in p.party_type and p.name]
+    # 如果CaseParty中有委托人，优先用CaseParty的拼接结果；否则为了兼容性回落到旧字段
+    return "、".join(clients) if clients else (case_obj.client_name or "")
+
 
 # 1️⃣ 获取正式生效案件列表（分页可选）
 @router.get("/", response_model=CasePageOut)
@@ -81,10 +90,7 @@ def get_cases(
     cases_simple = []
     for c in cases:
         simple = CaseSimpleOut.model_validate(c)
-        # 提取类型包含“委托”的当事人名称
-        clients = [p.name for p in c.parties if p.party_type and '委托' in p.party_type and p.name]
-        if clients:
-            simple.client_name = "、".join(clients)
+        simple.client_name = aggregate_client_names(c)
         cases_simple.append(simple)
     return {"items": cases_simple, "total": total}
 
@@ -128,10 +134,7 @@ def get_bank_cases(
     cases_simple = []
     for c in cases:
         simple = CaseSimpleOut.model_validate(c)
-        # 提取类型包含“委托”的当事人名称
-        clients = [p.name for p in c.parties if p.party_type and '委托' in p.party_type and p.name]
-        if clients:
-            simple.client_name = "、".join(clients)
+        simple.client_name = aggregate_client_names(c)
         cases_simple.append(simple)
     return {"items": cases_simple, "total": total}
 
