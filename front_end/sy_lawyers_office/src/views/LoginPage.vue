@@ -360,7 +360,7 @@ const handleLogin = async () => {
     loginLoading.value = true
 
     const res = await axios.post(
-      'http://127.0.0.1:8002/auth/login',
+      'http://127.0.0.1:8002/api/auth/login',
       {
         accounts: loginForm.value.username,
         password: loginForm.value.password,
