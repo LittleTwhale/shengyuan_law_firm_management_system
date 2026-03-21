@@ -42,6 +42,9 @@ class User(Base):
     # 用户作为助理律师的案件
     assistant_cases = relationship("Case", back_populates="assistant_lawyer", foreign_keys="Case.assistant_lawyer_id")
 
+    # 用户作为第二助理律师的案件
+    second_assistant_cases = relationship("Case", back_populates="assistant_lawyer_2", foreign_keys="Case.assistant_lawyer_2_id")
+
     # 用户作为执行主办律师的案件
     execution_cases = relationship("Case", back_populates="execution_lawyer", foreign_keys="Case.execution_lawyer_id")
 

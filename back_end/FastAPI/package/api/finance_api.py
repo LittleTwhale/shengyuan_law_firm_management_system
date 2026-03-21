@@ -67,6 +67,7 @@ def check_case_view_permission(db: Session, case_id: int, user: User):
     is_related = (
             case.main_lawyer_id == user.id or
             case.assistant_lawyer_id == user.id or
+            case.assistant_lawyer_2_id == user.id or
             case.execution_lawyer_id == user.id or
             case.execution_assistant_id == user.id
     )

@@ -97,6 +97,7 @@ def check_volume_write_permission(db: Session, user: User, case_id: int):
     is_related = (
             case.main_lawyer_id == user.id or
             case.assistant_lawyer_id == user.id or
+            case.assistant_lawyer_2_id == user.id or
             case.execution_lawyer_id == user.id or
             case.execution_assistant_id == user.id
     )

@@ -14,6 +14,7 @@ def list_pending_cases(db: Session, skip: int = 0, limit: int = 100) -> List[Cas
     query = db.query(Case).options(
         joinedload(Case.main_lawyer),
         joinedload(Case.assistant_lawyer),
+        joinedload(Case.assistant_lawyer_2),
         joinedload(Case.execution_lawyer),
         joinedload(Case.execution_assistant),
         joinedload(Case.parties),
@@ -401,6 +402,14 @@ def get_case_approval_context(case: Case, db: Session) -> Dict[str, Any]:
         conflict_status = "未发现利益冲突"
 
     # 6. 构建模版上下文 (Key 必须与 docx 模版中的 {{key}} 对应)
+    # === 合并助理律师姓名逻辑 ===
+    assistants = []
+    if case.assistant_lawyer:
+        assistants.append(case.assistant_lawyer.real_name)
+    if case.assistant_lawyer_2:
+        assistants.append(case.assistant_lawyer_2.real_name)
+    assistant_names_str = "、".join(assistants)
+
     context = {
         # --- 替换旧字段逻辑 ---
         "client_name": join_str(clients),
@@ -420,7 +429,7 @@ def get_case_approval_context(case: Case, db: Session) -> Dict[str, Any]:
         "case_category": case.case_category or "",
         "cause": case.cause or "",
         "main_lawyer_name": case.main_lawyer.real_name if case.main_lawyer else "",
-        "assistant_lawyer_name": case.assistant_lawyer.real_name if case.assistant_lawyer else "",
+        "assistant_lawyer_name": assistant_names_str,
         "fee_method": case.fee_method or "",
         "case_income": str(case.case_income or 0),
         "is_major": is_major_str,

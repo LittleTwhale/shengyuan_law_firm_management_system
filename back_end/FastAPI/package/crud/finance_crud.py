@@ -45,6 +45,7 @@ def _apply_filters(query, db: Session, params: FinanceStatsQuery, current_user: 
             or_(
                 Case.main_lawyer_id == current_user.id,
                 Case.assistant_lawyer_id == current_user.id,
+                Case.assistant_lawyer_2_id == current_user.id,
                 Case.execution_lawyer_id == current_user.id,
                 Case.execution_assistant_id == current_user.id
             )

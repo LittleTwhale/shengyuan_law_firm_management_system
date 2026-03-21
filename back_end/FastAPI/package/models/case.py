@@ -47,6 +47,7 @@ class Case(Base):
     # 律师信息
     main_lawyer_id = Column(Integer, ForeignKey("users.id"), nullable=True, comment="主办律师ID")
     assistant_lawyer_id = Column(Integer, ForeignKey("users.id"), nullable=True, comment="助理律师ID")
+    assistant_lawyer_2_id = Column(Integer, ForeignKey("users.id"), nullable=True, comment="第二助理律师ID")
     execution_lawyer_id = Column(Integer, ForeignKey("users.id"), nullable=True, comment="执行主办律师ID")
     execution_assistant_id = Column(Integer, ForeignKey("users.id"), nullable=True, comment="执行助理律师ID")
 
@@ -88,6 +89,7 @@ class Case(Base):
     # ORM 关系
     main_lawyer = relationship("User", back_populates="main_cases", foreign_keys="Case.main_lawyer_id")
     assistant_lawyer = relationship("User", back_populates="assistant_cases", foreign_keys="Case.assistant_lawyer_id")
+    assistant_lawyer_2 = relationship("User",back_populates="second_assistant_cases", foreign_keys="Case.assistant_lawyer_2_id")
     execution_lawyer = relationship("User", back_populates="execution_cases", foreign_keys="Case.execution_lawyer_id")
     execution_assistant = relationship("User", back_populates="execution_assistant_cases",
                                        foreign_keys="Case.execution_assistant_id")

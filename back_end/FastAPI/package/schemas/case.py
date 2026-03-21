@@ -220,6 +220,7 @@ class CaseCreate(BaseModel):
     # 律师信息
     main_lawyer_id: Optional[int] = Field(None, description="主办律师ID")
     assistant_lawyer_id: Optional[int] = None
+    assistant_lawyer_2_id: Optional[int] = None
     execution_lawyer_id: Optional[int] = None
     execution_assistant_id: Optional[int] = None
 
@@ -297,6 +298,7 @@ class CaseUpdate(BaseModel):
     # 律师分配 / Lawyers
     main_lawyer_id: Optional[int] = Field(None, description="主办律师ID / Main lawyer ID")
     assistant_lawyer_id: Optional[int] = Field(None, description="助理律师ID / Assistant lawyer ID")
+    assistant_lawyer_2_id: Optional[int] = Field(None, description="第二助理律师ID / Assistant lawyer 2 ID")
     execution_lawyer_id: Optional[int] = Field(None, description="执行主办律师ID / Execution main lawyer ID")
     execution_assistant_id: Optional[int] = Field(None, description="执行助理ID / Execution assistant ID")
 
@@ -406,6 +408,7 @@ class CaseOut(BaseModel):
     # 律师信息
     main_lawyer: Optional[UserOut] = None
     assistant_lawyer: Optional[UserOut] = None
+    assistant_lawyer_2: Optional[UserOut] = None
     execution_lawyer: Optional[UserOut] = None
     execution_assistant: Optional[UserOut] = None
     reviewer: Optional[UserOut] = None

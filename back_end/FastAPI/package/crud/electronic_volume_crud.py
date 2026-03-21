@@ -50,6 +50,7 @@ def _apply_volume_filters(query, db: Session, current_user: User, params: Option
             or_(
                 Case.main_lawyer_id == current_user.id,
                 Case.assistant_lawyer_id == current_user.id,
+                Case.assistant_lawyer_2_id == current_user.id,
                 Case.execution_lawyer_id == current_user.id,
                 Case.execution_assistant_id == current_user.id,
             )

@@ -737,6 +737,7 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
 
                 main_lawyer_id=main_lawyer_id,
                 assistant_lawyer_id=get_user_id_by_name(db, row_data.get("助理律师")),
+                assistant_lawyer_2_id=get_user_id_by_name(db, row_data.get("第二助理律师")),
                 execution_lawyer_id=get_user_id_by_name(db, row_data.get("执行主办律师")),
                 execution_assistant_id=get_user_id_by_name(db, row_data.get("执行助理律师")),
 

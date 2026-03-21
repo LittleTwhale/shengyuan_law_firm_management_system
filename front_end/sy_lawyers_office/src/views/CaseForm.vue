@@ -229,8 +229,8 @@ const initialBankDetails = {
   collection_source: null,
 }
 
-// 统一的大表单数据对象
-const formData = reactive({
+// 提取全量字段工厂函数，用于干净彻底地重置表单
+const getInitialFormData = () => ({
   case_category: '民事案件',
   case_code: null,
   commission_date: null,
@@ -258,6 +258,7 @@ const formData = reactive({
   // 律师
   main_lawyer_id: null,
   assistant_lawyer_id: null,
+  assistant_lawyer_2_id: null,
   execution_lawyer_id: null,
   execution_assistant_id: null,
 
@@ -310,6 +311,9 @@ const formData = reactive({
   // 附件列表
   attachments: [],
 })
+
+// 统一的大表单数据对象 (使用工厂函数初始化)
+const formData = reactive(getInitialFormData())
 
 provide('caseFormData', formData)
 
@@ -455,6 +459,8 @@ const fetchCaseDetail = async () => {
     if (data.main_lawyer && data.main_lawyer.id) formData.main_lawyer_id = data.main_lawyer.id
     if (data.assistant_lawyer && data.assistant_lawyer.id)
       formData.assistant_lawyer_id = data.assistant_lawyer.id
+    if (data.assistant_lawyer_2 && data.assistant_lawyer_2.id)
+      formData.assistant_lawyer_2_id = data.assistant_lawyer_2.id
     if (data.execution_lawyer && data.execution_lawyer.id)
       formData.execution_lawyer_id = data.execution_lawyer.id
     if (data.execution_assistant && data.execution_assistant.id)
@@ -568,26 +574,11 @@ watch(
       if (props.caseId) {
         fetchCaseDetail()
       } else {
-        if (formRef.value) formRef.value.resetFields()
-        // 重置所有状态
-        Object.assign(formData, {
-          case_category: '民事案件',
-          case_code: null,
-          commission_date: null,
-          main_lawyer_id: null,
-          assistant_lawyer_id: null,
-          execution_lawyer_id: null,
-          execution_assistant_id: null,
-          bank_case_details: JSON.parse(JSON.stringify(initialBankDetails)),
-          attachments: [],
-          party_clients: [],
-          party_plaintiffs: [],
-          party_defendants: [],
-          party_third_parties: [],
-          party_bank_borrowers: [],
-          party_bank_guarantors: [],
-          party_others: [],
-        })
+        // 清除表单校验错误提示
+        if (formRef.value) formRef.value.clearValidate()
+
+        // 重置所有状态，使用完整的初始数据对象覆盖
+        Object.assign(formData, getInitialFormData())
 
         // 新增时默认添加一位委托人
         addEmptyParty(formData.party_clients, '委托人')
@@ -603,7 +594,8 @@ watch(
 
 const handleCancel = () => {
   emit('update:visible', false)
-  formRef.value?.resetFields()
+  // 此处也可以换成 clearValidate，因为核心数据已被 getInitialFormData 重置
+  formRef.value?.clearValidate()
   rawFiles.value = []
 }
 

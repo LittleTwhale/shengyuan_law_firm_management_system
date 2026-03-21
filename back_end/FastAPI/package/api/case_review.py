@@ -372,6 +372,7 @@ def generate_approval_form(
         joinedload(Case.parties),
         joinedload(Case.main_lawyer),
         joinedload(Case.assistant_lawyer),
+        joinedload(Case.assistant_lawyer_2),
         joinedload(Case.reviewer)
     ).filter(Case.case_id == case_id).first()
 

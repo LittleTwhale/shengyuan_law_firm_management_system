@@ -208,11 +208,17 @@ const loadCaseDetail = async () => {
     const currentUserId = localStorage.getItem('user_id')
     const mainLawyerId = caseData.value.main_lawyer?.id
     const assistantLawyerId = caseData.value.assistant_lawyer?.id
+    const assistantLawyer2Id = caseData.value.assistant_lawyer_2?.id
+    const executionLawyerId = caseData.value.execution_lawyer?.id
+    const executionAssistantId = caseData.value.execution_assistant?.id
 
     if (
       role === 'user' &&
       String(mainLawyerId) !== String(currentUserId) &&
-      String(assistantLawyerId) !== String(currentUserId)
+      String(assistantLawyerId) !== String(currentUserId)&&
+      String(assistantLawyer2Id) !== String(currentUserId) &&
+      String(executionLawyerId) !== String(currentUserId) &&
+      String(executionAssistantId) !== String(currentUserId)
     ) {
       ElMessage.error('您没有权限查看此业务')
       await router.push('/main/cases')

@@ -28,6 +28,7 @@ def get_case_by_id(db: Session, case_id: int) -> Optional[Case]:
         .options(
             joinedload(Case.main_lawyer),
             joinedload(Case.assistant_lawyer),
+            joinedload(Case.assistant_lawyer_2),
             joinedload(Case.execution_lawyer),
             joinedload(Case.execution_assistant),
             joinedload(Case.bank_case_details),
@@ -62,6 +63,7 @@ def list_cases_by_user_role(
     query = db.query(Case).options(
         joinedload(Case.main_lawyer),
         joinedload(Case.assistant_lawyer),
+        joinedload(Case.assistant_lawyer_2),
         joinedload(Case.execution_lawyer),
         joinedload(Case.execution_assistant),
         joinedload(Case.parties)
@@ -77,7 +79,10 @@ def list_cases_by_user_role(
         query = query.filter(
             or_(
                 Case.main_lawyer_id == user_id,
-                Case.assistant_lawyer_id == user_id
+                Case.assistant_lawyer_id == user_id,
+                Case.assistant_lawyer_2_id == user_id,
+                Case.execution_lawyer_id == user_id,
+                Case.execution_assistant_id == user_id
             )
         )
     else:
@@ -138,7 +143,10 @@ def count_cases_by_user_role(
         query = query.filter(
             or_(
                 Case.main_lawyer_id == user_id,
-                Case.assistant_lawyer_id == user_id
+                Case.assistant_lawyer_id == user_id,
+                Case.assistant_lawyer_2_id == user_id,
+                Case.execution_lawyer_id == user_id,
+                Case.execution_assistant_id == user_id
             )
         )
     else:
@@ -182,6 +190,7 @@ def list_bank_cases_by_user_role(
     query = db.query(Case).options(
         joinedload(Case.main_lawyer),
         joinedload(Case.assistant_lawyer),
+        joinedload(Case.assistant_lawyer_2),
         joinedload(Case.execution_lawyer),
         joinedload(Case.execution_assistant),
         joinedload(Case.parties)
@@ -192,7 +201,10 @@ def list_bank_cases_by_user_role(
         query = query.filter(
             or_(
                 Case.main_lawyer_id == user_id,
-                Case.assistant_lawyer_id == user_id
+                Case.assistant_lawyer_id == user_id,
+                Case.assistant_lawyer_2_id == user_id,
+                Case.execution_lawyer_id == user_id,
+                Case.execution_assistant_id == user_id
             )
         )
     else:
@@ -249,7 +261,10 @@ def count_bank_cases_by_user_role(
         query = query.filter(
             or_(
                 Case.main_lawyer_id == user_id,
-                Case.assistant_lawyer_id == user_id
+                Case.assistant_lawyer_id == user_id,
+                Case.assistant_lawyer_2_id == user_id,
+                Case.execution_lawyer_id == user_id,
+                Case.execution_assistant_id == user_id
             )
         )
     else:
@@ -506,6 +521,7 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
     case = db.query(Case).options(
         joinedload(Case.main_lawyer),
         joinedload(Case.assistant_lawyer),
+        joinedload(Case.assistant_lawyer_2),
         joinedload(Case.execution_lawyer),
         joinedload(Case.execution_assistant),
         joinedload(Case.bank_case_details),
@@ -691,6 +707,7 @@ def list_cases_by_lawyer(db: Session, lawyer_id: int) -> List[Case]:
              .options(
             joinedload(Case.main_lawyer),
             joinedload(Case.assistant_lawyer),
+            joinedload(Case.assistant_lawyer_2),
             joinedload(Case.execution_lawyer),
             joinedload(Case.execution_assistant),
         )
@@ -699,6 +716,7 @@ def list_cases_by_lawyer(db: Session, lawyer_id: int) -> List[Case]:
             (
                     (Case.main_lawyer_id == lawyer_id)
                     | (Case.assistant_lawyer_id == lawyer_id)
+                    | (Case.assistant_lawyer_2_id == lawyer_id)
                     | (Case.execution_lawyer_id == lawyer_id)
                     | (Case.execution_assistant_id == lawyer_id)
             )
@@ -720,7 +738,10 @@ def export_cases_by_user_role(
     if role not in ["admin", "owner"]:
         query = query.filter(or_(
             Case.main_lawyer_id == user_id,
-            Case.assistant_lawyer_id == user_id
+            Case.assistant_lawyer_id == user_id,
+            Case.assistant_lawyer_2_id == user_id,
+            Case.execution_lawyer_id == user_id,
+            Case.execution_assistant_id == user_id
         ), Case.is_deleted == False)
 
     return cast(list[Case], cast(object, query.all()))
@@ -738,7 +759,10 @@ def export_bank_cases_by_user_role(
     if role not in ["admin", "owner"]:
         query = query.filter(or_(
             Case.main_lawyer_id == user_id,
-            Case.assistant_lawyer_id == user_id
+            Case.assistant_lawyer_id == user_id,
+            Case.assistant_lawyer_2_id == user_id,
+            Case.execution_lawyer_id == user_id,
+            Case.execution_assistant_id == user_id
         ), Case.is_deleted == False)
 
     return cast(list[Case], cast(object, query.all()))
@@ -803,7 +827,10 @@ def get_upcoming_events(db: Session, user_id: int, days: int = 30) -> List[dict]
         Case.is_deleted == False,
         or_(
             Case.main_lawyer_id == user_id,
-            Case.assistant_lawyer_id == user_id
+            Case.assistant_lawyer_id == user_id,
+            Case.assistant_lawyer_2_id == user_id,
+            Case.execution_lawyer_id == user_id,
+            Case.execution_assistant_id == user_id
         )
     ).all()
 
@@ -858,6 +885,7 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
     query = db.query(Case).options(
         joinedload(Case.main_lawyer),
         joinedload(Case.assistant_lawyer),
+        joinedload(Case.assistant_lawyer_2),
         joinedload(Case.execution_lawyer),
         joinedload(Case.execution_assistant),
         joinedload(Case.reviewer),
@@ -871,6 +899,7 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
             or_(
                 Case.main_lawyer_id == user_id,
                 Case.assistant_lawyer_id == user_id,
+                Case.assistant_lawyer_2_id == user_id,
                 Case.execution_lawyer_id == user_id,
                 Case.execution_assistant_id == user_id
             )
@@ -941,7 +970,7 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         "案件来源", "收费方式", "风险比例", "案件收入",
         "付款到期日", "案由", "介入阶段", "代理权限", "审理法院", "侦查机关", "检察院", "二审检察机关", "开庭时间",
         "立案日", "结案时间",
-        "案件地点", "案件详情", "主办律师", "助理律师", "执行主办律师", "执行助理律师", "审核状态", "审核人",
+        "案件地点", "案件详情", "主办律师", "助理律师", "第二助理律师", "执行主办律师", "执行助理律师", "审核状态", "审核人",
         "是否重大", "是否纸质卷宗", "是否解除", "是否笔录", "是否保全", "保全开始日", "保全终止日",
         "案号", "结案状态", "结案方式", "诉讼费缴费时间", "诉讼费缴费金额", "诉讼费退费时间", "诉讼费退费金额",
         "申请执行日", "调解到期日", "执行到期日", "顾问到期日", "创建时间", "更新时间"
@@ -1090,6 +1119,7 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
             case.details or "",
             case.main_lawyer.real_name if case.main_lawyer else "",
             case.assistant_lawyer.real_name if case.assistant_lawyer else "",
+            Case.assistant_lawyer_2.real_name if case.assistant_lawyer_2 else "",
             case.execution_lawyer.real_name if case.execution_lawyer else "",
             case.execution_assistant.real_name if case.execution_assistant else "",
             case.review_status,

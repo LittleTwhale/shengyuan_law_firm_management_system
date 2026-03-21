@@ -584,6 +584,24 @@
         </el-form-item>
       </el-col>
       <el-col :span="12">
+        <el-form-item label="第二助理律师" prop="assistant_lawyer_2_id">
+          <el-select
+            v-model="formData.assistant_lawyer_2_id"
+            filterable
+            placeholder="请选择"
+            style="width: 100%"
+            clearable
+          >
+            <el-option
+              v-for="item in lawyerOptions"
+              :key="item.id"
+              :label="item.real_name"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
+      </el-col>
+      <el-col :span="12">
         <el-form-item label="执行主办律师" prop="execution_lawyer_id">
           <el-select
             v-model="formData.execution_lawyer_id"

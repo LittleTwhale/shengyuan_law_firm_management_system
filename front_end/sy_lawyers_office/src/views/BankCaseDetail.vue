@@ -70,6 +70,9 @@
       <el-descriptions-item label="助理律师">{{
         caseData.assistant_lawyer?.real_name || '-'
       }}</el-descriptions-item>
+      <el-descriptions-item label="第二助理律师">{{
+        caseData.assistant_lawyer_2?.real_name || '-'
+      }}</el-descriptions-item>
       <el-descriptions-item label="收费方式">{{ caseData.fee_method || '-' }}</el-descriptions-item>
 
       <el-descriptions-item label="风险比例">{{ caseData.risk_ratio || '-' }}</el-descriptions-item>

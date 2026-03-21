@@ -94,10 +94,13 @@
       <el-descriptions-item label="助理律师">{{
         caseData.assistant_lawyer?.real_name || '-'
       }}</el-descriptions-item>
+      <el-descriptions-item label="第二助理律师">{{
+        caseData.assistant_lawyer_2?.real_name || '-'
+      }}</el-descriptions-item>
       <el-descriptions-item label="执行律师">{{
         caseData.execution_lawyer?.real_name || '-'
       }}</el-descriptions-item>
-      <el-descriptions-item label="执行助理">{{
+      <el-descriptions-item label="执行助理律师">{{
         caseData.execution_assistant?.real_name || '-'
       }}</el-descriptions-item>
     </el-descriptions>
