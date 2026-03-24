@@ -1,35 +1,29 @@
 # api/case_manage.py
 import re
+from collections import defaultdict
+from datetime import datetime
+from decimal import Decimal
+from io import BytesIO
+from typing import List, Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import StreamingResponse
-from collections import defaultdict
-
+from openpyxl import load_workbook
 from sqlalchemy import or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from typing import List, Optional
-from decimal import Decimal
 
+from .deps import get_current_active_user
+from ..crud.case import list_cases_by_user_role, get_case_by_id, count_cases_by_user_role, create_case, update_case, \
+    delete_case, list_bank_cases_by_user_role, count_bank_cases_by_user_role, \
+    split_with_separators, export_cases_to_excel
+from ..crud.user import get_all_lawyers, get_user_id_by_name
 from ..database.database import get_db
 from ..models.case import Case, CaseParty
 from ..models.user import User
-from ..schemas.user import UserOut
 from ..schemas.case import CaseOut, CasePageOut, CaseSimpleOut, CaseCreate, CaseUpdate, CaseExportQuery
-
-from ..crud.user import get_all_lawyers, get_user_id_by_name
-from ..crud.case import list_cases_by_user_role, get_case_by_id, count_cases_by_user_role, create_case, update_case, \
-    delete_case, export_cases_by_user_role, list_bank_cases_by_user_role, count_bank_cases_by_user_role, \
-    export_bank_cases_by_user_role, split_with_separators, export_cases_to_excel
-
-from .deps import get_current_active_user
-
-from io import BytesIO
-from urllib.parse import quote
-from openpyxl import Workbook, load_workbook
-from openpyxl.styles import Font, Alignment
-from datetime import datetime
-
+from ..schemas.user import UserOut
 from ..utils.keywords_helper import determine_party_side, get_valid_keywords
 
 router = APIRouter(
@@ -46,6 +40,13 @@ def aggregate_client_names(case_obj: Case) -> str:
     # 如果CaseParty中有委托人，优先用CaseParty的拼接结果；否则为了兼容性回落到旧字段
     return "、".join(clients) if clients else (case_obj.client_name or "")
 
+# 辅助函数：统一提取并格式化借款人名称
+def aggregate_borrower_names(case_obj: Case) -> str:
+    """从 CaseParty 中提取借款人名称并拼接"""
+    if not case_obj.parties:
+        return ""
+    borrowers = [p.name for p in case_obj.parties if p.party_type == '借款人' and p.name]
+    return "、".join(borrowers)
 
 # 1️⃣ 获取正式生效案件列表（分页可选）
 @router.get("/", response_model=CasePageOut)
@@ -135,6 +136,7 @@ def get_bank_cases(
     for c in cases:
         simple = CaseSimpleOut.model_validate(c)
         simple.client_name = aggregate_client_names(c)
+        simple.borrower_name = aggregate_borrower_names(c)
         cases_simple.append(simple)
     return {"items": cases_simple, "total": total}
 

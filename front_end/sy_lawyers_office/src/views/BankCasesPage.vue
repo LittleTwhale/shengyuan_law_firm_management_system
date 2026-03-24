@@ -55,15 +55,16 @@
         @sort-change="handleSortChange"
       >
         <el-table-column prop="case_number" label="业务号" min-width="200" align="center" />
-        <el-table-column prop="client_name" label="委托银行" min-width="220" align="center" />
-        <el-table-column prop="case_category" label="案件类别" min-width="120" align="center" />
+        <el-table-column prop="client_name" label="委托银行" min-width="150" align="center" />
+        <el-table-column prop="case_category" label="案件类别" min-width="100" align="center" />
+        <el-table-column prop="borrower_name" label="借款人" min-width="150" align="center" />
         <el-table-column
           prop="main_lawyer.real_name"
           label="主办律师"
           min-width="120"
           align="center"
         />
-        <el-table-column prop="review_status" label="审核状态" min-width="150" align="center" />
+        <el-table-column prop="review_status" label="审核状态" min-width="100" align="center" />
         <el-table-column
           prop="created_at"
           label="创建时间"

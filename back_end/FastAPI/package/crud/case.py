@@ -724,50 +724,6 @@ def list_cases_by_lawyer(db: Session, lawyer_id: int) -> List[Case]:
              .all()),
     )
 
-
-# 导出数据查询
-def export_cases_by_user_role(
-        db: Session,
-        user_id: int,
-        role: str
-) -> List[Case]:
-    """查询符合条件的所有案件（无分页）"""
-    query = db.query(Case).filter()
-
-    # 权限过滤
-    if role not in ["admin", "owner"]:
-        query = query.filter(or_(
-            Case.main_lawyer_id == user_id,
-            Case.assistant_lawyer_id == user_id,
-            Case.assistant_lawyer_2_id == user_id,
-            Case.execution_lawyer_id == user_id,
-            Case.execution_assistant_id == user_id
-        ), Case.is_deleted == False)
-
-    return cast(list[Case], cast(object, query.all()))
-
-
-def export_bank_cases_by_user_role(
-        db: Session,
-        user_id: int,
-        role: str
-) -> List[Case]:
-    """查询符合条件的所有案件（无分页）"""
-    query = db.query(Case).filter(Case.case_category == "银行案件")
-
-    # 权限过滤
-    if role not in ["admin", "owner"]:
-        query = query.filter(or_(
-            Case.main_lawyer_id == user_id,
-            Case.assistant_lawyer_id == user_id,
-            Case.assistant_lawyer_2_id == user_id,
-            Case.execution_lawyer_id == user_id,
-            Case.execution_assistant_id == user_id
-        ), Case.is_deleted == False)
-
-    return cast(list[Case], cast(object, query.all()))
-
-
 def count_main_cases(db: Session, lawyer_id: int, year: Optional[int] = None) -> int:
     """统计主办案件数量"""
     query = db.query(Case).filter(Case.main_lawyer_id == lawyer_id, Case.is_deleted == False)
