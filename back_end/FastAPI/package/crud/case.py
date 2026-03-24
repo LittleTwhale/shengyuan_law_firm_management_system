@@ -963,6 +963,8 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         "原告/申请人/上诉人", "原告/申请人/上诉人联系电话", "原告/申请人/上诉人证件号",
         "被告(人)/被申请人/被上诉人", "被告(人)/被申请人/被上诉人联系电话", "被告(人)/被申请人/被上诉人证件号",
         "第三人", "第三人联系电话", "第三人证件号",
+        "借款人", "借款人联系电话", "借款人证件号",
+        "担保人", "担保人联系电话", "担保人证件号",
         "其他当事人", "其他当事人联系电话", "其他当事人证件号"
     ]
 
@@ -1036,6 +1038,8 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         plaintiffs_name, plaintiffs_phone, plaintiffs_id = [], [], []
         defendants_name, defendants_phone, defendants_id = [], [], []
         thirds_name, thirds_phone, thirds_id = [], [], []
+        borrowers_name, borrowers_phone, borrowers_id = [], [], []  # 借款人
+        guarantors_name, guarantors_phone, guarantors_id = [], [], []  # 担保人
         others_name, others_phone, others_id = [], [], []
 
         # 遍历当事人，分发数据
@@ -1077,6 +1081,14 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
                     thirds_name.append(pname)
                     thirds_phone.append(p_phone)
                     thirds_id.append(p_id)
+                elif ptype == "借款人":
+                    borrowers_name.append(pname)
+                    borrowers_phone.append(p_phone)
+                    borrowers_id.append(p_id)
+                elif ptype == "担保人":
+                    guarantors_name.append(pname)
+                    guarantors_phone.append(p_phone)
+                    guarantors_id.append(p_id)
                 else:
                     # 其他当事人追加身份后缀
                     others_name.append(f"{pname}({ptype})" if ptype else pname)
@@ -1089,6 +1101,8 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
             "\n".join(plaintiffs_name), "\n".join(plaintiffs_phone), "\n".join(plaintiffs_id),
             "\n".join(defendants_name), "\n".join(defendants_phone), "\n".join(defendants_id),
             "\n".join(thirds_name), "\n".join(thirds_phone), "\n".join(thirds_id),
+            "\n".join(borrowers_name), "\n".join(borrowers_phone), "\n".join(borrowers_id),
+            "\n".join(guarantors_name), "\n".join(guarantors_phone), "\n".join(guarantors_id),
             "\n".join(others_name), "\n".join(others_phone), "\n".join(others_id)
         ]
 
@@ -1208,8 +1222,8 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
             ]
             row_data = base_data_part1 + party_columns_data + base_data_part2 + bank_specific_data
             ws_bank.append(row_data)
-            # 给15个当事人列（即第5到第19列）设置自动换行和居中对齐
-            for col_idx in range(5, 20):
+            # 给21个当事人列（即第5到第25列）设置自动换行和居中对齐
+            for col_idx in range(5, 26):
                 ws_bank.cell(row=ws_bank.max_row, column=col_idx).alignment = Alignment(wrap_text=True,
                                                                                         vertical="center")
 
@@ -1217,8 +1231,8 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         elif case.case_category != "银行案件" and ws_standard:
             row_data = base_data_part1 + party_columns_data + base_data_part2
             ws_standard.append(row_data)
-            # 给15个当事人列（即第5到第19列）设置自动换行和居中对齐
-            for col_idx in range(5, 20):
+            # 给21个当事人列（即第5到第25列）设置自动换行和居中对齐
+            for col_idx in range(5, 26):
                 ws_standard.cell(row=ws_standard.max_row, column=col_idx).alignment = Alignment(wrap_text=True,
                                                                                                 vertical="center")
 

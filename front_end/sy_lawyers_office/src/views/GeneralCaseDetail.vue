@@ -243,13 +243,13 @@ const props = defineProps({
 const plaintiffLabel = computed(() => {
   // 修正：移除了刑事案件的判断，因为刑事案件不再显示此字段
   if (props.caseData.case_category?.includes('仲裁')) return '申请人'
-  return '原告/申请人'
+  return '原告/申请人/上诉人'
 })
 
 const defendantLabel = computed(() => {
   if (props.caseData.case_category?.includes('刑')) return '被告人'
   if (props.caseData.case_category?.includes('仲裁')) return '被申请人'
-  return '被告'
+  return '被告/被申请人/被上诉人'
 })
 
 // 2️⃣ 委托人标题动态化
