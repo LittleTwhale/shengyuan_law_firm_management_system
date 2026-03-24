@@ -2,13 +2,15 @@
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import or_
+from ..models.case import Case
 from ..crud import user as user_crud
 from ..crud import case as case_crud
 from ..crud.case import get_upcoming_events
 from ..crud.case_review import count_reviewed_cases
 from ..database.database import get_db
-from ..schemas.case import CaseStatistics, EventReminderOut
+from ..schemas.case import CaseStatistics, EventReminderOut, UserScheduleCreate, UserScheduleUpdate
 from ..schemas.user import UserOut, ChangePasswordRequest
 
 # 引入当前用户依赖和 User 模型
@@ -75,3 +77,78 @@ def get_user_reminders(
 ):
     """获取用户的待办事项提醒"""
     return get_upcoming_events(db, current_user.id, days)
+
+
+@router.get("/my-cases/simple")
+def get_my_simple_cases(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)
+):
+    """
+    获取当前用户主办或协办的所有案件简要信息（用于下拉列表）
+    """
+    # 1. 查询时使用 joinedload 预加载 parties
+    cases = db.query(Case).options(
+        joinedload(Case.parties)
+    ).filter(
+        Case.is_deleted == False,
+        or_(
+            Case.main_lawyer_id == current_user.id,
+            Case.assistant_lawyer_id == current_user.id,
+            Case.assistant_lawyer_2_id == current_user.id,
+            Case.execution_lawyer_id == current_user.id,
+            Case.execution_assistant_id == current_user.id
+        )
+    ).order_by(Case.created_at.desc()).all()
+
+    # 2. 组装为前端需要的简单字典列表
+    result = []
+    for c in cases:
+        # 动态获取当事人列表中的委托人名称 (可能有多个委托人)
+        clients = [p.name for p in c.parties if p.party_type and '委托' in p.party_type and p.name]
+
+        # 将多个委托人名字用顿号拼接。
+        # 为了平滑过渡兼容历史旧数据，如果没查到独立当事人，可以暂时 fallback 到 c.client_name
+        real_client_name = "、".join(clients) if clients else (c.client_name or "")
+
+        result.append({
+            "case_id": c.case_id,
+            "case_number": c.case_number,
+            "client_name": real_client_name
+        })
+
+    return result
+
+# 1. 创建自定义日程
+@router.post("/reminders/custom")
+def create_custom_schedule(
+    schedule: UserScheduleCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """创建用户自定义待办事项"""
+    return user_crud.create_user_schedule(db, current_user.id, schedule)
+
+# 2. 修改自定义日程
+@router.put("/reminders/custom/{schedule_id}")
+def update_custom_schedule(
+    schedule_id: int,
+    schedule: UserScheduleUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """修改自定义待办事项"""
+    return user_crud.update_user_schedule(db, schedule_id, current_user.id, schedule)
+
+# 3. 删除自定义日程
+@router.delete("/reminders/custom/{schedule_id}")
+def delete_custom_schedule(
+    schedule_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """删除自定义待办事项"""
+    success = user_crud.delete_user_schedule(db, schedule_id, current_user.id)
+    if not success:
+        raise HTTPException(status_code=404, detail="日程不存在或无权删除")
+    return {"message": "删除成功"}

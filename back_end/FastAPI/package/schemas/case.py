@@ -455,15 +455,34 @@ class CaseStatistics(BaseModel):
 
 # 事件提醒
 class EventReminderOut(BaseModel):
-    case_id: int
-    case_number: str
-    client_name: str
-    event_type: str = Field(..., description="事件类型：开庭/保全/调解/执行")
+    case_id: Optional[int] = None
+    case_number: Optional[str] = None
+    client_name: Optional[str] = None
+
+    event_type: str = Field(..., description="事件类型：开庭/保全/调解/执行 或者 自定义标题")
     event_date: date = Field(..., description="事件日期")
     days_remaining: int = Field(..., description="剩余天数")
 
+    source: str = Field("case", description="数据来源：case(系统提取) / custom(用户自定义)")
+    schedule_id: Optional[int] = Field(None, description="自定义日程记录的ID，用于编辑/删除")
+    description: Optional[str] = Field(None, description="自定义日程的具体说明")
+
     class Config:
         from_attributes = True
+
+# 自定义日程创建
+class UserScheduleCreate(BaseModel):
+    title: str = Field(..., description="日程标题/事项类型")
+    event_date: date = Field(..., description="提醒日期")
+    description: Optional[str] = Field(None, description="详细描述/备注")
+    related_case_id: Optional[int] = Field(None, description="关联的业务ID(可选)")
+
+# 自定义日程更新
+class UserScheduleUpdate(BaseModel):
+    title: Optional[str] = Field(None, description="日程标题/事项类型")
+    event_date: Optional[date] = Field(None, description="提醒日期")
+    description: Optional[str] = Field(None, description="详细描述/备注")
+    related_case_id: Optional[int] = Field(None, description="关联的业务ID(可选)")
 
 # 业务导出查询参数
 class CaseExportQuery(BaseModel):

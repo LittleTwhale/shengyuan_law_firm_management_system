@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, joinedload
 from ..models.case import Case, CaseParty, BankCase
 from ..models.electronic_volume_model import CaseVolume, VolumeFile
 from ..models.finance_model import CaseFinance
+from ..models.user import UserSchedule
 from ..schemas.case import CaseCreate, CaseUpdate
 from ..schemas.case import CaseExportQuery
 
@@ -775,7 +776,9 @@ def get_upcoming_events(db: Session, user_id: int, days: int = 30) -> List[dict]
     if days > 0:
         target_date = today + timedelta(days=days)
 
-    # 1. 查询该律师相关的所有未删除、未归档(可选)的案件
+    events = []
+
+    # ================= 1. 获取系统提取的案件节点 =================
     cases = db.query(Case).options(
         joinedload(Case.bank_case_details),
         joinedload(Case.parties)
@@ -789,8 +792,6 @@ def get_upcoming_events(db: Session, user_id: int, days: int = 30) -> List[dict]
             Case.execution_assistant_id == user_id
         )
     ).all()
-
-    events = []
 
     for case in cases:
         # 定义需要检查的字段映射
@@ -806,7 +807,6 @@ def get_upcoming_events(db: Session, user_id: int, days: int = 30) -> List[dict]
         # ========== 将银行案件的诉讼时效加入检查点 ==========
         if case.case_category == "银行案件" and case.bank_case_details:
             check_points.append(("诉讼时效到期", case.bank_case_details.statute_of_limitations))
-        # ==========================================================
 
         # 动态获取当事人列表中的委托人名称
         clients = [p.name for p in case.parties if p.party_type and '委托' in p.party_type and p.name]
@@ -818,17 +818,46 @@ def get_upcoming_events(db: Session, user_id: int, days: int = 30) -> List[dict]
                 # 1. 如果 days == 0，表示查询全部未来的待办（只限制大于等于今天即可）
                 # 2. 如果 days > 0，表示查询 [今天, 目标日期] 范围内的待办
                 if (days == 0 and event_date >= today) or (days > 0 and today <= event_date <= target_date):
-                    days_remaining = (event_date - today).days
                     events.append({
                         "case_id": case.case_id,
                         "case_number": case.case_number,
                         "client_name": real_client_name,
                         "event_type": event_type,
                         "event_date": event_date,
-                        "days_remaining": days_remaining
+                        "days_remaining": (event_date - today).days,
+                        "source": "case",  # 标记为系统提取
                     })
 
-    # 按剩余天数排序，紧迫的在前
+    # ================= 2. 获取用户自定义的日程 =================
+    schedules_query = db.query(UserSchedule).filter(UserSchedule.user_id == user_id)
+    if days > 0:
+        schedules_query = schedules_query.filter(
+            UserSchedule.event_date >= today,
+            UserSchedule.event_date <= target_date
+        )
+    else:
+        schedules_query = schedules_query.filter(UserSchedule.event_date >= today)
+
+    # 预加载可能关联的案件
+    custom_schedules = schedules_query.options(joinedload(UserSchedule.related_case)).all()
+
+    for sched in custom_schedules:
+        c_num = sched.related_case.case_number if sched.related_case else None
+        c_client = sched.related_case.client_name if sched.related_case else None
+
+        events.append({
+            "case_id": sched.related_case_id,
+            "case_number": c_num,
+            "client_name": c_client,
+            "event_type": sched.title,  # 自定义标题作为事件类型
+            "event_date": sched.event_date,
+            "days_remaining": (sched.event_date - today).days,
+            "source": "custom",  # 标记为自定义
+            "schedule_id": sched.id,
+            "description": sched.description
+        })
+
+    # ================= 3. 统一排序返回 =================
     events.sort(key=lambda x: x['days_remaining'])
     return events
 

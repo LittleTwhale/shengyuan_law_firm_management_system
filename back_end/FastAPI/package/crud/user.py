@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from ..core.security import verify_password,hash_password
-from ..models.user import User
+from ..models.user import User, UserSchedule
+from ..schemas.case import UserScheduleUpdate, UserScheduleCreate
 from ..schemas.user import UserCreate, UserPermissionUpdate
 from typing import Optional, List, cast
 
@@ -144,3 +145,70 @@ def update_user_permissions(db: Session, user_id: int, permissions: UserPermissi
     db.commit()
     db.refresh(db_user)
     return db_user
+
+
+# ==========================================
+# 用户自定义日程 (UserSchedules) 相关 CRUD
+# ==========================================
+
+def create_user_schedule(db: Session, user_id: int, schedule_in: UserScheduleCreate) -> UserSchedule:
+    """
+    创建用户自定义日程
+    """
+    db_schedule = UserSchedule(
+        user_id=user_id,
+        title=schedule_in.title,
+        event_date=schedule_in.event_date,
+        description=schedule_in.description,
+        related_case_id=schedule_in.related_case_id
+    )
+    db.add(db_schedule)
+    db.commit()
+    db.refresh(db_schedule)
+    return db_schedule
+
+
+def update_user_schedule(
+        db: Session,
+        schedule_id: int,
+        user_id: int,
+        schedule_in: UserScheduleUpdate
+) -> Optional[UserSchedule]:
+    """
+    修改用户自定义日程
+    注意：加入了 user_id 校验，防止越权修改其他人的日程
+    """
+    db_schedule = db.query(UserSchedule).filter(
+        UserSchedule.id == schedule_id,
+        UserSchedule.user_id == user_id
+    ).first()
+
+    if not db_schedule:
+        return None
+
+    # exclude_unset=True 确保只更新前端传过来的非空/已修改字段
+    update_data = schedule_in.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_schedule, key, value)
+
+    db.commit()
+    db.refresh(db_schedule)
+    return db_schedule
+
+
+def delete_user_schedule(db: Session, schedule_id: int, user_id: int) -> bool:
+    """
+    删除用户自定义日程
+    注意：加入了 user_id 校验，防止越权删除
+    """
+    db_schedule = db.query(UserSchedule).filter(
+        UserSchedule.id == schedule_id,
+        UserSchedule.user_id == user_id
+    ).first()
+
+    if not db_schedule:
+        return False
+
+    db.delete(db_schedule)
+    db.commit()
+    return True

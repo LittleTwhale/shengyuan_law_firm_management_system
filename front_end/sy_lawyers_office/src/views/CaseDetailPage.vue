@@ -192,9 +192,13 @@ const attachmentFileList = ref([])
 const loadingAttachments = ref(false)
 
 const goBack = () => {
-  // 从路由状态中获取来源页面路径，默认返回案件管理页面
-  const fromPath = route.query.from || '/main/cases'
-  router.push(fromPath)
+  // 如果有明确的来源参数则使用来源，否则尝试回退一级，最后保底去案件列表
+  if (route.query.from) {
+    router.push(route.query.from)
+  } else {
+    // 调用 router.back() 或 window.history.back()
+    router.back()
+  }
 }
 
 const loadCaseDetail = async () => {
@@ -215,7 +219,7 @@ const loadCaseDetail = async () => {
     if (
       role === 'user' &&
       String(mainLawyerId) !== String(currentUserId) &&
-      String(assistantLawyerId) !== String(currentUserId)&&
+      String(assistantLawyerId) !== String(currentUserId) &&
       String(assistantLawyer2Id) !== String(currentUserId) &&
       String(executionLawyerId) !== String(currentUserId) &&
       String(executionAssistantId) !== String(currentUserId)

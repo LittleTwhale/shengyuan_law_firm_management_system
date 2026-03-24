@@ -1,6 +1,8 @@
 # models/user.py
-from sqlalchemy import Column, Integer, String, Enum, DateTime, func, JSON
+from sqlalchemy import Column, Integer, String, Date, Text, ForeignKey, TIMESTAMP, func
+from sqlalchemy import Enum, DateTime, JSON
 from sqlalchemy.orm import relationship
+
 from ..database.database import Base
 
 
@@ -53,3 +55,20 @@ class User(Base):
 
     # 用户上传的卷宗文件
     uploaded_volume_files = relationship("VolumeFile", back_populates="uploader")
+
+class UserSchedule(Base):
+    __tablename__ = "user_schedules"
+
+    id = Column(Integer, primary_key=True, index=True, comment="日程ID")
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(100), nullable=False, comment="日程标题/事项类型")
+    event_date = Column(Date, nullable=False, comment="提醒日期")
+    description = Column(Text, nullable=True, comment="详细描述")
+    related_case_id = Column(Integer, ForeignKey("cases.case_id", ondelete="SET NULL"), nullable=True)
+
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), server_onupdate=func.now())
+
+    # ORM 关系
+    user = relationship("User", backref="schedules")
+    related_case = relationship("Case", backref="linked_schedules")
