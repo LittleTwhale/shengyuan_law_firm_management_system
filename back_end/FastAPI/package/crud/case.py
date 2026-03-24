@@ -72,7 +72,7 @@ def list_cases_by_user_role(
 
     if year:
         # 使用 extract 提取委托日期的年份进行匹配
-        query = query.filter(extract('year', Case.commission_date) == year)
+        query = query.filter(Case.case_number.like(f"%({year})%"))
 
     # 角色与主办律师筛选逻辑
     if role not in ["admin", "owner"]:
@@ -137,7 +137,7 @@ def count_cases_by_user_role(
     """
     query = db.query(Case).filter(Case.is_deleted == False)
     if year:
-        query = query.filter(extract('year', Case.commission_date) == year)
+        query = query.filter(Case.case_number.like(f"%({year})%"))
 
     # 角色筛选
     if role not in ["admin", "owner"]:
@@ -224,7 +224,7 @@ def list_bank_cases_by_user_role(
 
     # 委托年份筛选
     if year:
-        query = query.filter(extract('year', Case.commission_date) == year)
+        query = query.filter(Case.case_number.like(f"%({year})%"))
 
     # 排序逻辑
     if sort_field == "created_at":
@@ -284,7 +284,7 @@ def count_bank_cases_by_user_role(
 
     # 委托年份筛选
     if year:
-        query = query.filter(extract('year', Case.commission_date) == year)
+        query = query.filter(Case.case_number.like(f"%({year})%"))
 
     return query.count()
 
@@ -729,7 +729,7 @@ def count_main_cases(db: Session, lawyer_id: int, year: Optional[int] = None) ->
     """统计主办案件数量"""
     query = db.query(Case).filter(Case.main_lawyer_id == lawyer_id, Case.is_deleted == False)
     if year:
-        query = query.filter(func.extract('year', Case.commission_date) == year)
+        query = query.filter(Case.case_number.like(f"%({year})%"))
     return query.count()
 
 
@@ -737,7 +737,7 @@ def sum_main_case_income(db: Session, lawyer_id: int, year: Optional[int] = None
     """统计主办案件总收费"""
     query = db.query(func.sum(Case.case_income)).filter(Case.main_lawyer_id == lawyer_id, Case.is_deleted == False)
     if year:
-        query = query.filter(func.extract('year', Case.commission_date) == year)
+        query = query.filter(Case.case_number.like(f"%({year})%"))
     result = query.first()
     return result[0] or 0
 
@@ -748,7 +748,7 @@ def count_cases_by_category(db: Session, lawyer_id: int, year: Optional[int] = N
         filter(Case.main_lawyer_id == lawyer_id, Case.is_deleted == False)
 
     if year:
-        query = query.filter(func.extract('year', Case.commission_date) == year)
+        query = query.filter(Case.case_number.like(f"%({year})%"))
 
     categories = query.group_by(Case.case_category).all()
     return {category: count for category, count in categories}
@@ -911,7 +911,7 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         if query_params.end_date:
             query = query.filter(Case.commission_date <= query_params.end_date)
     elif query_params.year:
-        query = query.filter(extract('year', Case.commission_date) == query_params.year)
+        query = query.filter(Case.case_number.like(f"%({query_params.year})%"))
 
     # 按照创建时间倒序获取所有数据
     cases = query.order_by(Case.created_at.desc()).all()
