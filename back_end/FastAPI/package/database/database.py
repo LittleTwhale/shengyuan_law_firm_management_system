@@ -23,5 +23,12 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        # 这里处理业务逻辑中的异常
+        raise
     finally:
-        db.close()
+        try:
+            db.close()
+        except (AttributeError, TypeError):
+            # 捕获由于关闭过程导致的 NoneType 报错
+            pass

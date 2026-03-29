@@ -8,6 +8,7 @@ from typing import List, Optional
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from openpyxl import load_workbook
 from sqlalchemy import or_
@@ -143,15 +144,16 @@ def get_bank_cases(
 
 # 5️⃣ 导出案件表格
 @router.post("/export", response_class=StreamingResponse)
-def export_cases(
+async def export_cases(
         query: CaseExportQuery,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_active_user)  # 安全依赖
+        current_user: User = Depends(get_current_active_user)
 ):
     """
     根据筛选条件导出案件明细 (支持分Sheet导出普通案件和银行案件)
     """
-    excel_io = export_cases_to_excel(db, current_user.id, current_user.role, query)
+    # 将重度 CPU 计算任务扔进 FastAPI 的底层线程池执行，坚决不阻塞主 Event Loop
+    excel_io = await run_in_threadpool(export_cases_to_excel, db, current_user.id, current_user.role, query)
 
     # --- 获取文件真实大小，用于前端进度条 ---
     excel_io.seek(0, 2)  # 将指针移动到文件流末尾

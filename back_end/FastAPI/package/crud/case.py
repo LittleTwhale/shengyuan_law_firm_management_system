@@ -7,10 +7,12 @@ from typing import List
 from typing import Optional, cast
 
 from openpyxl import Workbook
+from openpyxl.cell import WriteOnlyCell
 from openpyxl.styles import Font, Alignment
+from openpyxl.utils import get_column_letter
 from sqlalchemy import func
 from sqlalchemy import or_, extract
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from ..models.case import Case, CaseParty, BankCase
 from ..models.electronic_volume_model import CaseVolume, VolumeFile
@@ -865,17 +867,18 @@ def get_upcoming_events(db: Session, user_id: int, days: int = 30) -> List[dict]
 def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: CaseExportQuery) -> BytesIO:
     """
     导出业务数据为Excel文件 (主表看概况 + 子表查详情)
+    优化版：采用 WriteOnly 模式，纯 Python 预计算
     """
-    # 1. 基础查询与预加载
+    # 1. 基础查询与预加载 (保持不变)
     query = db.query(Case).options(
-        joinedload(Case.main_lawyer),
-        joinedload(Case.assistant_lawyer),
-        joinedload(Case.assistant_lawyer_2),
-        joinedload(Case.execution_lawyer),
-        joinedload(Case.execution_assistant),
-        joinedload(Case.reviewer),
-        joinedload(Case.parties),
-        joinedload(Case.bank_case_details)
+        selectinload(Case.main_lawyer),
+        selectinload(Case.assistant_lawyer),
+        selectinload(Case.assistant_lawyer_2),
+        selectinload(Case.execution_lawyer),
+        selectinload(Case.execution_assistant),
+        selectinload(Case.reviewer),
+        selectinload(Case.parties),
+        selectinload(Case.bank_case_details)
     ).filter(Case.is_deleted == False)
 
     # 权限控制
@@ -891,7 +894,6 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         )
 
     # 2. 动态筛选条件
-    # 关键词搜索：支持按案号或【任何当事人名称】进行全维度检索
     if query_params.keyword:
         query = query.filter(
             or_(
@@ -904,7 +906,6 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
     if query_params.main_lawyer_id:
         query = query.filter(Case.main_lawyer_id == query_params.main_lawyer_id)
 
-    # 时间筛选逻辑：只有未传入起止日期才对年份进行筛选
     if query_params.start_date or query_params.end_date:
         if query_params.start_date:
             query = query.filter(Case.commission_date >= query_params.start_date)
@@ -913,36 +914,10 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
     elif query_params.year:
         query = query.filter(Case.case_number.like(f"%({query_params.year})%"))
 
-    # 按照创建时间倒序获取所有数据
     cases = query.order_by(Case.created_at.desc()).all()
 
-    # 3. 创建 Excel 及 Sheet (动态生成)
-    wb = Workbook()
-
-    # 移除默认的空Sheet，防止出现多余的空标签页
-    if "Sheet" in wb.sheetnames:
-        wb.remove(wb["Sheet"])
-
-    ws_standard = None
-    ws_bank = None
-
-    # 根据筛选条件决定需要生成哪些主表Sheet
-    if query_params.case_category == "银行案件":
-        ws_bank = wb.create_sheet(title="银行案件")
-    elif query_params.case_category and query_params.case_category != "银行案件":
-        ws_standard = wb.create_sheet(title="常规业务")
-    else:
-        # 没有指定类型（导出全部），两个主表Sheet都生成
-        ws_standard = wb.create_sheet(title="常规业务")
-        ws_bank = wb.create_sheet(title="银行案件")
-
-    # --- 新增：创建独立的当事人明细 Sheet ---
-    ws_parties = wb.create_sheet(title="当事人明细")
-
-    # ---------------- 表头定义 ----------------
+    # ---------------- 表头定义 (保持不变) ----------------
     base_headers_part1 = ["业务ID", "业务号", "委托日期", "业务类别"]
-
-    # 拆分当事人列头 (扩展电话和身份证)
     party_headers = [
         "委托人", "委托人联系电话", "委托人证件号",
         "原告/申请人/上诉人", "原告/申请人/上诉人联系电话", "原告/申请人/上诉人证件号",
@@ -952,18 +927,16 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         "担保人", "担保人联系电话", "担保人证件号",
         "其他当事人", "其他当事人联系电话", "其他当事人证件号"
     ]
-
     base_headers_part2 = [
         "案件来源", "收费方式", "风险比例", "案件收入",
         "付款到期日", "案由", "介入阶段", "代理权限", "审理法院", "侦查机关", "检察院", "二审检察机关", "开庭时间",
         "立案日", "结案时间",
-        "案件地点", "案件详情", "主办律师", "助理律师", "第二助理律师", "执行主办律师", "执行助理律师", "审核状态", "审核人",
+        "案件地点", "案件详情", "主办律师", "助理律师", "第二助理律师", "执行主办律师", "执行助理律师", "审核状态",
+        "审核人",
         "是否重大", "是否纸质卷宗", "是否解除", "是否笔录", "是否保全", "保全开始日", "保全终止日",
         "案号", "结案状态", "结案方式", "诉讼费缴费时间", "诉讼费缴费金额", "诉讼费退费时间", "诉讼费退费金额",
         "申请执行日", "调解到期日", "执行到期日", "顾问到期日", "创建时间", "更新时间"
     ]
-
-    # 银行案件特有字段 (BankCase)
     bank_specific_headers = [
         "支行名称", "案件状态", "银行要求案件状态", "缺少具体材料", "抵/质押物信息", "抵押物位置", "客户经理",
         "贷款类型", "贷款账号",
@@ -976,25 +949,13 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         "执行和解内容", "终本时间", "终本原因", "终结执行时间", "恢复执行时间", "还清时间",
         "执行回款总金额", "执行回款来源", "执行和解跟进及回款额", "扣划跟进及回款额", "调解案件履行跟踪情况"
     ]
-
     party_detail_headers = [
         "关联业务号", "业务类别", "当事人名称", "类型",
         "法定代表人", "身份证号/统一社会信用代码", "联系电话", "联系地址"
     ]
 
-    # 组合表头写入
-    if ws_standard:
-        ws_standard.append(base_headers_part1 + party_headers + base_headers_part2)
-    if ws_bank:
-        ws_bank.append(base_headers_part1 + party_headers + base_headers_part2 + bank_specific_headers)
-
-    ws_parties.append(party_detail_headers)
-
-    # 设置表头样式
-    for ws in [ws for ws in [ws_standard, ws_bank, ws_parties] if ws is not None]:
-        for cell in ws[1]:
-            cell.font = Font(bold=True)
-            cell.alignment = Alignment(horizontal="center", vertical="center")
+    standard_headers = base_headers_part1 + party_headers + base_headers_part2
+    bank_headers = base_headers_part1 + party_headers + base_headers_part2 + bank_specific_headers
 
     # ---------------- 辅助函数 ----------------
     def format_date(d):
@@ -1016,71 +977,62 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         except:
             return str(j)
 
-    # ---------------- 填充数据 ----------------
+    # ---------------- 纯 Python 数据提取 (极速，无 openpyxl 开销) ----------------
+    standard_rows = []
+    bank_rows = []
+    party_rows = []
+
     for case in cases:
-        # 初始化分类当事人信息列表：(姓名, 电话, 证件号)
         clients_name, clients_phone, clients_id = [], [], []
         plaintiffs_name, plaintiffs_phone, plaintiffs_id = [], [], []
         defendants_name, defendants_phone, defendants_id = [], [], []
         thirds_name, thirds_phone, thirds_id = [], [], []
-        borrowers_name, borrowers_phone, borrowers_id = [], [], []  # 借款人
-        guarantors_name, guarantors_phone, guarantors_id = [], [], []  # 担保人
+        borrowers_name, borrowers_phone, borrowers_id = [], [], []
+        guarantors_name, guarantors_phone, guarantors_id = [], [], []
         others_name, others_phone, others_id = [], [], []
 
-        # 遍历当事人，分发数据
         if case.parties:
             for p in case.parties:
-                # 1. 写入子表 (当事人明细)
-                ws_parties.append([
-                    case.case_number or "",
-                    case.case_category or "",
-                    p.name or "",
-                    p.party_type or "",
-                    p.legal_representative or "",
-                    p.id_number or "",
-                    p.phone or "",
-                    p.address or ""
+                party_rows.append([
+                    case.case_number or "", case.case_category or "", p.name or "",
+                    p.party_type or "", p.legal_representative or "", p.id_number or "",
+                    p.phone or "", p.address or ""
                 ])
 
-                # 2. 为主表聚合字符串 (按角色分组)
                 ptype = p.party_type or ""
                 pname = p.name or "未知姓名"
-
-                # 提取电话和证件号，如果为空则用 "-" 占位，保证换行对齐
                 p_phone = p.phone or "-"
                 p_id = p.id_number or "-"
 
                 if "委托人" in ptype:
-                    clients_name.append(pname)
-                    clients_phone.append(p_phone)
+                    clients_name.append(pname);
+                    clients_phone.append(p_phone);
                     clients_id.append(p_id)
                 elif ptype in ["原告", "申请人", "上诉人"]:
-                    plaintiffs_name.append(pname)
-                    plaintiffs_phone.append(p_phone)
+                    plaintiffs_name.append(pname);
+                    plaintiffs_phone.append(p_phone);
                     plaintiffs_id.append(p_id)
                 elif ptype in ["被告", "被告人", "被申请人", "被上诉人"]:
-                    defendants_name.append(pname)
-                    defendants_phone.append(p_phone)
+                    defendants_name.append(pname);
+                    defendants_phone.append(p_phone);
                     defendants_id.append(p_id)
                 elif ptype == "第三人":
-                    thirds_name.append(pname)
-                    thirds_phone.append(p_phone)
+                    thirds_name.append(pname);
+                    thirds_phone.append(p_phone);
                     thirds_id.append(p_id)
                 elif ptype == "借款人":
-                    borrowers_name.append(pname)
-                    borrowers_phone.append(p_phone)
+                    borrowers_name.append(pname);
+                    borrowers_phone.append(p_phone);
                     borrowers_id.append(p_id)
                 elif ptype == "担保人":
-                    guarantors_name.append(pname)
-                    guarantors_phone.append(p_phone)
+                    guarantors_name.append(pname);
+                    guarantors_phone.append(p_phone);
                     guarantors_id.append(p_id)
                 else:
-                    # 其他当事人追加身份后缀
                     others_name.append(f"{pname}({ptype})" if ptype else pname)
-                    others_phone.append(p_phone)
+                    others_phone.append(p_phone);
                     others_id.append(p_id)
 
-        # 构建主表的15列当事人数据 (使用 \n 回车换行拼接)
         party_columns_data = [
             "\n".join(clients_name), "\n".join(clients_phone), "\n".join(clients_id),
             "\n".join(plaintiffs_name), "\n".join(plaintiffs_phone), "\n".join(plaintiffs_id),
@@ -1091,169 +1043,137 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
             "\n".join(others_name), "\n".join(others_phone), "\n".join(others_id)
         ]
 
-        base_data_part1 = [
-            case.case_id,
-            case.case_number,
-            format_date(case.commission_date),
-            case.case_category
-        ]
-
+        base_data_part1 = [case.case_id, case.case_number, format_date(case.commission_date), case.case_category]
         base_data_part2 = [
-            case.case_source or "",
-            case.fee_method or "",
-            case.risk_ratio or "",
-            format_decimal(case.case_income),
-            format_date(case.payment_due_date),
-            case.cause or "",
-            case.stage or "",
-            case.agency_power or "",
-            case.court or "",
-            case.investigative_agency or "",
-            case.procuratorate or "",
-            case.second_instance_procuratorate or "",
-            format_date(case.hearing_date),
-            format_date(case.filing_date),
-            format_date(case.closing_date),
-            case.location or "",
-            case.details or "",
+            case.case_source or "", case.fee_method or "", case.risk_ratio or "", format_decimal(case.case_income),
+            format_date(case.payment_due_date), case.cause or "", case.stage or "", case.agency_power or "",
+            case.court or "", case.investigative_agency or "", case.procuratorate or "",
+            case.second_instance_procuratorate or "", format_date(case.hearing_date), format_date(case.filing_date),
+            format_date(case.closing_date), case.location or "", case.details or "",
             case.main_lawyer.real_name if case.main_lawyer else "",
             case.assistant_lawyer.real_name if case.assistant_lawyer else "",
             Case.assistant_lawyer_2.real_name if case.assistant_lawyer_2 else "",
             case.execution_lawyer.real_name if case.execution_lawyer else "",
             case.execution_assistant.real_name if case.execution_assistant else "",
-            case.review_status,
-            case.reviewer.real_name if case.reviewer else "",
-            format_bool(case.is_major),
-            format_bool(case.has_paper_file),
-            format_bool(case.is_dismissed),
-            format_bool(case.has_record),
-            format_bool(case.has_preservation),
-            format_date(case.preservation_start),
-            format_date(case.preservation_end),
-            case.case_code or "",
-            case.closing_status or "",
-            case.closing_method or "",
-            format_date(case.litigation_fee_payment_date),
-            format_decimal(case.litigation_fee_payment_amount),
-            format_date(case.litigation_fee_refund_date),
-            format_decimal(case.litigation_fee_refund_amount),
-            format_date(case.execution_application_date),
-            format_date(case.mediation_due_date),
-            format_date(case.execution_due_date),
-            format_date(case.advisory_due_date),
-            format_datetime(case.created_at),
-            format_datetime(case.updated_at)
+            case.review_status, case.reviewer.real_name if case.reviewer else "",
+            format_bool(case.is_major), format_bool(case.has_paper_file), format_bool(case.is_dismissed),
+            format_bool(case.has_record), format_bool(case.has_preservation),
+            format_date(case.preservation_start), format_date(case.preservation_end),
+            case.case_code or "", case.closing_status or "", case.closing_method or "",
+            format_date(case.litigation_fee_payment_date), format_decimal(case.litigation_fee_payment_amount),
+            format_date(case.litigation_fee_refund_date), format_decimal(case.litigation_fee_refund_amount),
+            format_date(case.execution_application_date), format_date(case.mediation_due_date),
+            format_date(case.execution_due_date), format_date(case.advisory_due_date),
+            format_datetime(case.created_at), format_datetime(case.updated_at)
         ]
 
-        # 写入银行案件
-        if case.case_category == "银行案件" and ws_bank:
+        if case.case_category == "银行案件":
             bank = case.bank_case_details
             bank_specific_data = [
-                bank.branch_name if bank else "",
-                bank.case_status if bank else "",
+                bank.branch_name if bank else "", bank.case_status if bank else "",
                 bank.bank_required_case_status if bank else "",
-                bank.missing_specific_materials if bank else "",
-                bank.collateral_info if bank else "",
+                bank.missing_specific_materials if bank else "", bank.collateral_info if bank else "",
                 bank.collateral_location if bank else "",
-                bank.account_manager if bank else "",
-                bank.loan_type if bank else "",
-                bank.loan_account if bank else "",
+                bank.account_manager if bank else "", bank.loan_type if bank else "", bank.loan_account if bank else "",
                 format_decimal(bank.loan_principal if bank else 0),
                 format_decimal(bank.litigation_target_amount if bank else 0),
-                format_decimal(bank.credit_card_penalty if bank else 0),
-                format_date(bank.loan_date if bank else None),
+                format_decimal(bank.credit_card_penalty if bank else 0), format_date(bank.loan_date if bank else None),
                 format_date(bank.loan_due_date if bank else None),
                 format_date(bank.statute_of_limitations if bank else None),
-                format_date(bank.case_acceptance_date if bank else None),
-                bank.material_fetcher if bank else "",
-                bank.pre_litigation_collection if bank else "",
-                format_date(bank.seal_date if bank else None),
-                format_date(bank.material_submission_date if bank else None),
-                bank.handling_judge if bank else "",
-                format_date(bank.judgment_date if bank else None),
-                bank.judgment_method if bank else "",
-                bank.judgment_summary if bank else "",
-                format_decimal(bank.lawyer_fee_supported if bank else 0),
+                format_date(bank.case_acceptance_date if bank else None), bank.material_fetcher if bank else "",
+                bank.pre_litigation_collection if bank else "", format_date(bank.seal_date if bank else None),
+                format_date(bank.material_submission_date if bank else None), bank.handling_judge if bank else "",
+                format_date(bank.judgment_date if bank else None), bank.judgment_method if bank else "",
+                bank.judgment_summary if bank else "", format_decimal(bank.lawyer_fee_supported if bank else 0),
                 format_decimal(bank.defendant_paid_lawyer_fee if bank else 0),
                 format_bool(bank.is_settled if bank else False),
                 format_bool(bank.has_second_instance_or_retrial if bank else False),
                 bank.execution_case_number if bank else "",
-                format_date(bank.execution_filing_date if bank else None),
-                bank.execution_judge if bank else "",
-                bank.borrower_work_unit if bank else "",
-                format_bool(bank.is_execution_recovery if bank else False),
+                format_date(bank.execution_filing_date if bank else None), bank.execution_judge if bank else "",
+                bank.borrower_work_unit if bank else "", format_bool(bank.is_execution_recovery if bank else False),
                 format_date(bank.execution_material_receipt_date if bank else None),
                 format_date(bank.execution_material_submission_date if bank else None),
                 format_decimal(bank.execution_principal if bank else 0),
                 format_decimal(bank.execution_lawyer_fee if bank else 0),
-                bank.property_investigation if bank else "",
-                bank.network_control_status if bank else "",
-                bank.execution_plan if bank else "",
-                bank.court_execution_measures if bank else "",
-                format_date(bank.seizure_freeze_date if bank else None),
-                bank.auction_status if bank else "",
+                bank.property_investigation if bank else "", bank.network_control_status if bank else "",
+                bank.execution_plan if bank else "", bank.court_execution_measures if bank else "",
+                format_date(bank.seizure_freeze_date if bank else None), bank.auction_status if bank else "",
                 format_decimal(bank.auction_deal_price if bank else 0),
                 bank.execution_settlement_content if bank else "",
-                format_date(bank.procedure_termination_date if bank else None),
-                bank.termination_reason if bank else "",
+                format_date(bank.procedure_termination_date if bank else None), bank.termination_reason if bank else "",
                 format_date(bank.execution_conclusion_date if bank else None),
                 format_date(bank.execution_recovery_date if bank else None),
                 format_date(bank.payoff_date if bank else None),
                 format_decimal(bank.execution_collection_amount if bank else 0),
-                bank.collection_source if bank else "",
-                format_json(bank.execution_settlement_log if bank else None),
-                format_json(bank.deduction_log if bank else None),
-                bank.mediation_tracking if bank else ""
+                bank.collection_source if bank else "", format_json(bank.execution_settlement_log if bank else None),
+                format_json(bank.deduction_log if bank else None), bank.mediation_tracking if bank else ""
             ]
-            row_data = base_data_part1 + party_columns_data + base_data_part2 + bank_specific_data
-            ws_bank.append(row_data)
-            # 给21个当事人列（即第5到第25列）设置自动换行和居中对齐
-            for col_idx in range(5, 26):
-                ws_bank.cell(row=ws_bank.max_row, column=col_idx).alignment = Alignment(wrap_text=True,
-                                                                                        vertical="center")
+            bank_rows.append(base_data_part1 + party_columns_data + base_data_part2 + bank_specific_data)
+        else:
+            standard_rows.append(base_data_part1 + party_columns_data + base_data_part2)
 
-        # 写入常规案件
-        elif case.case_category != "银行案件" and ws_standard:
-            row_data = base_data_part1 + party_columns_data + base_data_part2
-            ws_standard.append(row_data)
-            # 给21个当事人列（即第5到第25列）设置自动换行和居中对齐
-            for col_idx in range(5, 26):
-                ws_standard.cell(row=ws_standard.max_row, column=col_idx).alignment = Alignment(wrap_text=True,
-                                                                                                vertical="center")
+    # ---------------- 3. 极速导出：WriteOnlyWorkbook ----------------
+    # 【终极优化】：开启只写模式，直接将数据冲刷至文件流，不构建内存DOM树
+    wb = Workbook(write_only=True)
+    header_font = Font(bold=True)
+    header_alignment = Alignment(horizontal="center", vertical="center")
+    wrap_alignment = Alignment(wrap_text=True, vertical="center")
 
-    # ---------------- 自适应列宽逻辑 ----------------
-    def auto_fit_columns(worksheet):
-        for col in worksheet.columns:
-            max_length = 0
-            col_letter = col[0].column_letter
+    def write_sheet_data(sheet_title, headers, data_rows, wrap_start=4, wrap_end=24):
+        ws = wb.create_sheet(title=sheet_title)
 
-            for col_cell in col:
-                if col_cell.value is not None:
-                    # 将单元格内容转为字符串
-                    cell_str = str(col_cell.value)
+        # 纯 Python 预计算前 100 行的列宽，直接在写入前设定完毕
+        widths = [len(str(h).encode('gbk', 'replace')) for h in headers]
+        for row in data_rows[:100]:
+            for idx, val in enumerate(row):
+                if val is not None:
+                    max_l = max((len(l.encode('gbk', 'replace')) for l in str(val).split('\n')), default=0)
+                    if max_l > widths[idx]:
+                        widths[idx] = max_l
 
-                    # 按换行符拆分，计算单行最长字符
-                    # 这样可以兼容多个当事人通过 \n 换行的情况，同时保证最长公司名不断行
-                    lines = cell_str.split('\n')
-                    for line in lines:
-                        # 中文按2个字符宽度算，英文/数字按1.2个字符宽度算
-                        line_len = sum(2 if ord(c) > 255 else 1.2 for c in line)
-                        if line_len > max_length:
-                            max_length = line_len
+        for idx, width in enumerate(widths):
+            col_letter = get_column_letter(idx + 1)
+            ws.column_dimensions[col_letter].width = min(width + 2, 100)
 
-            # 设置自适应宽度：加2作为缓冲空白，最高限制为100（防止极端异常数据导致列宽过大）
-            adjusted_width = min(max_length + 2, 100)
-            worksheet.column_dimensions[col_letter].width = adjusted_width
+        # 写入表头 (通过 WriteOnlyCell 注入样式)
+        header_cells = []
+        for val in headers:
+            cell = WriteOnlyCell(ws, value=val)
+            cell.font = header_font
+            cell.alignment = header_alignment
+            header_cells.append(cell)
+        ws.append(header_cells)
 
-    # 对存在的Sheet应用列宽自适应
-    if ws_standard:
-        auto_fit_columns(ws_standard)
-    if ws_bank:
-        auto_fit_columns(ws_bank)
-    if ws_parties:
-        auto_fit_columns(ws_parties)
+        # 写入数据 (通过 WriteOnlyCell 注入当事人列的换行样式)
+        for row in data_rows:
+            row_cells = []
+            for idx, val in enumerate(row):
+                cell = WriteOnlyCell(ws, value=val)
+                if wrap_start <= idx <= wrap_end:
+                    cell.alignment = wrap_alignment
+                row_cells.append(cell)
+            ws.append(row_cells)
 
-    # 5. 保存到内存并返回
+    # 根据数据动态生成 Sheet
+    need_bank = (query_params.case_category == "银行案件") or (not query_params.case_category)
+    need_standard = (query_params.case_category != "银行案件") or (not query_params.case_category)
+
+    if need_standard and standard_rows:
+        write_sheet_data("常规业务", standard_headers, standard_rows)
+    # 如果没筛选类型但常规列表为空，也保底建一个空Sheet
+    elif need_standard and not standard_rows and not need_bank:
+        write_sheet_data("常规业务", standard_headers, [])
+
+    if need_bank and bank_rows:
+        write_sheet_data("银行案件", bank_headers, bank_rows)
+    elif need_bank and not bank_rows and not need_standard:
+        write_sheet_data("银行案件", bank_headers, [])
+
+    if party_rows:
+        # 当事人明细不需要特殊换行，所以 wrap_start 和 wrap_end 设到越界区间
+        write_sheet_data("当事人明细", party_detail_headers, party_rows, wrap_start=999, wrap_end=999)
+
+    # 4. 保存并返回
     buffer = BytesIO()
     wb.save(buffer)
     buffer.seek(0)
