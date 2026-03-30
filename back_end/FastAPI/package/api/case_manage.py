@@ -104,6 +104,7 @@ def get_bank_cases(
     keyword: Optional[str] = None,  # 新增搜索关键词参数
     main_lawyer_id: Optional[int] = None,
     year: Optional[str] = None,
+    case_status: Optional[str] = None,
     sort_field: Optional[str] = "created_at",  # 排序参数
     sort_dir: Optional[str] = "desc",  # 排序方式
     db: Session = Depends(get_db),
@@ -121,6 +122,7 @@ def get_bank_cases(
         keyword=keyword,
         main_lawyer_id=main_lawyer_id,
         year=year,
+        case_status=case_status,
         sort_field=sort_field,
         sort_dir=sort_dir,
     )
@@ -131,6 +133,7 @@ def get_bank_cases(
         keyword=keyword,  # 传递给统计函数
         main_lawyer_id=main_lawyer_id,
         year=year,
+        case_status=case_status,
     )
     # 拦截转换：用 CaseParty 覆盖 client_name
     cases_simple = []
@@ -138,6 +141,8 @@ def get_bank_cases(
         simple = CaseSimpleOut.model_validate(c)
         simple.client_name = aggregate_client_names(c)
         simple.borrower_name = aggregate_borrower_names(c)
+        if c.bank_case_details:
+            simple.case_status = c.bank_case_details.case_status
         cases_simple.append(simple)
     return {"items": cases_simple, "total": total}
 

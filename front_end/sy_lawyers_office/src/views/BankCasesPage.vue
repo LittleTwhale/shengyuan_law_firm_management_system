@@ -3,6 +3,9 @@
     <div class="header">
       <h2>银行案件</h2>
       <div class="action-buttons">
+        <el-button type="danger" :disabled="selectedCases.length === 0" @click="handleBatchDelete">
+          批量删除
+        </el-button>
         <el-button type="success" @click="handleExportClick">导出表格</el-button>
       </div>
     </div>
@@ -23,6 +26,7 @@
           v-model="selectedLawyerId"
           placeholder="主办律师筛选"
           clearable
+          filterable
           @change="handleSearch"
           class="toolbar-item filter-select"
         >
@@ -31,6 +35,22 @@
             :key="lawyer.id"
             :label="lawyer.real_name"
             :value="lawyer.id"
+          />
+        </el-select>
+
+        <el-select
+          v-model="selectedCaseStatus"
+          placeholder="案件状态筛选"
+          clearable
+          filterable
+          @change="handleSearch"
+          class="toolbar-item filter-select"
+        >
+          <el-option
+            v-for="status in caseStatusOptions"
+            :key="status"
+            :label="status"
+            :value="status"
           />
         </el-select>
 
@@ -53,10 +73,13 @@
         style="width: 100%"
         v-loading="tableLoading"
         @sort-change="handleSortChange"
+        @selection-change="handleSelectionChange"
       >
+        <el-table-column type="selection" width="55" align="center" />
+
         <el-table-column prop="case_number" label="业务号" min-width="200" align="center" />
         <el-table-column prop="client_name" label="委托银行" min-width="150" align="center" />
-        <el-table-column prop="case_category" label="案件类别" min-width="100" align="center" />
+        <el-table-column prop="case_status" label="案件状态" min-width="150" align="center" />
         <el-table-column prop="borrower_name" label="借款人" min-width="150" align="center" />
         <el-table-column
           prop="main_lawyer.real_name"
@@ -115,11 +138,13 @@
 
     <el-pagination
       background
-      :layout="isMobile ? 'prev, pager, next' : 'prev, pager, next, jumper, ->, total'"
+      :layout="isMobile ? 'prev, pager, next' : 'total, sizes, prev, pager, next, jumper'"
+      :page-sizes="[10, 15, 30, 50, 100]"
       :current-page="page"
       :page-size="pageSize"
       :total="total"
       @current-change="handlePageChange"
+      @size-change="handleSizeChange"
       style="margin-top: 16px; text-align: right; justify-content: flex-end; display: flex"
     />
 
@@ -212,6 +237,7 @@
             v-model="exportForm.main_lawyer_id"
             placeholder="全部律师"
             clearable
+            filterable
             style="width: 100%"
           >
             <el-option
@@ -219,6 +245,23 @@
               :key="lawyer.id"
               :label="lawyer.real_name"
               :value="lawyer.id"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="案件状态">
+          <el-select
+            v-model="exportForm.case_status"
+            placeholder="全部状态"
+            clearable
+            filterable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="status in caseStatusOptions"
+              :key="status"
+              :label="status"
+              :value="status"
             />
           </el-select>
         </el-form-item>
@@ -293,6 +336,35 @@ const searchKeyword = ref('') // 搜索关键词
 const selectedLawyerId = ref(null) // 选中的主办律师ID
 // 年份变量，默认为当前年份字符串
 const selectedYear = ref(new Date().getFullYear().toString())
+const selectedCaseStatus = ref(null) // 选中的案件状态
+const caseStatusOptions = [
+  '写诉讼状中',
+  '资料不足',
+  '移交法院排队立案',
+  '诉讼立案',
+  '已开庭',
+  '已裁判',
+  '债务履行完毕结案',
+  '银行要求撤诉',
+  '终结执行',
+  '跟进调解履行情况',
+  '写执行申请资料',
+  '移交法院执行手续',
+  '执行排队立案中',
+  '执行和解',
+  '网络查控资产情况',
+  '扣划工资工积金处置抵押物',
+  '询价查看不动产情况',
+  '拍卖抵押物',
+  '终本',
+  '恢复执行中',
+  '银行要求暂不起诉',
+  '银行未交诉讼费撤诉',
+  '被告已还清不起诉',
+  '被告已还清撤诉',
+  '执行盖章中',
+  '诉讼盖章中',
+]
 
 // 排序相关的响应式变量
 const currentSortField = ref('created_at') // 默认按创建时间排序
@@ -341,6 +413,7 @@ const loadBankCases = async () => {
         limit: pageSize.value,
         keyword: searchKeyword.value,
         year: selectedYear.value || '', // 年份筛选
+        case_status: selectedCaseStatus.value, // 案件状态筛选
         sort_field: currentSortField.value, // 排序字段
         sort_dir: currentSortDir.value, // 排序方向
         ...(currentUserRole.value === 'admin' || currentUserRole.value === 'owner'
@@ -386,10 +459,66 @@ const handlePageChange = (p) => {
   loadBankCases()
 }
 
+// 切换每页条数
+const handleSizeChange = (size) => {
+  pageSize.value = size
+  page.value = 1 // 切换每页条数后，务必重置回第一页
+  loadBankCases()
+}
+
 // 搜索功能
 const handleSearch = () => {
   page.value = 1 // 重置到第一页
   loadBankCases()
+}
+
+// -------------------------- 批量删除相关 --------------------------
+const selectedCases = ref([]) // 存储当前选中的行数据
+
+// 表格选中项变化时的回调
+const handleSelectionChange = (val) => {
+  selectedCases.value = val
+}
+
+// 执行批量删除
+const handleBatchDelete = async () => {
+  if (selectedCases.value.length === 0) return
+
+  // 1. 权限过滤：检查是否有普通用户无权删除的“已审核”案件
+  const validCases = selectedCases.value.filter(
+    (row) => !(currentUserRole.value === 'user' && row.review_status === '已审核'),
+  )
+
+  if (validCases.length === 0) {
+    ElMessage.warning('选中的案件已审核，您无权删除')
+    return
+  }
+
+  // 2. 弹窗确认提示
+  let confirmMsg = `确定要删除选中的 ${validCases.length} 个案件吗？`
+  if (validCases.length < selectedCases.value.length) {
+    confirmMsg = `其中 ${selectedCases.value.length - validCases.length} 个案件已审核无法删除，是否继续删除剩余的 ${validCases.length} 个案件？`
+  }
+
+  if (!confirm(confirmMsg)) return
+
+  try {
+    // 3. 执行删除操作: 利用 Promise.all 并发请求
+    const deletePromises = validCases.map((row) =>
+      request.delete(`/cases/case_delete/${row.case_id}`),
+    )
+    await Promise.all(deletePromises)
+
+    ElMessage.success('批量删除成功')
+
+    // 4. 重置状态并刷新列表
+    selectedCases.value = [] // 清空选中状态
+    await loadBankCases()
+  } catch (err) {
+    console.error('批量删除失败:', err)
+    ElMessage.error('部分或全部删除失败，请重试')
+    await loadBankCases() // 失败也最好刷新一下，避免数据不同步
+  }
 }
 
 // 查看案件详情
@@ -543,12 +672,14 @@ const exportForm = reactive({
   main_lawyer_id: null,
   year: '',
   dateRange: [],
+  case_status: null,
 })
 
 // 打开导出弹窗，同步当前的筛选状态
 const handleExportClick = () => {
   exportForm.keyword = searchKeyword.value || ''
   exportForm.main_lawyer_id = selectedLawyerId.value || null
+  exportForm.case_status = selectedCaseStatus.value || null
   exportForm.year = selectedYear.value || ''
   exportForm.dateRange = []
   showExportDialog.value = true
@@ -566,6 +697,7 @@ const submitExport = async () => {
       case_category: '银行案件',
       main_lawyer_id: exportForm.main_lawyer_id || null,
       year: exportForm.year || null,
+      case_status: exportForm.case_status || null,
       start_date:
         exportForm.dateRange && exportForm.dateRange.length === 2 ? exportForm.dateRange[0] : null,
       end_date:

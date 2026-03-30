@@ -182,6 +182,7 @@ def list_bank_cases_by_user_role(
         keyword: Optional[str] = None,  # 新增
         main_lawyer_id: Optional[int] = None,  # 主办律师筛选
         year: Optional[str] = None,
+        case_status: Optional[str] = None,
         sort_field: str = "created_at",  # 排序字段，默认按创建时间
         sort_dir: str = "desc"  # 排序方向，默认降序（最新在前）
 ) -> List[Case]:
@@ -196,7 +197,8 @@ def list_bank_cases_by_user_role(
         joinedload(Case.assistant_lawyer_2),
         joinedload(Case.execution_lawyer),
         joinedload(Case.execution_assistant),
-        joinedload(Case.parties)
+        joinedload(Case.parties),
+        joinedload(Case.bank_case_details)
     ).filter(Case.is_deleted == False, Case.case_category == "银行案件")
 
     # 角色筛选
@@ -228,6 +230,11 @@ def list_bank_cases_by_user_role(
     if year:
         query = query.filter(Case.case_number.like(f"%({year})%"))
 
+    # 案件状态筛选
+    if case_status:
+        # join BankCase 表进行筛选
+        query = query.join(BankCase).filter(BankCase.case_status == case_status)
+
     # 排序逻辑
     if sort_field == "created_at":
         order_column = Case.created_at
@@ -253,7 +260,8 @@ def count_bank_cases_by_user_role(
         role: str,
         keyword: Optional[str] = None,  # 新增
         main_lawyer_id: Optional[int] = None,
-        year: Optional[str] = None
+        year: Optional[str] = None,
+        case_status: Optional[str] = None,
 ) -> int:
     """
     根据用户角色统计案件总数
@@ -287,6 +295,10 @@ def count_bank_cases_by_user_role(
     # 委托年份筛选
     if year:
         query = query.filter(Case.case_number.like(f"%({year})%"))
+
+    # 案件状态筛选
+    if case_status:
+        query = query.join(BankCase).filter(BankCase.case_status == case_status)
 
     return query.count()
 
@@ -905,6 +917,8 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         query = query.filter(Case.case_category == query_params.case_category)
     if query_params.main_lawyer_id:
         query = query.filter(Case.main_lawyer_id == query_params.main_lawyer_id)
+    if query_params.case_status:
+        query = query.join(BankCase).filter(BankCase.case_status == query_params.case_status)
 
     if query_params.start_date or query_params.end_date:
         if query_params.start_date:

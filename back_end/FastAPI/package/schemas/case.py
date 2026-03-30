@@ -430,6 +430,7 @@ class CaseSimpleOut(BaseModel):
     client_name: Optional[str] = Field(None, description="委托人 / Client name")
     borrower_name: Optional[str] = Field(None, description="借款人 / Borrower name")
     case_category: str = Field(..., description="案件类别 / Case category")
+    case_status: Optional[str] = Field(None, description="案件状态 / Case status")
     review_status: str = Field(..., description="案件审核状态 / Review status")
     main_lawyer: Optional[UserOut] = Field(None, description="主办律师 / Main lawyer")
     created_at: datetime = Field(..., description="创建时间 / Created at")
@@ -490,6 +491,7 @@ class CaseExportQuery(BaseModel):
     case_category: Optional[str] = None
     main_lawyer_id: Optional[int] = None
     year: Optional[str] = None
+    case_status: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
 
