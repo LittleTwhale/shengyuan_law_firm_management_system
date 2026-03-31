@@ -494,6 +494,7 @@ class CaseExportQuery(BaseModel):
     case_status: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    case_ids: Optional[List[int]] = None
 
 # 批量审核请求
 class BatchReviewRequest(BaseModel):

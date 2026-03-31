@@ -11,6 +11,15 @@
         <el-button type="warning" @click="showImportDialog = true">
           <el-icon><Upload /></el-icon>批量导入
         </el-button>
+        <el-button
+          type="success"
+          plain
+          :disabled="selectedCases.length === 0"
+          :loading="isExportingSelected"
+          @click="handleExportSelected"
+        >
+          导出选中
+        </el-button>
         <el-button type="success" @click="handleExportClick">导出表格</el-button>
         <el-button type="danger" :disabled="selectedCases.length === 0" @click="handleBatchDelete">
           批量删除
@@ -535,9 +544,7 @@ const loadCases = async () => {
         year: selectedYear.value || '', // 年份筛选
         sort_field: currentSortField.value,
         sort_dir: currentSortDir.value,
-        ...(currentUserRole.value === 'admin' || currentUserRole.value === 'owner'
-          ? { main_lawyer_id: selectedLawyerId.value }
-          : {}),
+        main_lawyer_id: selectedLawyerId.value,// 主办律师筛选
       },
     })
     cases.value = res.data.items || []
@@ -726,6 +733,64 @@ const exportForm = reactive({
   year: '',
   dateRange: [],
 })
+
+// 新增：精准导出选中的 loading 状态
+const isExportingSelected = ref(false)
+
+// 执行导出选中的案件
+const handleExportSelected = async () => {
+  if (selectedCases.value.length === 0) {
+    ElMessage.warning('请先勾选需要导出的案件')
+    return
+  }
+
+  try {
+    isExportingSelected.value = true
+
+    // 提取所有选中的 case_id
+    const selectedIds = selectedCases.value.map((row) => row.case_id)
+
+    // 构建 payload，总表不需要锁定 category，仅传入选中 ID 即可
+    const payload = {
+      case_ids: selectedIds,
+    }
+
+    // 调用导出接口
+    const response = await request.post('/cases/export', payload, {
+      responseType: 'blob',
+    })
+
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const downloadUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = downloadUrl
+
+    const timestamp = new Date()
+      .toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+      .replace(/\D/g, '')
+
+    // 文件名加以区分
+    link.download = `业务数据(选中导出)_${timestamp}.xlsx`
+
+    link.click()
+    window.URL.revokeObjectURL(downloadUrl)
+
+    ElMessage.success(`成功导出 ${selectedIds.length} 条案件数据 ✅`)
+  } catch (error) {
+    console.error('精准导出Excel失败：', error)
+    ElMessage.error('导出失败，请检查网络或稍后重试 ❌')
+  } finally {
+    isExportingSelected.value = false
+  }
+}
 
 // 点击列表页的导出按钮 -> 打开弹窗，并默认带入当前列表的筛选条件
 const handleExportClick = () => {

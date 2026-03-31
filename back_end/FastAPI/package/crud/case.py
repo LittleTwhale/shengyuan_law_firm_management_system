@@ -88,10 +88,9 @@ def list_cases_by_user_role(
                 Case.execution_assistant_id == user_id
             )
         )
-    else:
-        # 管理员/所有者：默认看全部，但如果选择了特定律师，则进行过滤
-        if main_lawyer_id is not None:
-            query = query.filter(Case.main_lawyer_id == main_lawyer_id)
+
+    if main_lawyer_id is not None:
+        query = query.filter(Case.main_lawyer_id == main_lawyer_id)
 
     # 类别筛选
     if category:
@@ -152,10 +151,9 @@ def count_cases_by_user_role(
                 Case.execution_assistant_id == user_id
             )
         )
-    else:
-        # 管理员可以筛选特定主办律师
-        if main_lawyer_id is not None:
-            query = query.filter(Case.main_lawyer_id == main_lawyer_id)
+
+    if main_lawyer_id is not None:
+        query = query.filter(Case.main_lawyer_id == main_lawyer_id)
 
     # 类别筛选
     if category:
@@ -212,10 +210,9 @@ def list_bank_cases_by_user_role(
                 Case.execution_assistant_id == user_id
             )
         )
-    else:
-        # 管理员可以筛选特定主办律师
-        if main_lawyer_id is not None:
-            query = query.filter(Case.main_lawyer_id == main_lawyer_id)
+
+    if main_lawyer_id is not None:
+        query = query.filter(Case.main_lawyer_id == main_lawyer_id)
 
     # 关键词搜索：支持按案号或【任何当事人名称】进行全维度检索
     if keyword:
@@ -278,10 +275,9 @@ def count_bank_cases_by_user_role(
                 Case.execution_assistant_id == user_id
             )
         )
-    else:
-        # 管理员可以筛选特定主办律师
-        if main_lawyer_id is not None:
-            query = query.filter(Case.main_lawyer_id == main_lawyer_id)
+
+    if main_lawyer_id is not None:
+        query = query.filter(Case.main_lawyer_id == main_lawyer_id)
 
     # 关键词搜索：支持按案号或【任何当事人名称】进行全维度检索
     if keyword:
@@ -906,27 +902,32 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         )
 
     # 2. 动态筛选条件
-    if query_params.keyword:
-        query = query.filter(
-            or_(
-                Case.case_number.like(f"%{query_params.keyword}%"),
-                Case.parties.any(CaseParty.name.like(f"%{query_params.keyword}%"))
+    if query_params.case_ids:
+        # 如果传入了具体的 ID 列表，则直接过滤这些 ID (精准导出选中)
+        query = query.filter(Case.case_id.in_(query_params.case_ids))
+    else:
+        # 只有在没有特定 ID 的情况下，才应用常规的模糊搜索和区间过滤
+        if query_params.keyword:
+            query = query.filter(
+                or_(
+                    Case.case_number.like(f"%{query_params.keyword}%"),
+                    Case.parties.any(CaseParty.name.like(f"%{query_params.keyword}%"))
+                )
             )
-        )
-    if query_params.case_category:
-        query = query.filter(Case.case_category == query_params.case_category)
-    if query_params.main_lawyer_id:
-        query = query.filter(Case.main_lawyer_id == query_params.main_lawyer_id)
-    if query_params.case_status:
-        query = query.join(BankCase).filter(BankCase.case_status == query_params.case_status)
+        if query_params.case_category:
+            query = query.filter(Case.case_category == query_params.case_category)
+        if query_params.main_lawyer_id:
+            query = query.filter(Case.main_lawyer_id == query_params.main_lawyer_id)
+        if query_params.case_status:
+            query = query.join(BankCase).filter(BankCase.case_status == query_params.case_status)
 
-    if query_params.start_date or query_params.end_date:
-        if query_params.start_date:
-            query = query.filter(Case.commission_date >= query_params.start_date)
-        if query_params.end_date:
-            query = query.filter(Case.commission_date <= query_params.end_date)
-    elif query_params.year:
-        query = query.filter(Case.case_number.like(f"%({query_params.year})%"))
+        if query_params.start_date or query_params.end_date:
+            if query_params.start_date:
+                query = query.filter(Case.commission_date >= query_params.start_date)
+            if query_params.end_date:
+                query = query.filter(Case.commission_date <= query_params.end_date)
+        elif query_params.year:
+            query = query.filter(Case.case_number.like(f"%({query_params.year})%"))
 
     cases = query.order_by(Case.created_at.desc()).all()
 
