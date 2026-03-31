@@ -1,7 +1,11 @@
 <template>
   <div class="cases-page">
     <div class="header">
-      <h2>业务管理</h2>
+      <div class="page-title">
+        <h2>业务管理</h2>
+        <p class="page-subtitle">统一管理业务数据、附件上传、批量导入与导出</p>
+      </div>
+
       <div class="action-buttons">
         <el-button type="primary" @click="handleAddClick">新增业务</el-button>
         <el-button type="warning" @click="showImportDialog = true">
@@ -41,7 +45,6 @@
         </el-select>
 
         <el-select
-          v-if="currentUserRole === 'admin' || currentUserRole === 'owner'"
           v-model="selectedLawyerId"
           placeholder="主办律师筛选"
           clearable
@@ -77,6 +80,7 @@
         v-loading="tableLoading"
         @sort-change="handleSortChange"
         @selection-change="handleSelectionChange"
+        class="cases-table"
       >
         <el-table-column type="selection" width="55" align="center" />
 
@@ -89,7 +93,15 @@
           min-width="120"
           align="center"
         />
-        <el-table-column prop="review_status" label="审核状态" min-width="120" align="center" />
+
+        <el-table-column label="审核状态" min-width="120" align="center">
+          <template #default="scope">
+            <el-tag :type="getReviewStatusType(scope.row.review_status)" effect="dark" size="small">
+              {{ scope.row.review_status || '未知' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
         <el-table-column
           prop="created_at"
           label="创建时间"
@@ -106,32 +118,34 @@
           :fixed="isMobile ? false : 'right'"
         >
           <template #default="scope">
-            <el-button size="small" @click="viewCase(scope.row)">查看</el-button>
-            <el-button size="small" type="warning" @click="handleEditClick(scope.row)"
-              >编辑</el-button
-            >
-            <el-button
-              size="small"
-              type="danger"
-              :disabled="currentUserRole === 'user' && scope.row.review_status === '已审核'"
-              @click="deleteCase(scope.row.case_id)"
-            >
-              删除
-            </el-button>
-            <el-button size="small" type="primary" plain @click="handleUploadClick(scope.row)">
-              <el-icon><Upload /></el-icon>
-              上传附件
-            </el-button>
-            <el-button
-              v-if="scope.row.review_status === '已审核'"
-              link
-              type="primary"
-              size="small"
-              @click="handleDownloadApproval(scope.row)"
-            >
-              <el-icon><Document /></el-icon>
-              下载审批表
-            </el-button>
+            <div class="row-actions">
+              <el-button size="small" @click="viewCase(scope.row)">查看</el-button>
+              <el-button size="small" type="warning" @click="handleEditClick(scope.row)"
+                >编辑</el-button
+              >
+              <el-button
+                size="small"
+                type="danger"
+                :disabled="currentUserRole === 'user' && scope.row.review_status === '已审核'"
+                @click="deleteCase(scope.row.case_id)"
+              >
+                删除
+              </el-button>
+              <el-button size="small" type="primary" plain @click="handleUploadClick(scope.row)">
+                <el-icon><Upload /></el-icon>
+                上传附件
+              </el-button>
+              <el-button
+                v-if="scope.row.review_status === '已审核'"
+                link
+                type="primary"
+                size="small"
+                @click="handleDownloadApproval(scope.row)"
+              >
+                <el-icon><Document /></el-icon>
+                下载审批表
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -147,7 +161,7 @@
       @current-change="handlePageChange"
       @size-change="handleSizeChange"
       :pager-count="isMobile ? 4 : 7"
-      style="margin-top: 16px; text-align: right; justify-content: flex-end; display: flex"
+      class="page-pagination"
     />
 
     <CaseForm
@@ -167,6 +181,7 @@
       v-model="showImportDialog"
       :width="isMobile ? '95%' : '600px'"
       :close-on-click-modal="false"
+      class="styled-dialog import-dialog"
     >
       <div class="import-container">
         <p class="import-tip">
@@ -189,7 +204,7 @@
           <div class="el-upload__text">将 Excel 文件拖到此处，或 <em>点击选择</em></div>
 
           <template #tip>
-            <div class="el-upload__tip text-danger" style="margin-top: 10px">
+            <div class="el-upload__tip text-danger upload-tip-note">
               请确保Excel表头包含：业务号、业务类别
             </div>
           </template>
@@ -199,7 +214,7 @@
           v-if="showProgress"
           :percentage="progress"
           stroke-width="4"
-          style="margin-top: 20px"
+          class="upload-progress"
         ></el-progress>
       </div>
 
@@ -218,6 +233,7 @@
       v-model="showResultDialog"
       :width="isMobile ? '95%' : '700px'"
       :close-on-click-modal="false"
+      class="styled-dialog result-dialog"
     >
       <div class="result-stats">
         <div class="stat-item">
@@ -234,12 +250,12 @@
         </div>
       </div>
 
-      <div style="overflow-x: auto">
+      <div class="result-table-wrap">
         <el-table
           v-if="result.failed_cases && result.failed_cases.length"
           :data="result.failed_cases"
           border
-          style="width: 100%; margin-top: 15px; min-width: 400px"
+          style="width: 100%; min-width: 400px"
         >
           <el-table-column prop="case_number" label="业务号/行号" width="150"></el-table-column>
           <el-table-column prop="reason" label="失败原因"></el-table-column>
@@ -265,7 +281,7 @@
       :close-on-click-modal="false"
       destroy-on-close
       @close="resetUploadDialog"
-      class="upload-dialog"
+      class="styled-dialog upload-dialog"
     >
       <div class="upload-container">
         <div class="case-info-bar">
@@ -288,7 +304,7 @@
           <el-icon class="el-icon--upload"><upload-filled /></el-icon>
           <div class="el-upload__text">将文件拖到此处，或 <em>点击上传</em></div>
           <template #tip>
-            <div class="el-upload__tip">
+            <div class="el-upload__tip attachment-tip">
               <p>1. 支持多文件同时上传</p>
               <p>2. 单个文件建议不超过 50MB</p>
             </div>
@@ -317,11 +333,13 @@
       v-model="showExportDialog"
       :width="isMobile ? '95%' : '550px'"
       :close-on-click-modal="false"
+      class="styled-dialog export-dialog"
     >
       <el-form
         :model="exportForm"
         :label-width="isMobile ? 'auto' : '110px'"
         :label-position="isMobile ? 'top' : 'right'"
+        class="export-form"
       >
         <el-form-item label="搜索关键词">
           <el-input v-model="exportForm.keyword" placeholder="按业务号/委托人搜索" clearable />
@@ -454,6 +472,15 @@ const caseCategories = ref([
   { label: '法律援助(刑事)', value: '法律援助(刑事)' },
   { label: '法律援助(行政)', value: '法律援助(行政)' },
 ])
+
+// 根据审核状态返回 Tag 颜色类型
+const getReviewStatusType = (status) => {
+  if (status === '已审核') return 'success'
+  if (status === '待审核' || status === '未审核') return 'warning'
+  if (status === '已拒绝') return 'danger' // 修改为已拒绝
+  return 'info'
+}
+
 const selectedLawyerId = ref(null) // 选中的主办律师ID
 // 年份变量，默认为当前年份字符串
 const selectedYear = ref(new Date().getFullYear().toString())
@@ -1098,158 +1125,493 @@ const handleDownloadApproval = async (row) => {
 </script>
 
 <style scoped>
+.cases-page {
+  min-height: 100%;
+  padding: 24px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top left, rgba(79, 70, 229, 0.08), transparent 34%),
+    radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 28%),
+    linear-gradient(180deg, #f8fbff 0%, #f4f7fb 100%);
+}
+
 /* 原有基础布局样式 */
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #eee;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 22px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(14px);
+}
+
+.page-title h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: 0.5px;
+}
+
+.page-subtitle {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.action-buttons .el-button {
+  margin-left: 0 !important;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.action-buttons .el-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px rgba(15, 23, 42, 0.12);
 }
 
 /* 顶部搜索/筛选栏基础样式 */
 .toolbar {
-  margin-bottom: 15px;
+  margin-bottom: 16px;
+  padding: 18px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(14px);
 }
+
 .toolbar-left {
   display: flex;
   align-items: center;
   flex-wrap: wrap; /* 允许换行 */
-  gap: 15px; /* 使用 gap 代替原先复杂的 margin 控制 */
+  gap: 14px; /* 使用 gap 代替原先复杂的 margin 控制 */
 }
+
+.toolbar-item {
+  flex-shrink: 0;
+}
+
 /* 提取原有的内联宽度到 class 中，方便媒体查询覆盖 */
 .search-input {
-  width: 250px;
+  width: 280px;
 }
 .filter-select {
-  width: 200px;
+  width: 220px;
 }
 .year-picker {
-  width: 120px;
+  width: 140px;
+}
+
+/* 对 Element Plus 输入框做统一高级化处理 */
+:deep(.toolbar-item .el-input__wrapper),
+:deep(.toolbar-item .el-select__wrapper),
+:deep(.toolbar-item .el-date-editor.el-input__wrapper) {
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.18);
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+:deep(.toolbar-item .el-input__wrapper:hover),
+:deep(.toolbar-item .el-select__wrapper:hover),
+:deep(.toolbar-item .el-date-editor.el-input__wrapper:hover) {
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.25);
+}
+
+:deep(.toolbar-item .el-input__wrapper.is-focus),
+:deep(.toolbar-item .el-select__wrapper.is-focused),
+:deep(.toolbar-item .el-date-editor.el-input__wrapper.is-focus) {
+  box-shadow:
+    inset 0 0 0 1px rgba(59, 130, 246, 0.35),
+    0 0 0 4px rgba(59, 130, 246, 0.08);
+}
+
+/* 表格容器 */
+.table-container {
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 20px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+}
+
+/* 表格整体气质优化 */
+:deep(.cases-table) {
+  --el-table-border-color: rgba(226, 232, 240, 0.95);
+  --el-table-header-bg-color: transparent;
+  --el-table-row-hover-bg-color: #f8fbff;
+}
+
+/* 优化 Element Plus 表格内部滚动到底部时的滚动链传递 */
+:deep(.el-table__body-wrapper .el-scrollbar__wrap) {
+  overscroll-behavior-y: auto !important; /* 确保垂直滚动能顺畅传递给父级/页面 */
+}
+:deep(.el-table__inner-wrapper) {
+  overflow-y: visible !important;
+}
+:deep(.el-table__body-wrapper) {
+  overflow-y: visible !important;
+}
+
+:deep(.cases-table .el-table__header-wrapper th.el-table__cell) {
+  background: linear-gradient(180deg, #fbfdff 0%, #f3f7ff 100%);
+  color: #334155;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+:deep(.cases-table .el-table__header-wrapper th.el-table__cell .cell) {
+  padding: 14px 10px;
+}
+
+:deep(.cases-table .el-table__row td.el-table__cell) {
+  transition: background 0.18s ease;
+}
+
+:deep(.cases-table .el-table__row:hover > td.el-table__cell) {
+  background: #f8fbff !important;
+}
+
+:deep(.cases-table .el-table__body tr td.el-table__cell) {
+  color: #334155;
+}
+
+:deep(.cases-table .el-table__body tr:last-child td.el-table__cell) {
+  border-bottom: none;
+}
+
+:deep(.cases-table .el-table__fixed-right),
+:deep(.cases-table .el-table__fixed) {
+  box-shadow: 0 0 22px rgba(15, 23, 42, 0.08);
+}
+
+:deep(.cases-table .el-button) {
+  border-radius: 10px;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-start;
+  padding: 4px 0;
+}
+
+.row-actions .el-button {
+  margin-left: 0 !important;
+}
+
+.page-pagination {
+  margin-top: 16px;
+  padding: 14px 18px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.05);
+  backdrop-filter: blur(14px);
 }
 
 /* 批量导入相关样式 */
 .import-container {
-  padding: 10px 0;
+  padding: 6px 2px 2px;
 }
 
 .import-tip {
-  margin: 0 0 15px 0;
-  color: #666;
+  margin: 0 0 16px 0;
+  color: #475569;
   font-size: 14px;
+  line-height: 1.6;
+}
+
+.upload-tip-note {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+
+.upload-progress {
+  margin-top: 18px;
 }
 
 .result-stats {
-  display: flex;
-  gap: 30px;
-  margin-bottom: 15px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid #eee;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .stat-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f8fbff 100%);
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+}
+
+.stat-item span:first-child {
+  color: #64748b;
+  font-size: 13px;
 }
 
 .stat-item .total {
-  font-weight: bold;
-  color: #333;
+  font-weight: 800;
+  color: #0f172a;
+  font-size: 18px;
 }
 .stat-item .success {
-  font-weight: bold;
+  font-weight: 800;
   color: #10b981;
+  font-size: 18px;
 }
 .stat-item .failed {
-  font-weight: bold;
+  font-weight: 800;
   color: #ef4444;
+  font-size: 18px;
 }
 .text-danger {
   color: #f56c6c;
 }
 
+.result-table-wrap {
+  overflow-x: auto;
+  border-radius: 14px;
+}
+
 /* 上传弹窗样式优化 */
 .upload-container {
-  padding: 0 10px;
+  padding: 0 6px;
 }
 
 .case-info-bar {
   display: flex;
   align-items: center;
-  background-color: #f0f9eb;
-  border: 1px solid #e1f3d8;
-  padding: 12px 16px;
-  border-radius: 6px;
-  margin-bottom: 20px;
-  color: #67c23a;
+  gap: 10px;
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+  border: 1px solid #bbf7d0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  margin-bottom: 18px;
+  color: #16a34a;
+  box-shadow: 0 8px 18px rgba(16, 185, 129, 0.08);
 }
 
 .case-info-bar .el-icon {
   font-size: 18px;
-  margin-right: 8px;
+  flex-shrink: 0;
 }
 .case-info-bar .label {
-  font-weight: bold;
-  margin-right: 8px;
+  font-weight: 700;
+  margin-right: 2px;
 }
 .case-info-bar .value {
-  font-family: monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   font-size: 15px;
-  font-weight: 600;
-  color: #333;
+  font-weight: 700;
+  color: #1f2937;
+  word-break: break-all;
 }
 
 .upload-demo {
   text-align: center;
 }
 
+:deep(.upload-demo .el-upload-dragger) {
+  width: 100%;
+  border-radius: 18px;
+  border: 1.5px dashed #cbd5e1;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+:deep(.upload-demo .el-upload-dragger:hover) {
+  border-color: #60a5fa;
+  box-shadow: 0 14px 28px rgba(59, 130, 246, 0.08);
+  transform: translateY(-1px);
+}
+
+:deep(.upload-area .el-upload-dragger) {
+  border-radius: 18px;
+}
+
+:deep(.upload-area .el-upload-list__item),
+:deep(.upload-demo .el-upload-list__item) {
+  border-radius: 12px;
+  transition: background 0.2s ease;
+}
+
 .el-upload__tip {
   margin-top: 10px;
-  color: #909399;
+  color: #64748b;
   font-size: 12px;
   line-height: 1.6;
   text-align: left;
-  background-color: #f4f4f5;
-  padding: 8px 12px;
-  border-radius: 4px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 10px 12px;
+  border-radius: 12px;
 }
 
 .el-upload__tip p {
   margin: 0;
 }
 
+.attachment-tip {
+  line-height: 1.7;
+}
+
 .form-tip.text-muted {
   font-size: 12px;
-  color: #909399;
-  line-height: 1.4;
-  margin-top: 4px;
+  color: #64748b;
+  line-height: 1.5;
+  margin-top: 6px;
+}
+
+/* 弹窗统一美化 */
+.styled-dialog :deep(.el-dialog) {
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
+}
+
+.styled-dialog :deep(.el-dialog__header) {
+  margin-right: 0;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #eef2f7;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.styled-dialog :deep(.el-dialog__title) {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.styled-dialog :deep(.el-dialog__body) {
+  padding: 20px;
+  background: #ffffff;
+}
+
+.styled-dialog :deep(.el-dialog__footer) {
+  padding: 14px 20px 20px;
+  border-top: 1px solid #eef2f7;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.dialog-footer {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* export form */
+.export-form :deep(.el-form-item) {
+  margin-bottom: 18px;
+}
+
+.export-form :deep(.el-form-item__label) {
+  font-weight: 600;
+  color: #334155;
+}
+
+/* 1. 强制关闭表格内部的纵向滚动，保留横向滚动 */
+:deep(.el-table__body-wrapper),
+:deep(.el-table__body-wrapper .el-scrollbar__wrap) {
+  overflow-y: hidden !important;
+}
+
+/* 2. 隐藏 Element Plus 自动生成的虚拟纵向滚动条 */
+:deep(.el-scrollbar__bar.is-vertical) {
+  display: none !important;
+}
+
+/* 3. 确保纵向滚动时，固定列不会出现错位断层 */
+:deep(.el-table__fixed-right),
+:deep(.el-table__fixed) {
+  height: 100% !important;
 }
 
 /* =======================================
    新增：移动端响应式适配 CSS
    ======================================= */
 @media screen and (max-width: 768px) {
+  .cases-page {
+    padding: 12px;
+    border-radius: 18px;
+  }
+
   /* 头部标题和按钮堆叠排列 */
   .header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .page-title h2 {
+    font-size: 20px;
+  }
+
+  .page-subtitle {
+    font-size: 12px;
   }
 
   .action-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    width: 100%;
+    justify-content: flex-start;
   }
 
-  /* 移除 Element 按钮自带的 margin-left，统一用 flex gap 管理间距 */
   .action-buttons .el-button {
-    margin-left: 0 !important;
+    height: 38px;
+    padding: 0 14px;
   }
 
   /* 搜索框和筛选条件垂直平铺 */
+  .toolbar {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
   .toolbar-left {
     flex-direction: column;
     align-items: stretch;
@@ -1261,16 +1623,45 @@ const handleDownloadApproval = async (row) => {
     width: 100% !important;
   }
 
+  .search-input,
+  .filter-select,
+  .year-picker {
+    width: 100%;
+  }
+
+  .table-container {
+    border-radius: 18px;
+  }
+
+  .row-actions {
+    justify-content: center;
+  }
+
+  .page-pagination {
+    justify-content: center;
+    padding: 12px 10px;
+    border-radius: 16px;
+  }
+
+  .result-stats {
+    grid-template-columns: 1fr;
+  }
+
   /* 调整弹窗内部文字排版 */
   .case-info-bar {
     flex-direction: column;
     align-items: flex-start;
-    gap: 5px;
+    gap: 6px;
   }
 
-  .result-stats {
-    flex-wrap: wrap;
-    gap: 15px;
+  .styled-dialog :deep(.el-dialog__body) {
+    padding: 16px;
+  }
+
+  .styled-dialog :deep(.el-dialog__header),
+  .styled-dialog :deep(.el-dialog__footer) {
+    padding-left: 16px;
+    padding-right: 16px;
   }
 }
 </style>

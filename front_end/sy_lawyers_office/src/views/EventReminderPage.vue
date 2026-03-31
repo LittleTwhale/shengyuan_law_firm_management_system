@@ -6,12 +6,17 @@
           <h2>事项与日程</h2>
           <el-radio-group v-model="viewMode" size="small" class="view-switch">
             <el-radio-button label="table">列表视图</el-radio-button>
-            <el-radio-button label="calendar">日历视图</el-radio-button>
+            <el-radio-button label="calendar" class="hide-on-mobile">日历视图</el-radio-button>
           </el-radio-group>
         </div>
 
         <div class="filter">
-          <el-radio-group v-model="daysRange" @change="fetchReminders" class="responsive-radio">
+          <el-radio-group
+            v-show="viewMode === 'table'"
+            v-model="daysRange"
+            @change="fetchReminders"
+            class="responsive-radio"
+          >
             <el-radio-button :label="3">近3天</el-radio-button>
             <el-radio-button :label="7">近7天</el-radio-button>
             <el-radio-button :label="30">近30天</el-radio-button>
@@ -99,6 +104,27 @@
 
       <div v-else class="calendar-container" v-loading="loading">
         <el-calendar v-model="calendarDate">
+          <template #header="{ date }">
+            <div class="custom-calendar-header">
+              <span class="calendar-title">{{ date }}</span>
+              <div class="calendar-actions">
+                <el-date-picker
+                  v-model="calendarDate"
+                  type="month"
+                  placeholder="快速跳转年月"
+                  :clearable="false"
+                  size="small"
+                  style="width: 140px; margin-right: 12px"
+                />
+                <el-button-group>
+                  <el-button size="small" @click="shiftDate('prev')">上一月</el-button>
+                  <el-button size="small" @click="shiftDate('today')">今天</el-button>
+                  <el-button size="small" @click="shiftDate('next')">下一月</el-button>
+                </el-button-group>
+              </div>
+            </div>
+          </template>
+
           <template #date-cell="{ data }">
             <div class="calendar-cell">
               <span :class="{ 'is-today': data.isToday }">{{ data.day.split('-').pop() }}</span>
@@ -373,6 +399,20 @@ const goToCase = (caseId) => {
   router.push(`/main/cases/${caseId}`)
 }
 
+// 日历月份快速切换函数
+const shiftDate = (type) => {
+  const current = new Date(calendarDate.value)
+  if (type === 'prev') {
+    current.setMonth(current.getMonth() - 1)
+  } else if (type === 'next') {
+    current.setMonth(current.getMonth() + 1)
+  } else if (type === 'today') {
+    calendarDate.value = new Date()
+    return
+  }
+  calendarDate.value = current
+}
+
 onMounted(() => {
   fetchReminders()
   fetchMyCases() // 组件挂载时获取案件下拉数据
@@ -455,6 +495,23 @@ onMounted(() => {
   overflow-y: auto; /* 防止外层越界，滚动条限制在内部 */
 }
 
+/* --- 新增：自定义日历头部样式 --- */
+.custom-calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+.calendar-title {
+  font-size: 16px;
+  font-weight: bold;
+  color: #303133;
+}
+.calendar-actions {
+  display: flex;
+  align-items: center;
+}
+
 /* --- 日历样式定制 --- */
 .calendar-cell {
   height: 100%;
@@ -467,11 +524,24 @@ onMounted(() => {
   color: var(--el-color-primary);
   font-weight: bold;
 }
+
+/* --- 修改：日历单元格防溢出 --- */
 .calendar-events {
   margin-top: 4px;
   flex: 1;
   overflow-y: auto;
+  max-height: 85px; /* 限制最大高度，防止撑破单元格 */
 }
+
+/* 美化单元格内的微型滚动条 */
+.calendar-events::-webkit-scrollbar {
+  width: 4px;
+}
+.calendar-events::-webkit-scrollbar-thumb {
+  background: #dcdfe6;
+  border-radius: 4px;
+}
+
 .event-badge {
   font-size: 11px;
   padding: 2px 6px;
@@ -568,6 +638,11 @@ onMounted(() => {
     overflow-x: auto; /* 单选按钮组太长时允许滑动 */
     padding-bottom: 5px;
     justify-content: space-between;
+  }
+
+  /* 移动端隐藏日历视图切换按钮 */
+  .hide-on-mobile {
+    display: none !important;
   }
 
   /* 调整按钮大小以节省空间 */
