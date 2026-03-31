@@ -111,6 +111,11 @@
           <template #title><span>事项提醒</span></template>
         </el-menu-item>
 
+        <el-menu-item index="/main/announcements">
+          <el-icon><ChatDotRound /></el-icon>
+          <template #title><span>公告中心</span></template>
+        </el-menu-item>
+
         <el-menu-item index="/main/admin/settings" v-if="hasAdminAccess">
           <el-icon><Setting /></el-icon>
           <template #title><span>后台管理</span></template>
@@ -191,6 +196,11 @@
             <template #title><span>事项提醒</span></template>
           </el-menu-item>
 
+          <el-menu-item index="/main/announcements">
+            <el-icon><ChatDotRound /></el-icon>
+            <template #title><span>公告中心</span></template>
+          </el-menu-item>
+
           <el-menu-item index="/main/admin/settings" v-if="hasAdminAccess">
             <el-icon><Setting /></el-icon>
             <template #title><span>后台管理</span></template>
@@ -220,6 +230,52 @@
         </div>
       </div>
     </div>
+
+    <el-dialog
+      v-model="noticeDialogVisible"
+      :show-close="false"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      class="premium-notice-dialog"
+      center
+      align-center
+    >
+      <template #header>
+        <div class="notice-header">
+          <div class="notice-icon-wrapper" :class="currentNotice?.type">
+            <el-icon v-if="currentNotice?.type === 'update_log'"><Promotion /></el-icon>
+            <el-icon v-else><Notification /></el-icon>
+          </div>
+          <h2 class="notice-title">
+            {{ currentNotice?.type === 'update_log' ? '🎉 系统更新说明' : '📢 系统公告' }}
+          </h2>
+          <span class="notice-version" v-if="currentNotice?.version"
+            >v{{ currentNotice.version }}</span
+          >
+        </div>
+      </template>
+
+      <div class="notice-body">
+        <h3 class="notice-subtitle">{{ currentNotice?.title }}</h3>
+        <div class="notice-meta">
+          <span>发布人：{{ currentNotice?.publisher_name || '系统管理员' }}</span>
+          <span>发布时间：{{ formatDate(currentNotice?.created_at) }}</span>
+        </div>
+        <el-divider border-style="dashed" />
+        <div class="rich-text-notice-content" v-html="currentNotice?.content"></div>
+      </div>
+
+      <template #footer>
+        <div class="notice-footer">
+          <span class="queue-indicator" v-if="unreadNoticeQueue.length > 1">
+            还有 {{ unreadNoticeQueue.length - 1 }} 条未读公告
+          </span>
+          <el-button type="primary" size="large" @click="handleConfirmNotice" class="confirm-btn">
+            我知道了，不再提示
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -247,21 +303,21 @@ import {
   CaretBottom,
   SwitchButton,
   ArrowRight,
+  ChatDotRound,
+  Notification,
+  Promotion,
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
-const route = useRoute() // 实例化 route，用于监听当前路径
+const route = useRoute()
 const currentUser = ref(localStorage.getItem('username'))
 const activeMenu = computed(() => route.path)
 const role = localStorage.getItem('role')
 
-// --- 响应式适配状态 ---
-const isCollapse = ref(false) // 是否折叠菜单 (用于PC/平板)
-const isMobile = ref(false) // 是否为移动端屏幕
-const drawerVisible = ref(false) // 移动端抽屉是否显示
+const isCollapse = ref(false)
+const isMobile = ref(false)
+const drawerVisible = ref(false)
 
-// --- 动态面包屑导航计算逻辑 ---
-// 路由路径到名称的映射字典 (兼容 router 中未配置 meta.title 的情况)
 const menuTitleMap = {
   '/main/cases': '业务管理',
   '/main/case_review': '业务审核',
@@ -274,18 +330,17 @@ const menuTitleMap = {
   '/main/party_building': '党建资料',
   '/main/user_profile': '个人信息',
   '/main/reminders': '事项提醒',
+  '/main/announcements': '公告中心',
   '/main/admin/settings': '后台管理',
 }
 
 const currentBreadcrumbs = computed(() => {
   const path = route.path
-  // 优先取 router 中配置的 meta.title，如果没有则从映射表里找，最后兜底为'页面详情'
   const title = route.meta?.title || menuTitleMap[path] || '页面详情'
 
-  const crumbs = [{ title: '首页', path: '/main/cases' }] // 默认固定首层
+  const crumbs = [{ title: '首页', path: '/main/cases' }]
 
   if (path !== '/main/cases') {
-    // 针对具有层级关系的路由（如银行案件属于业务管理的子类）增加中间层级
     if (path === '/main/cases/bank_cases') {
       crumbs.push({ title: '业务管理', path: '/main/cases' })
     }
@@ -294,29 +349,23 @@ const currentBreadcrumbs = computed(() => {
 
   return crumbs
 })
-// --- 面包屑逻辑结束 ---
 
-// 监听窗口大小变化以适配布局
 const checkDeviceType = () => {
   const width = window.innerWidth
   if (width < 768) {
-    // 移动端：隐藏固定侧边栏，启用抽屉
     isMobile.value = true
     isCollapse.value = false
   } else if (width >= 768 && width < 992) {
-    // 平板端：显示固定侧边栏，但默认折叠
     isMobile.value = false
     isCollapse.value = true
     drawerVisible.value = false
   } else {
-    // PC端：完全展开
     isMobile.value = false
     isCollapse.value = false
     drawerVisible.value = false
   }
 }
 
-// 切换菜单栏状态
 const toggleMenu = () => {
   if (isMobile.value) {
     drawerVisible.value = !drawerVisible.value
@@ -324,9 +373,7 @@ const toggleMenu = () => {
     isCollapse.value = !isCollapse.value
   }
 }
-// --- 响应式代码结束 ---
 
-// 解析权限
 let permissions = {}
 try {
   permissions = JSON.parse(localStorage.getItem('permissions') || '{}')
@@ -335,16 +382,13 @@ try {
   ElMessage.error('解析权限失败')
 }
 
-// 计算属性：是否有后台管理入口权限
 const hasAdminAccess = computed(() => {
   return role === 'owner' || permissions.can_access_admin === true
 })
-// 是否有业务审核入口权限
 const hasReviewAccess = computed(() => {
   return role === 'owner' || permissions.can_review_case === true
 })
 
-// 右上角下拉菜单事件处理
 const handleCommand = (command) => {
   if (command === 'logout') {
     handleLogout()
@@ -353,7 +397,6 @@ const handleCommand = (command) => {
   }
 }
 
-// 登出
 const handleLogout = () => {
   const userId = localStorage.getItem('user_id')
   if (userId) {
@@ -370,7 +413,6 @@ const handleLogout = () => {
   ElMessage.success('已退出登录')
 }
 
-// 检查紧急提醒
 const checkUrgentReminders = async () => {
   const userId = localStorage.getItem('user_id')
   if (!userId) return
@@ -388,7 +430,6 @@ const checkUrgentReminders = async () => {
     const urgentEvents = res.data
 
     if (urgentEvents.length > 0) {
-      // 构建更高级卡片式结构
       const messageHtml = `
         <div class="urgent-wrapper">
           ${urgentEvents
@@ -433,21 +474,77 @@ const checkUrgentReminders = async () => {
   }
 }
 
+const noticeDialogVisible = ref(false)
+const unreadNoticeQueue = ref([])
+const currentNotice = ref(null)
+let pollingTimer = null
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+const checkSystemAnnouncements = async () => {
+  try {
+    if (noticeDialogVisible.value) return
+
+    const res = await request.get('/system/announcements/unread')
+    const unreadList = res.data || []
+
+    if (unreadList.length > 0) {
+      unreadNoticeQueue.value = unreadList
+      currentNotice.value = unreadNoticeQueue.value[0]
+      noticeDialogVisible.value = true
+    }
+  } catch (error) {
+    console.error('获取系统未读公告失败', error)
+  }
+}
+
+const handleConfirmNotice = async () => {
+  if (!currentNotice.value) return
+
+  try {
+    await request.post(`/system/announcements/${currentNotice.value.id}/read`)
+  } catch (e) {
+    console.error('标记公告已读失败', e)
+  }
+
+  unreadNoticeQueue.value.shift()
+
+  if (unreadNoticeQueue.value.length > 0) {
+    noticeDialogVisible.value = false
+    setTimeout(() => {
+      currentNotice.value = unreadNoticeQueue.value[0]
+      noticeDialogVisible.value = true
+    }, 300)
+  } else {
+    noticeDialogVisible.value = false
+    currentNotice.value = null
+  }
+}
+
 onMounted(() => {
   checkUrgentReminders()
-  // 初始化及绑定窗口大小监听
+  checkSystemAnnouncements()
+  pollingTimer = setInterval(checkSystemAnnouncements, 60000)
   checkDeviceType()
   window.addEventListener('resize', checkDeviceType)
 })
 
-// 组件销毁前移除监听，防止内存泄漏
 onUnmounted(() => {
   window.removeEventListener('resize', checkDeviceType)
+  if (pollingTimer) {
+    clearInterval(pollingTimer)
+  }
 })
 </script>
 
 <style>
-/* 优化后的通知整体样式 */
+/* 全局样式区域，无 scoped */
+
+/* 优化后的通知整体样式，保留深度适配移动端 */
 .urgent-notification {
   position: fixed !important;
   top: 50% !important;
@@ -456,15 +553,14 @@ onUnmounted(() => {
   margin: 0 !important;
   z-index: 3000 !important;
 
-  background: linear-gradient(135deg, #ffffff, #f5f9ff) !important;
-  border: none !important;
+  background: linear-gradient(135deg, #ffffff, #fafdff) !important;
+  border: 1px solid #eef2f7 !important;
   border-radius: 16px !important;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15) !important;
-  max-width: 520px;
-  /* 移动端适配通知弹窗宽度 */
-  width: 90%;
-  padding: 20px 24px !important;
-  animation: fadeInScale 0.3s ease;
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.16) !important;
+  max-width: 480px;
+  width: 90%; /* 移动端自适应宽度 */
+  padding: 24px 28px !important;
+  animation: fadeInScale 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 @keyframes fadeInScale {
@@ -479,9 +575,19 @@ onUnmounted(() => {
 }
 
 .urgent-wrapper {
-  max-height: 360px;
+  max-height: 380px;
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: 8px;
+  margin-top: 10px;
+}
+
+/* 自定义紧急提醒滚动条 */
+.urgent-wrapper::-webkit-scrollbar {
+  width: 6px;
+}
+.urgent-wrapper::-webkit-scrollbar-thumb {
+  background: #dcdfe6;
+  border-radius: 3px;
 }
 
 .urgent-card {
@@ -552,9 +658,176 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
 }
+
+/* --- 高级系统公告弹窗样式保留自适应 --- */
+.premium-notice-dialog {
+  border-radius: 16px !important;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.2) !important;
+  width: 650px !important;
+  max-width: 92vw !important; /* 核心：限制最大宽度供移动端适配 */
+}
+
+.premium-notice-dialog .el-dialog__header {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.premium-notice-dialog .el-dialog__body {
+  padding: 0 !important;
+}
+
+.notice-header {
+  padding: 30px 20px 20px;
+  background: linear-gradient(135deg, #f4f7ff 0%, #ffffff 100%);
+  text-align: center;
+  position: relative;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.notice-icon-wrapper {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  margin: 0 auto 15px;
+  color: #fff;
+}
+.notice-icon-wrapper.update_log {
+  background: #67c23a;
+  box-shadow: 0 8px 16px rgba(103, 194, 58, 0.3);
+}
+.notice-icon-wrapper.general_notice {
+  background: #165dff;
+  box-shadow: 0 8px 16px rgba(22, 93, 255, 0.3);
+}
+
+.notice-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0;
+}
+
+.notice-version {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: #e1eaff;
+  color: #165dff;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.notice-body {
+  padding: 24px 30px;
+}
+
+.notice-subtitle {
+  font-size: 18px;
+  color: #303133;
+  margin-top: 0;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.notice-meta {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  font-size: 13px;
+  color: #909399;
+}
+
+.rich-text-notice-content {
+  max-height: 40vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px 10px 10px 0;
+  color: #303133;
+  line-height: 1.8;
+  font-size: 15px;
+}
+
+/* 彻底解决富文本内部图片溢出弹窗的问题 */
+.rich-text-notice-content img,
+.rich-text-notice-content video,
+.rich-text-notice-content iframe {
+  max-width: 100% !important;
+  height: auto !important;
+  border-radius: 8px;
+  margin: 10px auto;
+  display: block;
+  object-fit: contain;
+}
+
+.rich-text-notice-content p {
+  margin: 10px 0;
+}
+.rich-text-notice-content h1,
+.rich-text-notice-content h2,
+.rich-text-notice-content h3 {
+  margin: 15px 0 10px;
+  color: #1f2329;
+}
+
+/* 自定义滚动条 */
+.rich-text-notice-content::-webkit-scrollbar {
+  width: 6px;
+}
+.rich-text-notice-content::-webkit-scrollbar-thumb {
+  background: #dcdfe6;
+  border-radius: 3px;
+}
+
+.notice-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 0 20px;
+}
+
+.queue-indicator {
+  font-size: 13px;
+  color: #f56c6c;
+  margin-bottom: 12px;
+}
+
+.confirm-btn {
+  width: 200px;
+  border-radius: 20px;
+  font-weight: bold;
+}
+
+/* 针对公告弹窗的专属移动端优化 */
+@media (max-width: 768px) {
+  .notice-body {
+    padding: 20px;
+  }
+  .notice-meta {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .notice-version {
+    top: 16px;
+    right: 16px;
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+  .rich-text-notice-content {
+    max-height: 55vh;
+  }
+}
 </style>
 
 <style scoped>
+/* ====== 完全还原最初的作用域样式，恢复丝滑折叠 ====== */
 .dashboard-container {
   display: flex;
   flex-direction: column;
@@ -562,7 +835,6 @@ onUnmounted(() => {
   background-color: #f4f5f7;
 }
 
-/* 顶部导航栏高级感优化 */
 .top-bar {
   display: flex;
   justify-content: space-between;
@@ -571,17 +843,15 @@ onUnmounted(() => {
   background-color: #165dff;
   color: #fff;
   padding: 0 20px;
-  box-shadow: 0 2px 10px rgba(22, 93, 255, 0.2); /* 添加质感阴影 */
-  z-index: 10; /* 确保悬浮在侧边栏和内容之上 */
+  box-shadow: 0 2px 10px rgba(22, 93, 255, 0.2);
+  z-index: 10;
 }
 
-/* 新增左侧包裹层 */
 .left-section {
   display: flex;
   align-items: center;
 }
 
-/* 汉堡按钮样式 */
 .toggle-btn {
   font-size: 22px;
   cursor: pointer;
@@ -592,7 +862,7 @@ onUnmounted(() => {
 }
 .toggle-btn:hover {
   color: #ffd04b;
-  transform: scale(1.1); /* 点击区域微动效 */
+  transform: scale(1.1);
 }
 
 .logo-section {
@@ -600,12 +870,11 @@ onUnmounted(() => {
   align-items: center;
 }
 .logo-image {
-  height: 36px; /* 稍微缩小让出呼吸空间 */
+  height: 36px;
   object-fit: contain;
   transition: width 0.3s;
 }
 
-/* 右侧用户下拉菜单设计 */
 .user-section {
   display: flex;
   align-items: center;
@@ -622,7 +891,7 @@ onUnmounted(() => {
 }
 .user-avatar {
   margin-right: 8px;
-  border: 2px solid rgba(255, 255, 255, 0.3); /* 头像描边增加精致感 */
+  border: 2px solid rgba(255, 255, 255, 0.3);
 }
 .username {
   font-size: 14px;
@@ -643,17 +912,14 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* 依靠Element Plus原生类名处理宽度 */
 .sidebar {
   height: 100%;
   border-right: none;
 }
-/* 展开状态的宽度 */
 .sidebar:not(.el-menu--collapse) {
-  width: 220px; /* 稍微加宽一点，现代系统通常在200-240px之间 */
+  width: 220px;
 }
 
-/* 选中菜单的样式优化 */
 :deep(.el-menu-item.is-active) {
   background-color: rgba(255, 255, 255, 0.1) !important;
   border-left: 4px solid #ffd04b;
@@ -675,7 +941,6 @@ onUnmounted(() => {
   height: 32px;
 }
 
-/* 内容区域高级排版 */
 .content-area {
   flex: 1;
   padding: 20px;
@@ -683,7 +948,6 @@ onUnmounted(() => {
   box-sizing: border-box;
 }
 
-/* 面包屑导航样式 */
 .breadcrumb-container {
   margin-bottom: 16px;
   padding: 0 4px;
@@ -702,18 +966,16 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
-/* 给各个路由组件一个纯白色的卡片底座 */
 .content-wrapper {
   background-color: #ffffff;
   border-radius: 12px;
-  min-height: calc(100% - 30px); /* 减去面包屑的高度，保持满屏感 */
+  min-height: calc(100% - 30px);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02);
   padding: 24px;
   box-sizing: border-box;
   overflow-x: hidden;
 }
 
-/* 路由切换过渡动画 */
 .fade-transform-leave-active,
 .fade-transform-enter-active {
   transition: all 0.3s cubic-bezier(0.55, 0, 0.1, 1);
@@ -726,29 +988,27 @@ onUnmounted(() => {
   opacity: 0;
   transform: translateX(15px);
 }
-/* 优化 PC/平板侧边栏滚动 */
+
 .sidebar {
   height: 100%;
   border-right: none;
-  overflow-y: auto; /* 开启垂直滚动 */
+  overflow-y: auto;
 }
 
-/* 优化移动端抽屉菜单滚动 */
 .mobile-sidebar {
   border-right: none;
   flex: 1;
-  overflow-y: auto; /* 开启垂直滚动 */
+  overflow-y: auto;
 }
 
-/* 隐藏原生滚动条，保持界面整洁高级 (Webkit浏览器) */
 .sidebar::-webkit-scrollbar,
 .mobile-sidebar::-webkit-scrollbar {
-  width: 4px; /* 缩小滚动条宽度 */
+  width: 4px;
 }
 
 .sidebar::-webkit-scrollbar-thumb,
 .mobile-sidebar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2); /* 使用半透明白色滚动条 */
+  background: rgba(255, 255, 255, 0.2);
   border-radius: 4px;
 }
 
@@ -756,7 +1016,7 @@ onUnmounted(() => {
 .mobile-sidebar::-webkit-scrollbar-track {
   background: transparent;
 }
-/* --- 媒体查询：移动端极致适配 --- */
+
 @media (max-width: 768px) {
   .top-bar {
     padding: 0 15px;

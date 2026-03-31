@@ -17,6 +17,7 @@ from .package.api.admin import router as auth_admin_router
 from .package.api.finance_api import router as auth_finance_router
 from .package.api.party_building_api import router as auth_party_building_router
 from .package.api.electronic_volume_api import router as auth_electronic_volume_router
+from .package.api.system_announcement_api import router as auth_system_announcement_router
 from .package.core.config import PARTY_IMAGE_ROOT
 from .package.core.logger import logger
 
@@ -144,6 +145,9 @@ api_router.include_router(auth_party_building_router)
 
 # 注册电子卷宗管理路由
 api_router.include_router(auth_electronic_volume_router)
+
+# 注册系统公告管理路由
+api_router.include_router(auth_system_announcement_router)
 
 # 最后将这个路由组挂载到 app 实例上
 app.include_router(api_router)

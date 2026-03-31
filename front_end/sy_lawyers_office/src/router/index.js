@@ -15,6 +15,7 @@ import FinancePage from '@/views/FinancePage.vue'
 import PartyBuildingPage from '@/views/PartyBuildingPage.vue'
 import PartyMaterialDetail from '@/views/PartyMaterialDetail.vue'
 import VolumesPage from '@/views/VolumesPage.vue'
+import AnnouncementCenter from '@/views/AnnouncementCenter.vue'
 import { ElMessage } from 'element-plus'
 
 const routes = [
@@ -50,6 +51,7 @@ const routes = [
           requiresAdmin: true,
         },
       },
+      { path: 'announcements', component: AnnouncementCenter, meta: { title: '公告中心' } },
     ],
   },
 ]
