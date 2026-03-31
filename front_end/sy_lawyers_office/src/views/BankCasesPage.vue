@@ -6,6 +6,10 @@
         <p class="page-subtitle">统一管理银行案件数据、附件上传与批量导出</p>
       </div>
       <div class="action-buttons">
+        <el-button type="primary" plain @click="handleSyncClick">
+          <el-icon><Refresh /></el-icon>
+          批量同步(更新)
+        </el-button>
         <el-button type="danger" :disabled="selectedCases.length === 0" @click="handleBatchDelete">
           批量删除
         </el-button>
@@ -334,17 +338,102 @@
         </span>
       </template>
     </el-dialog>
+
+    <el-dialog
+      title="批量同步/覆盖更新案件"
+      v-model="showSyncDialog"
+      :width="isMobile ? '95%' : '650px'"
+      :close-on-click-modal="false"
+      class="styled-dialog sync-dialog"
+    >
+      <div class="sync-guide">
+        <div class="guide-step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h4>导出当前数据</h4>
+            <p>点击本页面的“导出表格”按钮，下载最新的 Excel 原始数据。</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h4>线下修改信息</h4>
+            <p>
+              在 Excel 中批量修改案件字段。<strong>注意：请勿修改“业务ID”列</strong>，系统依赖该 ID
+              识别现有案件。
+            </p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h4>上传并同步</h4>
+            <p>上传修改后的 Excel，系统将根据业务 ID 自动覆盖数据库中的现有案件内容。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="warning-alert">
+        <el-alert title="重要提醒" type="warning" :closable="false" show-icon>
+          <ul class="warning-list">
+            <li>该操作具有<strong>覆盖性</strong>，请务必核实数据后再上传。</li>
+            <li><strong>严禁修改业务ID</strong>，否则将导致同步失败或创建重复案件。</li>
+            <li>当前版本<strong>不支持</strong>通过此接口修改当事人及相关律师信息。</li>
+            <li>若“业务ID”为空，系统将基于“业务号”尝试新建案件。</li>
+          </ul>
+        </el-alert>
+      </div>
+
+      <div class="sync-upload-area">
+        <el-upload
+          class="sync-uploader"
+          drag
+          action="#"
+          :auto-upload="false"
+          :limit="1"
+          accept=".xlsx,.xls"
+          :on-change="handleSyncFileChange"
+          v-model:file-list="syncFileList"
+        >
+          <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+          <div class="el-upload__text">将修改后的 Excel 拖到此处，或 <em>点击上传</em></div>
+        </el-upload>
+      </div>
+
+      <div v-if="syncErrors.length > 0" class="sync-errors-container">
+        <div class="error-header">同步失败详情：</div>
+        <el-scrollbar max-height="150px">
+          <ul class="error-list">
+            <li v-for="(err, idx) in syncErrors" :key="idx">{{ err }}</li>
+          </ul>
+        </el-scrollbar>
+      </div>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showSyncDialog = false">取消</el-button>
+          <el-button
+            type="primary"
+            :loading="isSyncing"
+            @click="submitSync"
+            :disabled="syncFileList.length === 0"
+          >
+            {{ isSyncing ? '正在同步数据...' : '开始批量同步' }}
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import request from '@/utils/request'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import CaseForm from './CaseForm.vue'
 import { useRouter } from 'vue-router'
 // 导入需要的图标
-import { Document, Upload, UploadFilled, Download } from '@element-plus/icons-vue'
+import { Document, Upload, UploadFilled, Download, Refresh } from '@element-plus/icons-vue'
 
 // -------------------------- 响应式/移动端适配相关 --------------------------
 const isMobile = ref(false)
@@ -801,6 +890,72 @@ const submitExport = async () => {
   }
 }
 
+// -------------------------- 批量同步(更新) 逻辑 --------------------------
+const showSyncDialog = ref(false)
+const isSyncing = ref(false)
+const syncFileList = ref([])
+const syncErrors = ref([])
+
+// 打开同步弹窗
+const handleSyncClick = () => {
+  syncFileList.value = []
+  syncErrors.value = []
+  showSyncDialog.value = true
+}
+
+// 文件变化
+const handleSyncFileChange = (file) => {
+  syncFileList.value = [file]
+}
+
+// 提交同步
+const submitSync = async () => {
+  if (syncFileList.value.length === 0) {
+    ElMessage.warning('请先选择要上传的文件')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm('系统将基于业务ID覆盖现有案件数据，确定继续吗？', '操作确认', {
+      confirmButtonText: '确定同步',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+
+    isSyncing.value = true
+    syncErrors.value = []
+
+    const formData = new FormData()
+    formData.append('file', syncFileList.value[0].raw)
+
+    const res = await request.post('/cases/batch_sync_excel', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+
+    // 成功提示
+    ElMessage({
+      message: res.data.summary || '批量同步任务完成',
+      type: res.data.errors?.length > 0 ? 'warning' : 'success',
+      duration: 5000,
+    })
+
+    // 记录错误
+    if (res.data.errors && res.data.errors.length > 0) {
+      syncErrors.value = res.data.errors
+    } else {
+      showSyncDialog.value = false
+      await loadBankCases()
+    }
+  } catch (err) {
+    if (err !== 'cancel') {
+      console.error('同步失败:', err)
+      ElMessage.error(err.response?.data?.detail || '批量同步接口调用失败')
+    }
+  } finally {
+    isSyncing.value = false
+  }
+}
+
 // 日期格式化
 const formatDate = (dateVal) => {
   if (!dateVal) return ''
@@ -1194,6 +1349,82 @@ const formatDate = (dateVal) => {
   color: #334155;
 }
 
+/* 批量同步弹窗特定样式 */
+.sync-guide {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 24px;
+}
+
+.guide-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.step-num {
+  width: 28px;
+  height: 28px;
+  background: #3b82f6;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.step-content h4 {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.step-content p {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.warning-alert {
+  margin-bottom: 20px;
+}
+
+.warning-list {
+  padding-left: 18px;
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.sync-errors-container {
+  margin-top: 15px;
+  padding: 12px;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 12px;
+}
+
+.error-header {
+  font-weight: bold;
+  color: #be123c;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.error-list {
+  margin: 0;
+  padding-left: 18px;
+  color: #e11d48;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
 /* 1. 强制关闭表格内部的纵向滚动，保留横向滚动 */
 :deep(.el-table__body-wrapper),
 :deep(.el-table__body-wrapper .el-scrollbar__wrap) {
@@ -1299,6 +1530,11 @@ const formatDate = (dateVal) => {
   .styled-dialog :deep(.el-dialog__footer) {
     padding-left: 16px;
     padding-right: 16px;
+  }
+
+  .sync-guide {
+    flex-direction: column;
+    gap: 20px;
   }
 }
 </style>

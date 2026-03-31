@@ -21,7 +21,7 @@ from ..crud.case import list_cases_by_user_role, get_case_by_id, count_cases_by_
     split_with_separators, export_cases_to_excel
 from ..crud.user import get_all_lawyers, get_user_id_by_name
 from ..database.database import get_db
-from ..models.case import Case, CaseParty
+from ..models.case import Case, CaseParty, BankCase
 from ..models.user import User
 from ..schemas.case import CaseOut, CasePageOut, CaseSimpleOut, CaseCreate, CaseUpdate, CaseExportQuery
 from ..schemas.user import UserOut
@@ -788,4 +788,197 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
         "total_cases": total_rows,
         "imported_cases": success_rows,
         "failed_cases": failed_cases
+    }
+
+
+@router.post("/batch_sync_excel")
+async def batch_sync_excel(
+        file: UploadFile = File(...),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)
+):
+    """
+    🚀 高级批量同步接口：支持通过 Excel 覆盖更新现有案件
+    逻辑：若 ID 存在则更新，若 ID 不存在则新增
+    """
+    try:
+        contents = await file.read()
+        wb = load_workbook(filename=BytesIO(contents), data_only=True)
+        # 默认处理第一个 Sheet (常规业务或银行案件)
+        ws = wb.active
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"文件读取失败: {str(e)}")
+
+    headers = [str(cell.value).strip() for cell in ws[1]]
+
+    def parse_date(val):
+        if not val or str(val).lower() in ["none", "nan", ""]: return None
+        if isinstance(val, datetime): return val.date()
+        try:
+            return datetime.strptime(str(val), "%Y-%m-%d").date()
+        except:
+            return None
+
+    def parse_decimal(val):
+        if val is None or str(val).lower() in ["none", "nan", ""]: return 0
+        try:
+            return Decimal(str(val).replace(",", ""))
+        except:
+            return 0
+
+    def parse_bool(val):
+        return str(val).strip() == "是"
+
+    success_count = 0
+    update_count = 0
+    errors = []
+
+    # 遍历数据行
+    for row_idx, row_values in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+        row_data = dict(zip(headers, row_values))
+        case_id = row_data.get("业务ID")
+        case_number = str(row_data.get("业务号", "")).strip()
+
+        if not case_number or case_number.lower() in ["none", "nan", ""]:
+            continue
+
+        try:
+            # 1. 查找现有案件
+            existing_case = None
+            if case_id:
+                existing_case = db.query(Case).filter(Case.case_id == case_id).first()
+
+            # 2. 准备基础字段数据 (全量字段映射)
+            case_update_dict = {
+                "commission_date": parse_date(row_data.get("委托日期")),
+                "case_category": row_data.get("业务类别"),
+                "case_source": row_data.get("案件来源"),
+                "fee_method": row_data.get("收费方式"),
+                "risk_ratio": row_data.get("风险比例"),
+                "case_income": parse_decimal(row_data.get("案件收入")),
+                "payment_due_date": parse_date(row_data.get("付款到期日")),
+                "cause": row_data.get("案由"),
+                "stage": row_data.get("介入阶段"),
+                "agency_power": row_data.get("代理权限"),
+                "court": row_data.get("审理法院"),
+                "investigative_agency": row_data.get("侦查机关"),
+                "procuratorate": row_data.get("检察院"),
+                "second_instance_procuratorate": row_data.get("二审检察机关"),
+                "hearing_date": parse_date(row_data.get("开庭时间")),
+                "filing_date": parse_date(row_data.get("立案日")),
+                "closing_date": parse_date(row_data.get("结案时间")),
+                "location": row_data.get("案件地点"),
+                "details": row_data.get("案件详情"),
+                "is_major": parse_bool(row_data.get("是否重大")),
+                "has_paper_file": parse_bool(row_data.get("是否纸质卷宗")),
+                "is_dismissed": parse_bool(row_data.get("是否解除")),
+                "has_record": parse_bool(row_data.get("是否笔录")),
+                "has_preservation": parse_bool(row_data.get("是否保全")),
+                "preservation_start": parse_date(row_data.get("保全开始日")),
+                "preservation_end": parse_date(row_data.get("保全终止日")),
+                "case_code": row_data.get("案号"),
+                "closing_status": row_data.get("结案状态"),
+                "closing_method": row_data.get("结案方式"),
+                "litigation_fee_payment_date": parse_date(row_data.get("诉讼费缴费时间")),
+                "litigation_fee_payment_amount": parse_decimal(row_data.get("诉讼费缴费金额")),
+                "litigation_fee_refund_date": parse_date(row_data.get("诉讼费退费时间")),
+                "litigation_fee_refund_amount": parse_decimal(row_data.get("诉讼费退费金额")),
+                "application_execution_date": parse_date(row_data.get("申请执行日")),
+                "mediation_due_date": parse_date(row_data.get("调解到期日")),
+                "execution_due_date": parse_date(row_data.get("执行到期日")),
+                "advisory_due_date": parse_date(row_data.get("顾问到期日")),
+            }
+
+            # 3. 处理银行案件专属字段
+            bank_data = None
+            if row_data.get("业务类别") == "银行案件":
+                bank_data = {
+                    "branch_name": row_data.get("支行名称"),
+                    "case_status": row_data.get("案件状态"),
+                    "bank_required_case_status": row_data.get("银行要求案件状态"),
+                    "collateral_info": row_data.get("抵/质押物信息"),
+                    "collateral_location": row_data.get("抵押物位置"),
+                    "account_manager": row_data.get("客户经理"),
+                    "loan_type": row_data.get("贷款类型"),
+                    "loan_account": row_data.get("贷款账号"),
+                    "loan_principal": parse_decimal(row_data.get("贷款本金")),
+                    "litigation_target_amount": parse_decimal(row_data.get("诉讼标的金额(含利息)")),
+                    "credit_card_penalty": parse_decimal(row_data.get("信用卡违约金")),
+                    "loan_date": parse_date(row_data.get("借款日")),
+                    "loan_due_date": parse_date(row_data.get("到期日")),
+                    "statute_of_limitations": parse_date(row_data.get("诉讼时效")),
+                    "case_acceptance_date": parse_date(row_data.get("收案日期")),
+                    "material_fetcher": row_data.get("取材料人"),
+                    "pre_litigation_collection": row_data.get("诉前催收情况"),
+                    "seal_date": parse_date(row_data.get("盖章日")),
+                    "material_submission_date": parse_date(row_data.get("材料提交法院日")),
+                    "handling_judge": row_data.get("承办法官"),
+                    "judgment_date": parse_date(row_data.get("裁判时间")),
+                    "judgment_method": row_data.get("裁判方式"),
+                    "judgment_summary": row_data.get("裁判摘要"),
+                    "lawyer_fee_supported": parse_decimal(row_data.get("支持律师费金额")),
+                    "defendant_paid_lawyer_fee": parse_decimal(row_data.get("被告支付律师费金额")),
+                    "is_settled": parse_bool(row_data.get("是否还清")),
+                    "has_second_instance_or_retrial": parse_bool(row_data.get("是否有二审/再审")),
+                    "execution_case_number": row_data.get("执行案号"),
+                    "execution_filing_date": parse_date(row_data.get("执行立案时间")),
+                    "execution_judge": row_data.get("执行法官"),
+                    "borrower_work_unit": row_data.get("借款人工作单位"),
+                    "is_execution_recovery": parse_bool(row_data.get("是否为恢复执行")),
+                    "execution_material_receipt_date": parse_date(row_data.get("收取执行材料时间")),
+                    "execution_material_submission_date": parse_date(row_data.get("执行材料提交法院时间")),
+                    "execution_principal": parse_decimal(row_data.get("执行本金金额")),
+                    "execution_lawyer_fee": parse_decimal(row_data.get("执行律师费金额")),
+                    "property_investigation": row_data.get("财产调查情况"),
+                    "network_control_status": row_data.get("网络查控财产情况"),
+                    "execution_plan": row_data.get("承办人执行方案"),
+                    "court_execution_measures": row_data.get("法院执行措施"),
+                    "seizure_freeze_date": parse_date(row_data.get("查封冻结时间")),
+                    "auction_status": row_data.get("拍卖程序"),
+                    "auction_deal_price": parse_decimal(row_data.get("拍卖变卖成交价")),
+                    "execution_settlement_content": row_data.get("执行和解内容"),
+                    "procedure_termination_date": parse_date(row_data.get("终本时间")),
+                    "termination_reason": row_data.get("终本原因"),
+                    "execution_conclusion_date": parse_date(row_data.get("终结执行时间")),
+                    "execution_recovery_date": parse_date(row_data.get("恢复执行时间")),
+                    "payoff_date": parse_date(row_data.get("还清时间")),
+                    "execution_collection_amount": parse_decimal(row_data.get("执行回款总金额")),
+                    "collection_source": row_data.get("执行回款来源"),
+                    "mediation_tracking": row_data.get("调解案件履行跟踪情况"),
+                }
+
+            # 4. 执行更新或新增
+            if existing_case:
+                # 更新 Case 表
+                for key, value in case_update_dict.items():
+                    setattr(existing_case, key, value)
+
+                # 更新或创建 BankCase 表
+                if bank_data:
+                    if existing_case.bank_case_details:
+                        for key, value in bank_data.items():
+                            setattr(existing_case.bank_case_details, key, value)
+                    else:
+                        new_bank = BankCase(case_id=existing_case.case_id, **bank_data)
+                        db.add(new_bank)
+                update_count += 1
+            else:
+                # 新增逻辑 (注意：此处暂不处理当事人，建议当事人仍通过专项 Sheet 导入)
+                new_case = Case(case_number=case_number, **case_update_dict)
+                db.add(new_case)
+                db.flush()
+                if bank_data:
+                    new_bank = BankCase(case_id=new_case.case_id, **bank_data)
+                    db.add(new_bank)
+                success_count += 1
+
+            db.commit()
+
+        except Exception as e:
+            db.rollback()
+            errors.append(f"第{row_idx}行({case_number})处理失败: {str(e)}")
+
+    return {
+        "summary": f"同步完成。更新: {update_count}, 新增: {success_count}, 失败: {len(errors)}",
+        "errors": errors
     }
