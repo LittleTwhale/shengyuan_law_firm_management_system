@@ -71,31 +71,38 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="操作" width="250" align="center" fixed="right">
+          <el-table-column
+            label="操作"
+            :width="isMobile ? 120 : 250"
+            align="center"
+            :fixed="isMobile ? false : 'right'"
+          >
             <template #default="scope">
-              <el-button
-                v-if="scope.row.case_id"
-                size="small"
-                type="primary"
-                plain
-                @click="goToCase(scope.row.case_id)"
-              >
-                业务详情
-              </el-button>
-
-              <template v-if="scope.row.source === 'custom'">
-                <el-button size="small" type="warning" plain @click="openDrawer(scope.row)">
-                  编辑
-                </el-button>
-                <el-popconfirm
-                  title="确定删除该日程吗？"
-                  @confirm="handleDelete(scope.row.schedule_id)"
+              <div class="action-buttons" :class="{ 'is-mobile-actions': isMobile }">
+                <el-button
+                  v-if="scope.row.case_id"
+                  size="small"
+                  type="primary"
+                  plain
+                  @click="goToCase(scope.row.case_id)"
                 >
-                  <template #reference>
-                    <el-button size="small" type="danger" plain>删除</el-button>
-                  </template>
-                </el-popconfirm>
-              </template>
+                  业务详情
+                </el-button>
+
+                <template v-if="scope.row.source === 'custom'">
+                  <el-button size="small" type="warning" plain @click="openDrawer(scope.row)">
+                    编辑
+                  </el-button>
+                  <el-popconfirm
+                    title="确定删除该日程吗？"
+                    @confirm="handleDelete(scope.row.schedule_id)"
+                  >
+                    <template #reference>
+                      <el-button size="small" type="danger" plain>删除</el-button>
+                    </template>
+                  </el-popconfirm>
+                </template>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -233,7 +240,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import request from '@/utils/request'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -265,6 +272,13 @@ const form = reactive({
 const rules = {
   title: [{ required: true, message: '请输入事项标题', trigger: 'blur' }],
   event_date: [{ required: true, message: '请选择提醒日期', trigger: 'change' }],
+}
+
+// 响应式变量和监听函数判断是否为移动端
+const isMobile = ref(window.innerWidth <= 768)
+
+const handleResize = () => {
+  isMobile.value = window.innerWidth <= 768
 }
 
 // 计算属性：紧迫事项 (用于右侧Timeline展示前5个)
@@ -414,8 +428,14 @@ const shiftDate = (type) => {
 }
 
 onMounted(() => {
+  window.addEventListener('resize', handleResize) // 监听窗口大小变化
   fetchReminders()
   fetchMyCases() // 组件挂载时获取案件下拉数据
+})
+
+// 组件销毁时移除监听，防止内存泄漏
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
 })
 </script>
 
@@ -495,7 +515,7 @@ onMounted(() => {
   overflow-y: auto; /* 防止外层越界，滚动条限制在内部 */
 }
 
-/* --- 新增：自定义日历头部样式 --- */
+/* --- 自定义日历头部样式 --- */
 .custom-calendar-header {
   display: flex;
   justify-content: space-between;
@@ -525,7 +545,7 @@ onMounted(() => {
   font-weight: bold;
 }
 
-/* --- 修改：日历单元格防溢出 --- */
+/* --- 日历单元格防溢出 --- */
 .calendar-events {
   margin-top: 4px;
   flex: 1;
@@ -601,6 +621,19 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+/* 操作列按钮组通用样式 */
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px; /* 替代原本 Element Plus 默认的 margin-left */
+}
+
+/* 覆盖 Element Plus 默认的兄弟按钮边距，全权由外层 gap 控制 */
+.action-buttons .el-button {
+  margin-left: 0 !important;
+}
+
 /* --- 移动端响应式适配 (视口宽度 <= 992px) --- */
 @media (max-width: 992px) {
   .event-reminders-page {
@@ -648,6 +681,17 @@ onMounted(() => {
   /* 调整按钮大小以节省空间 */
   :deep(.el-table .el-button--small) {
     padding: 5px 12px;
+  }
+
+  /* 移动端操作列纵向折叠适配 */
+  .is-mobile-actions {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  /* 移动端让按钮宽度充满这一列，点击热区更大 */
+  .is-mobile-actions .el-button {
+    width: 100%;
   }
 }
 </style>

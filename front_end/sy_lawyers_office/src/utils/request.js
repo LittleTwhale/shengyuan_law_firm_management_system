@@ -38,8 +38,22 @@ service.interceptors.response.use(
     // 处理 401 错误
     if (error.response && error.response.status === 401) {
       ElMessage.error('登录已过期，请重新登录')
-      // 清除本地过期的 token
+
+      // 1. 获取当前登录的 user_id
+      const userId = localStorage.getItem('user_id')
+
+      // 2. 如果存在 user_id，则清除该用户的紧急事项弹窗标记
+      if (userId) {
+        localStorage.removeItem(`has_shown_urgent_reminder_${userId}`)
+      }
+
+      // 3. 彻底清除本地过期的 token 及其他用户身份缓存信息
       localStorage.removeItem('token')
+      localStorage.removeItem('username')
+      localStorage.removeItem('role')
+      localStorage.removeItem('user_id')
+      localStorage.removeItem('permissions')
+
       // 跳转到登录页
       router.push('/login')
     } else {

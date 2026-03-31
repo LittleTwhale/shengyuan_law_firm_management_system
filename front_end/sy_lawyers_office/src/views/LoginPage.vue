@@ -382,6 +382,8 @@ const handleLogin = async () => {
     localStorage.setItem('user_id', user_id)
     localStorage.setItem('permissions', JSON.stringify(permissions))
 
+    localStorage.removeItem(`has_shown_urgent_reminder_${user_id}`)
+
     ElMessage.success(`欢迎 ${username} 登录系统！`)
     await router.push('/main')
   } catch (err) {
