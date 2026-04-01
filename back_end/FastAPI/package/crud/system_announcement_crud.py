@@ -4,6 +4,7 @@ from sqlalchemy import desc, and_
 from sqlalchemy.orm import Session, joinedload
 
 from ..models.system_announcement_model import SystemAnnouncement, UserAnnouncementRead
+from ..models.user import User
 from ..schemas.system_announcement_schema import SystemAnnouncementCreate, SystemAnnouncementUpdate
 
 
@@ -150,3 +151,31 @@ def mark_announcement_as_read(db: Session, user_id: int, announcement_id: int) -
         db.add(new_read)
         db.commit()
     return True
+
+
+def get_announcement_read_status(db: Session, announcement_id: int) -> List[dict]:
+    """获取全员针对特定公告的阅读状态"""
+    query = db.query(
+        User.id.label('user_id'),
+        User.real_name,
+        User.role,
+        UserAnnouncementRead.read_at
+    ).outerjoin(
+        UserAnnouncementRead,
+        and_(
+            User.id == UserAnnouncementRead.user_id,
+            UserAnnouncementRead.announcement_id == announcement_id
+        )
+    ).all()
+
+    results = []
+    for row in query:
+        results.append({
+            "user_id": row.user_id,
+            "real_name": row.real_name,
+            "role": row.role,
+            "is_read": bool(row.read_at),  # 如果 read_at 有值，说明已读
+            "read_at": row.read_at
+        })
+
+    return results

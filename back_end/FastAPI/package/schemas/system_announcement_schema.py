@@ -51,3 +51,14 @@ class SystemAnnouncementUserOut(SystemAnnouncementOut):
 class SystemAnnouncementUserPage(BaseModel):
     total: int
     items: List[SystemAnnouncementUserOut]
+
+# 公告已读状态
+class AnnouncementReadStatusOut(BaseModel):
+    user_id: int
+    real_name: Optional[str] = None
+    role: Optional[str] = None
+    is_read: bool
+    read_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True

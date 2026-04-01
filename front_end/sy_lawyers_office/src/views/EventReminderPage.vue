@@ -5,8 +5,12 @@
         <div class="header-left">
           <h2>事项与日程</h2>
           <el-radio-group v-model="viewMode" size="small" class="view-switch">
-            <el-radio-button label="table">列表视图</el-radio-button>
-            <el-radio-button label="calendar" class="hide-on-mobile">日历视图</el-radio-button>
+            <el-radio-button label="table">
+              <el-icon><List /></el-icon> 列表视图
+            </el-radio-button>
+            <el-radio-button label="calendar" class="hide-on-mobile">
+              <el-icon><Calendar /></el-icon> 日历视图
+            </el-radio-button>
           </el-radio-group>
         </div>
 
@@ -22,13 +26,15 @@
             <el-radio-button :label="30">近30天</el-radio-button>
             <el-radio-button :label="0">全部</el-radio-button>
           </el-radio-group>
-          <el-button type="primary" class="add-btn" @click="openDrawer()"> 新建日程 </el-button>
+          <el-button type="primary" class="add-btn" :icon="Plus" @click="openDrawer()">
+            新建日程
+          </el-button>
         </div>
       </div>
 
       <div v-if="viewMode === 'table'" class="table-container">
         <el-table :data="events" border stripe style="width: 100%" v-loading="loading">
-          <el-table-column label="状态" width="120" align="center">
+          <el-table-column label="状态" width="110" align="center">
             <template #default="scope">
               <el-tag :type="getUrgencyColor(scope.row.days_remaining)" effect="dark">
                 剩 {{ scope.row.days_remaining }} 天
@@ -44,7 +50,7 @@
             </template>
           </el-table-column>
 
-          <el-table-column prop="event_type" label="事项/标题" min-width="120" align="center">
+          <el-table-column prop="event_type" label="事项/标题" min-width="140" align="center">
             <template #default="scope">
               <el-tag :type="getEventTypeColor(scope.row.event_type)" effect="plain">
                 {{ scope.row.event_type }}
@@ -52,45 +58,57 @@
             </template>
           </el-table-column>
 
-          <el-table-column prop="event_date" label="截止/提醒日期" width="130" align="center" />
+          <el-table-column prop="event_date" label="提醒日期" width="110" align="center" />
 
-          <el-table-column
-            prop="case_number"
-            label="关联业务号"
-            min-width="180"
-            show-overflow-tooltip
-          >
+          <el-table-column label="关联业务号" min-width="160" show-overflow-tooltip>
             <template #default="scope">
-              {{ scope.row.case_number || '--' }}
+              {{ getDisplayCaseNumber(scope.row) }}
             </template>
           </el-table-column>
 
-          <el-table-column prop="client_name" label="委托人" min-width="120" show-overflow-tooltip>
+          <el-table-column label="委托人" min-width="110" show-overflow-tooltip>
             <template #default="scope">
-              {{ scope.row.client_name || '--' }}
+              {{ getDisplayClientName(scope.row) }}
+            </template>
+          </el-table-column>
+
+          <el-table-column label="详细备注" min-width="150" show-overflow-tooltip>
+            <template #default="scope">
+              <span v-if="scope.row.description" class="note-text">
+                <el-icon class="note-icon"><Document /></el-icon>
+                {{ scope.row.description }}
+              </span>
+              <span v-else style="color: #c0c4cc">--</span>
             </template>
           </el-table-column>
 
           <el-table-column
             label="操作"
-            :width="isMobile ? 120 : 250"
+            :width="isMobile ? 120 : 240"
             align="center"
             :fixed="isMobile ? false : 'right'"
           >
             <template #default="scope">
               <div class="action-buttons" :class="{ 'is-mobile-actions': isMobile }">
                 <el-button
-                  v-if="scope.row.case_id"
+                  v-if="getCaseId(scope.row)"
                   size="small"
                   type="primary"
                   plain
-                  @click="goToCase(scope.row.case_id)"
+                  :icon="View"
+                  @click="goToCase(getCaseId(scope.row))"
                 >
-                  业务详情
+                  业务
                 </el-button>
 
                 <template v-if="scope.row.source === 'custom'">
-                  <el-button size="small" type="warning" plain @click="openDrawer(scope.row)">
+                  <el-button
+                    size="small"
+                    type="warning"
+                    plain
+                    :icon="Edit"
+                    @click="openDrawer(scope.row)"
+                  >
                     编辑
                   </el-button>
                   <el-popconfirm
@@ -98,7 +116,7 @@
                     @confirm="handleDelete(scope.row.schedule_id)"
                   >
                     <template #reference>
-                      <el-button size="small" type="danger" plain>删除</el-button>
+                      <el-button size="small" type="danger" plain :icon="Delete">删除</el-button>
                     </template>
                   </el-popconfirm>
                 </template>
@@ -138,10 +156,10 @@
               <div class="calendar-events">
                 <div
                   v-for="e in getEventsByDate(data.day)"
-                  :key="e.id"
+                  :key="e.id || e.schedule_id"
                   class="event-badge"
                   :class="e.source"
-                  :title="e.event_type"
+                  :title="e.description ? `${e.event_type}\n备注: ${e.description}` : e.event_type"
                   @click.stop="viewEventDetail(e)"
                 >
                   {{ e.event_type }}
@@ -168,12 +186,18 @@
         >
           <el-card class="timeline-card" shadow="hover">
             <h4>{{ activity.event_type }}</h4>
-            <p v-if="activity.case_number" class="timeline-desc">{{ activity.case_number }}</p>
-            <p v-if="activity.description" class="timeline-desc">{{ activity.description }}</p>
+            <p v-if="getDisplayCaseNumber(activity) !== '--'" class="timeline-desc text-primary">
+              <el-icon><Briefcase /></el-icon> {{ getDisplayCaseNumber(activity) }} ({{
+                getDisplayClientName(activity)
+              }})
+            </p>
+            <p v-if="activity.description" class="timeline-desc note-box">
+              <el-icon><Document /></el-icon> {{ activity.description }}
+            </p>
             <div class="timeline-footer">
-              <span :class="'text-' + getUrgencyColor(activity.days_remaining)"
-                >剩 {{ activity.days_remaining }} 天</span
-              >
+              <span :class="'text-' + getUrgencyColor(activity.days_remaining)">
+                <el-icon><Timer /></el-icon> 剩 {{ activity.days_remaining }} 天
+              </span>
             </div>
           </el-card>
         </el-timeline-item>
@@ -188,7 +212,7 @@
     >
       <el-form :model="form" :rules="rules" ref="formRef" label-width="90px" label-position="top">
         <el-form-item label="事项标题" prop="title">
-          <el-input v-model="form.title" />
+          <el-input v-model="form.title" placeholder="如：约见客户、提交材料" />
         </el-form-item>
 
         <el-form-item label="提醒日期" prop="event_date">
@@ -222,8 +246,8 @@
           <el-input
             v-model="form.description"
             type="textarea"
-            :rows="4"
-            placeholder="记录更详细的备忘信息..."
+            :rows="5"
+            placeholder="记录更详细的备忘信息，将直接显示在列表中..."
           />
         </el-form-item>
       </el-form>
@@ -244,6 +268,17 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import request from '@/utils/request'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import {
+  Plus,
+  Edit,
+  Delete,
+  View,
+  Document,
+  Calendar,
+  List,
+  Briefcase,
+  Timer,
+} from '@element-plus/icons-vue'
 
 const router = useRouter()
 
@@ -289,6 +324,33 @@ const urgentEvents = computed(() => {
 // 日历视图：获取指定日期的事项
 const getEventsByDate = (dateStr) => {
   return events.value.filter((e) => e.event_date === dateStr)
+}
+
+// --- 数据映射辅助函数 (解决委托人/案号为空的问题) ---
+
+// 安全获取case_id (兼容不同的后端返回字段)
+const getCaseId = (row) => row.case_id || row.related_case_id || null
+
+// 根据映射获取委托人姓名
+const getDisplayClientName = (row) => {
+  if (row.client_name) return row.client_name
+  const cid = getCaseId(row)
+  if (cid && myCases.value.length) {
+    const matched = myCases.value.find((c) => c.case_id === cid)
+    if (matched) return matched.client_name || '--'
+  }
+  return '--'
+}
+
+// 根据映射获取案号
+const getDisplayCaseNumber = (row) => {
+  if (row.case_number) return row.case_number
+  const cid = getCaseId(row)
+  if (cid && myCases.value.length) {
+    const matched = myCases.value.find((c) => c.case_id === cid)
+    if (matched) return matched.case_number || '--'
+  }
+  return '--'
 }
 
 // --- API 交互 ---
@@ -375,7 +437,7 @@ const openDrawer = (row = null) => {
     form.schedule_id = row.schedule_id
     form.title = row.event_type
     form.event_date = row.event_date
-    form.related_case_id = row.case_id || null
+    form.related_case_id = getCaseId(row)
     form.description = row.description || ''
   } else {
     isEditing.value = false
@@ -392,8 +454,9 @@ const openDrawer = (row = null) => {
 const viewEventDetail = (eventData) => {
   if (eventData.source === 'custom') {
     openDrawer(eventData)
-  } else if (eventData.case_id) {
-    goToCase(eventData.case_id)
+  } else {
+    const cid = getCaseId(eventData)
+    if (cid) goToCase(cid)
   }
 }
 
@@ -430,7 +493,7 @@ const shiftDate = (type) => {
 onMounted(() => {
   window.addEventListener('resize', handleResize) // 监听窗口大小变化
   fetchReminders()
-  fetchMyCases() // 组件挂载时获取案件下拉数据
+  fetchMyCases() // 组件挂载时获取案件下拉数据，用于名称映射
 })
 
 // 组件销毁时移除监听，防止内存泄漏
@@ -515,6 +578,22 @@ onUnmounted(() => {
   overflow-y: auto; /* 防止外层越界，滚动条限制在内部 */
 }
 
+/* --- 表格样式定制美化 --- */
+:deep(.el-table th.el-table__cell) {
+  background-color: #f5f7fa !important;
+  color: #606266;
+  font-weight: 600;
+}
+.note-text {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #606266;
+}
+.note-icon {
+  color: #909399;
+}
+
 /* --- 自定义日历头部样式 --- */
 .custom-calendar-header {
   display: flex;
@@ -588,23 +667,40 @@ onUnmounted(() => {
   opacity: 0.8;
 }
 
-/* --- Timeline 卡片样式 --- */
+/* --- Timeline 卡片样式美化 --- */
 .timeline-card {
   margin-bottom: 8px;
 }
 .timeline-card h4 {
-  margin: 0 0 5px 0;
+  margin: 0 0 8px 0;
   font-size: 14px;
   color: #303133;
+  font-weight: 600;
 }
 .timeline-desc {
-  margin: 0 0 8px 0;
+  margin: 0 0 6px 0;
   font-size: 12px;
   color: #909399;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.note-box {
+  background: #f4f4f5;
+  padding: 6px;
+  border-radius: 4px;
+  color: #606266;
+  align-items: flex-start;
+}
+.text-primary {
+  color: var(--el-color-primary);
 }
 .timeline-footer {
+  margin-top: 10px;
   font-size: 12px;
   font-weight: bold;
+  display: flex;
+  align-items: center;
 }
 .text-danger {
   color: var(--el-color-danger);
@@ -626,7 +722,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 10px; /* 替代原本 Element Plus 默认的 margin-left */
+  gap: 8px; /* 替代原本 Element Plus 默认的 margin-left */
 }
 
 /* 覆盖 Element Plus 默认的兄弟按钮边距，全权由外层 gap 控制 */

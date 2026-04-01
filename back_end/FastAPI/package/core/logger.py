@@ -1,8 +1,9 @@
-import logging
-import sys
-import os
 import datetime
-import shutil
+import logging
+import os
+import re  # 用于正则匹配日志字符串中的 HTTP 状态码
+import sys
+
 from .config import LOG_ROOT
 
 
@@ -74,10 +75,21 @@ class DailyPathFileHandler(logging.FileHandler):
 
 
 # =============================================================================
+# 自定义过滤器，用于屏蔽高频的轮询日志
+# =============================================================================
+class EndpointFilter(logging.Filter):
+    """自定义过滤器：屏蔽特定健康检查或高频轮询接口的日志"""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # 拦截包含特定路径的访问日志，如果是轮询接口则返回 False，不在控制台和文件中打印
+        return "/system/announcements/unread" not in record.getMessage()
+
+
+# =============================================================================
 # 全局日志配置
 # =============================================================================
 class ColorFormatter(logging.Formatter):
-    """自定义精细化彩色日志 Formatter：仅高亮日志级别"""
+    """自定义精细化彩色日志 Formatter：仅高亮日志级别（现已增加状态码高亮）"""
 
     # 终端颜色 ANSI 转义码
     GREEN = "\033[32m"
@@ -96,6 +108,14 @@ class ColorFormatter(logging.Formatter):
         logging.CRITICAL: BOLD_RED
     }
 
+    # HTTP 状态码首数字映射字典 -> 颜色
+    STATUS_COLORS = {
+        '2': GREEN,  # 2xx 成功 -> 绿色
+        '3': YELLOW,  # 3xx 重定向 -> 黄色
+        '4': RED,  # 4xx 客户端错误 -> 红色
+        '5': BOLD_RED  # 5xx 服务端错误 -> 粗体红色
+    }
+
     def format(self, record):
         # 1. 备份原始的日志级别名称 (比如 "INFO")
         original_levelname = record.levelname
@@ -107,7 +127,22 @@ class ColorFormatter(logging.Formatter):
         # 3. 调用父类（原生 Formatter）的 format 方法完成最终字符串拼接
         result = super().format(record)
 
-        # 4. 恢复原始的日志级别名称（避免影响其他可能用到该属性的 Handler）
+        # 4. 针对 uvicorn.access 的访问日志，使用正则提取并高亮 HTTP 状态码
+        if record.name == "uvicorn.access":
+            # 匹配形如 "GET /api/... HTTP/1.1" 200 或 401
+            match = re.search(r'(HTTP/[0-9.]+"\s+)(\d{3})\b', result)
+            if match:
+                prefix = match.group(1)  # 获取引号和空格等前缀，如 'HTTP/1.1" '
+                status_code = match.group(2)  # 获取三位状态码，如 '200'
+
+                # 根据状态码首数字分配颜色
+                status_color = self.STATUS_COLORS.get(status_code[0], self.RESET)
+                colored_status = f"{status_color}{status_code}{self.RESET}"
+
+                # 在最终输出的文本中替换状态码为带颜色的状态码
+                result = result[:match.start()] + prefix + colored_status + result[match.end():]
+
+        # 5. 恢复原始的日志级别名称（避免影响其他可能用到该属性的 Handler）
         record.levelname = original_levelname
 
         return result
@@ -159,6 +194,10 @@ for uvicorn_logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
     uv_logger.propagate = False
     uv_logger.addHandler(console_handler)
     uv_logger.addHandler(file_handler)
+
+    # 为 uvicorn.access 添加端点过滤器，拦截掉公告轮询日志
+    if uvicorn_logger_name == "uvicorn.access":
+        uv_logger.addFilter(EndpointFilter())
 
 # 导出 app_logger 供其他模块使用
 logger = app_logger

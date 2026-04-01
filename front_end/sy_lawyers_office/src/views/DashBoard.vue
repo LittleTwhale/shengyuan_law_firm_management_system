@@ -255,24 +255,49 @@
         </div>
       </template>
 
-      <div class="notice-body">
-        <h3 class="notice-subtitle">{{ currentNotice?.title }}</h3>
+      <div class="notice-body" v-if="currentNotice">
+        <h3 class="notice-subtitle">{{ currentNotice.title }}</h3>
         <div class="notice-meta">
-          <span>发布人：{{ currentNotice?.publisher_name || '系统管理员' }}</span>
-          <span>发布时间：{{ formatDate(currentNotice?.created_at) }}</span>
+          <span>发布人：{{ currentNotice.publisher_name || '系统管理员' }}</span>
+          <span>发布时间：{{ formatDate(currentNotice.created_at) }}</span>
         </div>
         <el-divider border-style="dashed" />
-        <div class="rich-text-notice-content" v-html="currentNotice?.content"></div>
+        <div class="rich-text-notice-content" v-html="currentNotice.content"></div>
       </div>
 
       <template #footer>
         <div class="notice-footer">
-          <span class="queue-indicator" v-if="unreadNoticeQueue.length > 1">
-            还有 {{ unreadNoticeQueue.length - 1 }} 条未读公告
-          </span>
-          <el-button type="primary" size="large" @click="handleConfirmNotice" class="confirm-btn">
-            我知道了，不再提示
-          </el-button>
+          <div class="notice-progress" v-if="unreadNoticeQueue.length > 1">
+            <el-tag effect="plain" type="info" round>
+              第 {{ currentIndex + 1 }} / {{ unreadNoticeQueue.length }} 条
+            </el-tag>
+          </div>
+
+          <div class="notice-actions">
+            <el-button v-if="currentIndex > 0" @click="prevNotice" class="nav-btn" size="large">
+              上一条
+            </el-button>
+
+            <el-button
+              v-if="currentIndex < unreadNoticeQueue.length - 1"
+              type="primary"
+              @click="nextNotice"
+              class="nav-btn"
+              size="large"
+            >
+              下一条
+            </el-button>
+
+            <el-button
+              v-else
+              type="primary"
+              size="large"
+              @click="handleConfirmAllRead"
+              class="confirm-btn"
+            >
+              全部标为已读并关闭
+            </el-button>
+          </div>
         </div>
       </template>
     </el-dialog>
@@ -441,8 +466,8 @@ const checkUrgentReminders = async () => {
                     <span class="urgent-date">${e.event_date}</span>
                   </div>
                   <div class="urgent-body">
-                    <div class="urgent-case">${e.case_number}</div>
-                    <div class="urgent-client">${e.client_name}</div>
+                    <div class="urgent-case">${e.case_number ? e.case_number : e.source === 'custom' ? '自定义日程' : '--'}</div>
+                    <div class="urgent-client">${e.client_name ? e.client_name : e.description || '无详细备注'}</div>
                   </div>
                   <div class="urgent-footer">
                     剩余 <span class="urgent-days">${e.days_remaining}</span> 天
@@ -474,9 +499,11 @@ const checkUrgentReminders = async () => {
   }
 }
 
+// === 公告相关状态（已重构为走马灯序列逻辑） ===
 const noticeDialogVisible = ref(false)
 const unreadNoticeQueue = ref([])
-const currentNotice = ref(null)
+const currentIndex = ref(0) // 当前浏览的公告索引
+const currentNotice = computed(() => unreadNoticeQueue.value[currentIndex.value] || null) // 动态计算当前展示内容
 let pollingTimer = null
 
 const formatDate = (dateStr) => {
@@ -486,15 +513,15 @@ const formatDate = (dateStr) => {
 }
 
 const checkSystemAnnouncements = async () => {
-  try {
-    if (noticeDialogVisible.value) return
+  // 如果弹窗已打开，或者当前页面不在用户的可视层（被隐藏或切到后台），则不发请求
+  if (noticeDialogVisible.value || document.hidden) return
 
+  try {
     const res = await request.get('/system/announcements/unread')
     const unreadList = res.data || []
-
     if (unreadList.length > 0) {
       unreadNoticeQueue.value = unreadList
-      currentNotice.value = unreadNoticeQueue.value[0]
+      currentIndex.value = 0
       noticeDialogVisible.value = true
     }
   } catch (error) {
@@ -502,39 +529,62 @@ const checkSystemAnnouncements = async () => {
   }
 }
 
-const handleConfirmNotice = async () => {
-  if (!currentNotice.value) return
+// 翻页操作：上一条
+const prevNotice = () => {
+  if (currentIndex.value > 0) {
+    currentIndex.value--
+  }
+}
+
+// 翻页操作：下一条
+const nextNotice = () => {
+  if (currentIndex.value < unreadNoticeQueue.value.length - 1) {
+    currentIndex.value++
+  }
+}
+
+// 翻到底部时的操作：全部标记已读
+const handleConfirmAllRead = async () => {
+  if (!unreadNoticeQueue.value.length) return
 
   try {
-    await request.post(`/system/announcements/${currentNotice.value.id}/read`)
+    // 遍历队列中所有未读公告，并发请求标记已读
+    const promises = unreadNoticeQueue.value.map((notice) =>
+      request.post(`/system/announcements/${notice.id}/read`),
+    )
+    await Promise.all(promises)
   } catch (e) {
-    console.error('标记公告已读失败', e)
+    console.error('批量标记公告已读失败', e)
   }
 
-  unreadNoticeQueue.value.shift()
-
-  if (unreadNoticeQueue.value.length > 0) {
-    noticeDialogVisible.value = false
-    setTimeout(() => {
-      currentNotice.value = unreadNoticeQueue.value[0]
-      noticeDialogVisible.value = true
-    }, 300)
-  } else {
-    noticeDialogVisible.value = false
-    currentNotice.value = null
-  }
+  // 清空队列并关闭弹窗
+  unreadNoticeQueue.value = []
+  currentIndex.value = 0
+  noticeDialogVisible.value = false
 }
 
 onMounted(() => {
   checkUrgentReminders()
   checkSystemAnnouncements()
-  pollingTimer = setInterval(checkSystemAnnouncements, 60000)
+
+  // 轮询时间为 5 分钟 (300000 毫秒)
+  pollingTimer = setInterval(checkSystemAnnouncements, 300000)
+
+  // 监听页面可见性变化：用户切回标签页时，主动查一次
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      checkSystemAnnouncements()
+    }
+  })
+
   checkDeviceType()
   window.addEventListener('resize', checkDeviceType)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', checkDeviceType)
+  // 移除监听器
+  document.removeEventListener('visibilitychange', checkSystemAnnouncements)
   if (pollingTimer) {
     clearInterval(pollingTimer)
   }
@@ -638,6 +688,7 @@ onUnmounted(() => {
 .urgent-client {
   font-size: 13px;
   color: #606266;
+  margin-top: 2px;
 }
 
 .urgent-footer {
@@ -789,19 +840,41 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0 0 20px;
+  padding: 0 24px 24px;
 }
 
-.queue-indicator {
-  font-size: 13px;
-  color: #f56c6c;
-  margin-bottom: 12px;
+.notice-progress {
+  margin-bottom: 16px;
+}
+
+.notice-actions {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  width: 100%;
+}
+
+.nav-btn {
+  width: 120px;
+  border-radius: 20px;
+  font-weight: bold;
 }
 
 .confirm-btn {
-  width: 200px;
+  flex: 1;
+  max-width: 260px;
   border-radius: 20px;
   font-weight: bold;
+  background: linear-gradient(135deg, #165dff, #4080ff) !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(22, 93, 255, 0.3) !important;
+  color: #fff !important;
+  transition: all 0.3s ease;
+}
+
+.confirm-btn:hover {
+  box-shadow: 0 6px 16px rgba(22, 93, 255, 0.4) !important;
+  transform: translateY(-2px);
 }
 
 /* 针对公告弹窗的专属移动端优化 */
@@ -822,6 +895,13 @@ onUnmounted(() => {
   }
   .rich-text-notice-content {
     max-height: 55vh;
+  }
+  .notice-actions {
+    flex-direction: row;
+  }
+  .nav-btn {
+    flex: 1;
+    width: auto;
   }
 }
 </style>

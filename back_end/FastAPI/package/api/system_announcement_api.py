@@ -165,3 +165,21 @@ def delete_announcement(
     if not success:
         raise HTTPException(status_code=404, detail="公告不存在")
     return {"detail": "删除成功"}
+
+@router.get("/{announcement_id}/read_status", response_model=List[schemas.AnnouncementReadStatusOut])
+def read_announcement_status(
+        announcement_id: int,
+        db: Session = Depends(get_db),
+        user: User = Depends(require_admin_access)
+):
+    """
+    管理端：获取指定公告的全员阅读明细（已读/未读名单）
+    """
+    # 先检查公告是否存在
+    announcement = crud.get_announcement(db, announcement_id)
+    if not announcement:
+        raise HTTPException(status_code=404, detail="公告不存在")
+
+    # 获取并返回阅读状态列表
+    results = crud.get_announcement_read_status(db, announcement_id)
+    return results

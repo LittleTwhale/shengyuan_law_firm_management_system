@@ -106,8 +106,51 @@
 
       <el-tab-pane label="系统公告管理" name="announcements">
         <div class="tab-content">
-          <div class="toolbar" style="margin-bottom: 20px">
-            <el-button type="primary" @click="openNoticeForm()">发布新公告</el-button>
+          <div class="overview-cards">
+            <el-row :gutter="20">
+              <el-col :span="8">
+                <el-card shadow="hover" class="stat-card">
+                  <div class="stat-icon" style="background-color: #e8f3ff; color: #165dff">
+                    <el-icon><DataLine /></el-icon>
+                  </div>
+                  <div class="stat-info">
+                    <div class="stat-title">系统累计公告</div>
+                    <div class="stat-value">
+                      {{ noticeTotal }} <span class="stat-unit">条</span>
+                    </div>
+                  </div>
+                </el-card>
+              </el-col>
+              <el-col :span="8">
+                <el-card shadow="hover" class="stat-card action-card" @click="openNoticeForm()">
+                  <div class="stat-icon" style="background-color: #e6f8ea; color: #13ce66">
+                    <el-icon><Plus /></el-icon>
+                  </div>
+                  <div class="stat-info">
+                    <div
+                      class="stat-title"
+                      style="color: #13ce66; font-weight: bold; font-size: 16px"
+                    >
+                      发布新公告
+                    </div>
+                    <div class="stat-desc">点击创建图文公告或更新日志</div>
+                  </div>
+                </el-card>
+              </el-col>
+            </el-row>
+          </div>
+
+          <div
+            class="toolbar"
+            style="
+              margin-bottom: 20px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            "
+          >
+            <h3 style="margin: 0; color: #303133; font-size: 16px">公告列表</h3>
+            <el-button type="primary" @click="fetchAnnouncements" plain>刷新列表</el-button>
           </div>
 
           <el-table :data="announcementsList" border stripe v-loading="noticeLoading">
@@ -119,9 +162,17 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="title" label="标题" min-width="200" />
+            <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip />
             <el-table-column prop="version" label="绑定版本" width="100" />
             <el-table-column prop="publisher_name" label="发布人" width="100" />
+
+            <el-table-column label="阅读情况" width="120" align="center">
+              <template #default="{ row }">
+                <el-button link type="primary" @click="openReadStatusDialog(row)"
+                  >查看明细</el-button
+                >
+              </template>
+            </el-table-column>
 
             <el-table-column label="发布状态" width="100" align="center">
               <template #default="{ row }">
@@ -135,8 +186,11 @@
 
             <el-table-column label="发布时间" prop="created_at" width="180" />
 
-            <el-table-column label="操作" width="150" align="center">
+            <el-table-column label="操作" width="180" align="center" fixed="right">
               <template #default="{ row }">
+                <el-button link type="info" size="small" @click="openPreviewDialog(row)"
+                  >预览</el-button
+                >
                 <el-button link type="primary" size="small" @click="openNoticeForm(row)"
                   >编辑</el-button
                 >
@@ -170,6 +224,67 @@
       :edit-data="currentNotice"
       @refresh="fetchAnnouncements"
     />
+
+    <el-dialog
+      v-model="readStatusVisible"
+      title="公告阅读情况明细"
+      width="700px"
+      center
+      destroy-on-close
+    >
+      <div v-loading="readStatusLoading" style="min-height: 200px">
+        <el-tabs v-model="readStatusTab">
+          <el-tab-pane :label="`已读人员 (${readUsers.length})`" name="read">
+            <el-table :data="readUsers" border stripe max-height="400">
+              <el-table-column prop="real_name" label="姓名" min-width="120" />
+              <el-table-column prop="role" label="角色" width="120">
+                <template #default="{ row }">
+                  <el-tag :type="getRoleTag(row.role)">{{ row.role }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="read_at" label="阅读时间" width="180" />
+            </el-table>
+          </el-tab-pane>
+
+          <el-tab-pane :label="`未读人员 (${unreadUsers.length})`" name="unread">
+            <el-table :data="unreadUsers" border stripe max-height="400">
+              <el-table-column prop="real_name" label="姓名" min-width="120" />
+              <el-table-column prop="role" label="角色" width="120">
+                <template #default="{ row }">
+                  <el-tag :type="getRoleTag(row.role)">{{ row.role }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="状态" width="180">
+                <template #default>
+                  <el-tag type="danger" effect="plain">尚未阅读</el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
+        </el-tabs>
+      </div>
+    </el-dialog>
+
+    <el-dialog v-model="previewVisible" title="公告预览 (用户视角)" width="750px" center>
+      <div class="preview-container" v-loading="previewLoading">
+        <h2 class="preview-title">{{ previewData?.title }}</h2>
+        <div class="preview-meta">
+          <span>发布人：{{ previewData?.publisher_name }}</span>
+          <span style="margin: 0 10px">|</span>
+          <span>发布时间：{{ previewData?.created_at }}</span>
+          <el-tag v-if="previewData?.version" size="small" style="margin-left: 10px"
+            >v{{ previewData?.version }}</el-tag
+          >
+        </div>
+        <el-divider border-style="dashed" />
+        <div class="rich-text-content" v-html="previewData?.content"></div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button type="primary" @click="previewVisible = false">关闭预览</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -177,6 +292,7 @@
 import { ref, onMounted, computed } from 'vue'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { DataLine, Plus } from '@element-plus/icons-vue' // 引入所需的图标
 import SystemAnnouncementForm from '@/components/SystemAnnouncementForm.vue'
 
 const activeTab = ref('permissions')
@@ -190,7 +306,7 @@ const noticeLoading = ref(false)
 const noticeFormVisible = ref(false)
 const currentNotice = ref(null)
 
-// 新增：公告分页状态
+// 公告分页状态
 const noticePage = ref(1)
 const noticePageSize = ref(20)
 const noticeTotal = ref(0)
@@ -273,14 +389,14 @@ const fetchAnnouncements = async () => {
   }
 }
 
-// 新增：处理分页大小变化
+// 处理分页大小变化
 const handleNoticeSizeChange = (val) => {
   noticePageSize.value = val
   noticePage.value = 1
   fetchAnnouncements()
 }
 
-// 新增：处理页码变化
+// 处理页码变化
 const handleNoticeCurrentChange = (val) => {
   noticePage.value = val
   fetchAnnouncements()
@@ -318,6 +434,56 @@ const deleteNotice = async (id) => {
   }
 }
 
+// =====================================
+// 新增：公告预览相关逻辑
+// =====================================
+const previewVisible = ref(false)
+const previewLoading = ref(false)
+const previewData = ref(null)
+
+const openPreviewDialog = async (row) => {
+  previewVisible.value = true
+  previewLoading.value = true
+  try {
+    // 获取最新详情以确保正文富文本是最新的
+    const res = await request.get(`/system/announcements/${row.id}`)
+    previewData.value = res.data
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('获取预览数据失败')
+    previewVisible.value = false
+  } finally {
+    previewLoading.value = false
+  }
+}
+
+// =====================================
+// 新增：阅读情况相关逻辑
+// =====================================
+const readStatusVisible = ref(false)
+const readStatusLoading = ref(false)
+const readStatusTab = ref('read')
+const readStatusList = ref([])
+
+// 计算属性：分离已读和未读数据
+const readUsers = computed(() => readStatusList.value.filter((u) => u.is_read))
+const unreadUsers = computed(() => readStatusList.value.filter((u) => !u.is_read))
+
+const openReadStatusDialog = async (row) => {
+  readStatusVisible.value = true
+  readStatusLoading.value = true
+  readStatusTab.value = 'read' // 默认打开已读Tab
+  try {
+    const res = await request.get(`/system/announcements/${row.id}/read_status`)
+    readStatusList.value = res.data || []
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('获取阅读情况失败')
+  } finally {
+    readStatusLoading.value = false
+  }
+}
+
 onMounted(() => {
   fetchUsers()
   fetchAnnouncements()
@@ -337,5 +503,99 @@ onMounted(() => {
 .toolbar {
   margin-bottom: 20px;
   display: flex;
+}
+
+/* --- 新增概览卡片样式 --- */
+.overview-cards {
+  margin-bottom: 24px;
+}
+.stat-card {
+  border-radius: 8px;
+  border: none;
+  background-color: #f9fafc;
+}
+.stat-card :deep(.el-card__body) {
+  display: flex;
+  align-items: center;
+  padding: 20px;
+}
+.action-card {
+  cursor: pointer;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+.action-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(19, 206, 102, 0.2);
+}
+.stat-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 24px;
+  margin-right: 16px;
+}
+.stat-info {
+  display: flex;
+  flex-direction: column;
+}
+.stat-title {
+  font-size: 14px;
+  color: #606266;
+  margin-bottom: 4px;
+}
+.stat-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: #303133;
+}
+.stat-unit {
+  font-size: 14px;
+  font-weight: normal;
+  color: #909399;
+}
+.stat-desc {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+}
+
+/* --- 富文本预览区域样式约束 --- */
+.preview-container {
+  padding: 10px 20px;
+}
+.preview-title {
+  text-align: center;
+  font-size: 22px;
+  color: #303133;
+  margin-bottom: 12px;
+}
+.preview-meta {
+  text-align: center;
+  color: #909399;
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+.rich-text-content {
+  min-height: 200px;
+  max-height: 50vh;
+  overflow-y: auto;
+  line-height: 1.8;
+  color: #303133;
+  font-size: 15px;
+}
+/* 防止富文本里的图片溢出弹窗 */
+:deep(.rich-text-content img) {
+  max-width: 100% !important;
+  height: auto !important;
+  border-radius: 8px;
+  margin: 10px 0;
+}
+:deep(.rich-text-content p) {
+  margin: 10px 0;
 }
 </style>
