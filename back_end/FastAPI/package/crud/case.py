@@ -10,7 +10,7 @@ from openpyxl import Workbook
 from openpyxl.cell import WriteOnlyCell
 from openpyxl.styles import Font, Alignment
 from openpyxl.utils import get_column_letter
-from sqlalchemy import func
+from sqlalchemy import func, and_
 from sqlalchemy import or_, extract
 from sqlalchemy.orm import Session, joinedload, selectinload
 
@@ -177,8 +177,9 @@ def list_bank_cases_by_user_role(
         role: str,
         skip: int = 0,
         limit: int = 100,
-        keyword: Optional[str] = None,  # 新增
+        keyword: Optional[str] = None,
         main_lawyer_id: Optional[int] = None,  # 主办律师筛选
+        client_name: Optional[str] = None, # 委托银行筛选
         year: Optional[str] = None,
         case_status: Optional[str] = None,
         sort_field: str = "created_at",  # 排序字段，默认按创建时间
@@ -213,6 +214,17 @@ def list_bank_cases_by_user_role(
 
     if main_lawyer_id is not None:
         query = query.filter(Case.main_lawyer_id == main_lawyer_id)
+
+    # 委托银行筛选逻辑 (兼容新表 CaseParty 和老字段 client_name)
+    if client_name:
+        query = query.filter(
+            or_(
+                Case.client_name.like(f"%{client_name}%"),
+                Case.parties.any(
+                    and_(CaseParty.party_type.like('%委托%'), CaseParty.name.like(f"%{client_name}%"))
+                )
+            )
+        )
 
     # 关键词搜索：支持按案号或【任何当事人名称】进行全维度检索
     if keyword:
@@ -255,8 +267,9 @@ def count_bank_cases_by_user_role(
         db: Session,
         user_id: int,
         role: str,
-        keyword: Optional[str] = None,  # 新增
+        keyword: Optional[str] = None,
         main_lawyer_id: Optional[int] = None,
+        client_name: Optional[str] = None,
         year: Optional[str] = None,
         case_status: Optional[str] = None,
 ) -> int:
@@ -278,6 +291,17 @@ def count_bank_cases_by_user_role(
 
     if main_lawyer_id is not None:
         query = query.filter(Case.main_lawyer_id == main_lawyer_id)
+
+    # 委托银行筛选逻辑 (兼容新表 CaseParty 和老字段 client_name)
+    if client_name:
+        query = query.filter(
+            or_(
+                Case.client_name.like(f"%{client_name}%"),
+                Case.parties.any(
+                    and_(CaseParty.party_type.like('%委托%'), CaseParty.name.like(f"%{client_name}%"))
+                )
+            )
+        )
 
     # 关键词搜索：支持按案号或【任何当事人名称】进行全维度检索
     if keyword:
@@ -918,6 +942,15 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
             query = query.filter(Case.case_category == query_params.case_category)
         if query_params.main_lawyer_id:
             query = query.filter(Case.main_lawyer_id == query_params.main_lawyer_id)
+        if query_params.client_name:
+            query = query.filter(
+                or_(
+                    Case.client_name.like(f"%{query_params.client_name}%"),
+                    Case.parties.any(
+                        and_(CaseParty.party_type.like('%委托%'), CaseParty.name.like(f"%{query_params.client_name}%"))
+                    )
+                )
+            )
         if query_params.case_status:
             query = query.join(BankCase).filter(BankCase.case_status == query_params.case_status)
 

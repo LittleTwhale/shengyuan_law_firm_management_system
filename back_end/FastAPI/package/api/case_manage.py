@@ -101,8 +101,9 @@ def get_cases(
 def get_bank_cases(
     skip: int = 0,
     limit: int = 100,
-    keyword: Optional[str] = None,  # 新增搜索关键词参数
+    keyword: Optional[str] = None,  # 搜索关键词参数
     main_lawyer_id: Optional[int] = None,
+    client_name: Optional[str] = None,
     year: Optional[str] = None,
     case_status: Optional[str] = None,
     sort_field: Optional[str] = "created_at",  # 排序参数
@@ -121,6 +122,7 @@ def get_bank_cases(
         limit=limit,
         keyword=keyword,
         main_lawyer_id=main_lawyer_id,
+        client_name=client_name,
         year=year,
         case_status=case_status,
         sort_field=sort_field,
@@ -132,6 +134,7 @@ def get_bank_cases(
         role=current_user.role,
         keyword=keyword,  # 传递给统计函数
         main_lawyer_id=main_lawyer_id,
+        client_name=client_name,
         year=year,
         case_status=case_status,
     )

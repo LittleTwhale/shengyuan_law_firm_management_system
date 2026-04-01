@@ -30,12 +30,25 @@
       <div class="toolbar-left">
         <el-input
           v-model="searchKeyword"
-          placeholder="请输入业务号、委托银行或当事人"
+          placeholder="请输入业务号或当事人"
           clearable
           @clear="handleSearch"
           @keyup.enter="handleSearch"
           class="toolbar-item search-input"
         />
+
+        <el-select
+          v-model="selectedBank"
+          placeholder="委托银行筛选"
+          clearable
+          filterable
+          allow-create
+          default-first-option
+          @change="handleSearch"
+          class="toolbar-item filter-select"
+        >
+          <el-option v-for="bank in bankOptions" :key="bank" :label="bank" :value="bank" />
+        </el-select>
 
         <el-select
           v-model="selectedLawyerId"
@@ -263,7 +276,21 @@
         class="export-form"
       >
         <el-form-item label="搜索关键词">
-          <el-input v-model="exportForm.keyword" placeholder="按业务号/委托银行搜索" clearable />
+          <el-input v-model="exportForm.keyword" placeholder="按业务号/当事人搜索" clearable />
+        </el-form-item>
+
+        <el-form-item label="委托银行">
+          <el-select
+            v-model="exportForm.client_name"
+            placeholder="全部银行"
+            clearable
+            filterable
+            allow-create
+            default-first-option
+            style="width: 100%"
+          >
+            <el-option v-for="bank in bankOptions" :key="bank" :label="bank" :value="bank" />
+          </el-select>
         </el-form-item>
 
         <el-form-item
@@ -464,6 +491,18 @@ const searchKeyword = ref('') // 搜索关键词
 const selectedLawyerId = ref(null) // 选中的主办律师ID
 // 年份变量，默认为当前年份字符串
 const selectedYear = ref(new Date().getFullYear().toString())
+// 委托银行相关响应式变量
+const selectedBank = ref(null)
+const bankOptions = [
+  '建设银行',
+  '邮政银行',
+  '农村商业银行',
+  '工商银行',
+  '交通银行',
+  '住房公积金',
+  '长沙村镇银行',
+  '中国银行',
+]
 const selectedCaseStatus = ref(null) // 选中的案件状态
 const caseStatusOptions = [
   '写诉讼状中',
@@ -568,6 +607,7 @@ const loadBankCases = async () => {
         sort_field: currentSortField.value, // 排序字段
         sort_dir: currentSortDir.value, // 排序方向
         main_lawyer_id: selectedLawyerId.value, // 主办律师筛选
+        client_name: selectedBank.value, // 委托银行筛选
       },
     })
     cases.value = res.data.items || []
@@ -819,13 +859,14 @@ const exportProgress = ref(0) // 导出进度
 // 导出表单数据
 const exportForm = reactive({
   keyword: '',
+  client_name: null,
   main_lawyer_id: null,
   year: '',
   dateRange: [],
   case_status: null,
 })
 
-// 新增：精准导出选中的 loading 状态
+// 精准导出选中的 loading 状态
 const isExportingSelected = ref(false)
 
 // 执行导出选中的案件
@@ -887,6 +928,7 @@ const handleExportSelected = async () => {
 // 打开导出弹窗，同步当前的筛选状态
 const handleExportClick = () => {
   exportForm.keyword = searchKeyword.value || ''
+  exportForm.client_name = selectedBank.value || null
   exportForm.main_lawyer_id = selectedLawyerId.value || null
   exportForm.case_status = selectedCaseStatus.value || null
   exportForm.year = selectedYear.value || ''
@@ -906,6 +948,7 @@ const submitExport = async () => {
       keyword: exportForm.keyword || null,
       case_category: '银行案件',
       main_lawyer_id: exportForm.main_lawyer_id || null,
+      client_name: exportForm.client_name || null,
       year: exportForm.year || null,
       case_status: exportForm.case_status || null,
       start_date:

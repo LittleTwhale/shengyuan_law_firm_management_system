@@ -490,6 +490,7 @@ class CaseExportQuery(BaseModel):
     keyword: Optional[str] = None
     case_category: Optional[str] = None
     main_lawyer_id: Optional[int] = None
+    client_name: Optional[str] = None
     year: Optional[str] = None
     case_status: Optional[str] = None
     start_date: Optional[date] = None
