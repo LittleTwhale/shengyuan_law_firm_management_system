@@ -20,6 +20,15 @@ router = APIRouter(
     tags=["lawyer_manage"]
 )
 
+# 权限检查工具函数
+def has_management_power(current_user: User) -> bool:
+    if current_user.role == 'owner':
+        return True
+    if current_user.role == 'admin':
+        # 检查 permissions 字典中的 can_access_admin 字段
+        perms = current_user.permissions or {}
+        return perms.get("can_access_admin") is True
+    return False
 
 # 1. 获取用户列表
 @router.get("/users", response_model=List[UserOut])
@@ -53,9 +62,12 @@ def add_user(
     if current_user.role not in ["admin", "owner"]:
         raise HTTPException(status_code=403, detail="无权限新增用户")
 
-    # 细粒度权限控制：admin只能创建普通user
-    if current_user.role == "admin" and user_in.role != "user":
-        raise HTTPException(status_code=403, detail="无权限新增非普通用户")
+    # 细粒度权限控制：有can_access_admin权限的admin才能创建管理员
+    if  user_in.role != "user":
+        if not has_management_power(current_user):
+            raise HTTPException(status_code=403, detail="权限不足：只有具备后台管理权的管理员才能创建管理员")
+        if user_in.role == "owner":
+            raise HTTPException(status_code=400, detail="管理员不能创建最高权限用户")
 
     # 检查账号是否存在
     db_user = get_user_by_accounts(db, user_in.accounts)
@@ -91,13 +103,19 @@ def edit_user(
             detail="用户不存在"
         )
 
-    # 权限控制：admin只能操作现有的普通user
-    if current_user.role == "admin" and user.role != "user":
-        raise HTTPException(status_code=403, detail="无权限操作非普通用户")
+    # admin不能修改owner信息
+    if user.role == "owner" and current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="权限不足：您没有修改最高权限用户的权限")
+    # 如果尝试修改角色为 admin
+    new_role = update_data.get("role")
+    if new_role == "admin":
+        # 只有 owner 或 有权的 admin 才能授权
+        if not has_management_power(current_user):
+            raise HTTPException(status_code=403, detail="权限不足：您没有分配管理员角色的权限")
 
-    # 防止提权：admin 不能把用户角色修改为 admin 或 owner
-    if current_user.role == "admin" and update_data.get("role") and update_data.get("role") != "user":
-        raise HTTPException(status_code=403, detail="无权限将用户修改为高级角色")
+    # 防止提权到 owner
+    if new_role == "owner" and current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="禁止非法提权")
 
     updated_user = update_user(db, user_id, update_data)
     return updated_user

@@ -89,7 +89,7 @@
               <template #default="{ row }">
                 <el-switch
                   v-model="row.permissions.can_access_admin"
-                  :disabled="row.role === 'owner'"
+                  :disabled="currentUserRole !== 'owner' || row.role === 'owner'"
                   @change="updatePermission(row, 'can_access_admin')"
                   active-text="开启"
                   style="--el-switch-on-color: #13ce66"
@@ -327,6 +327,7 @@ const activeTab = ref('permissions')
 const loading = ref(false)
 const users = ref([])
 const searchKeyword = ref('')
+const currentUserRole = localStorage.getItem('role')
 
 // 新增：用户列表的分页状态
 const userPage = ref(1)

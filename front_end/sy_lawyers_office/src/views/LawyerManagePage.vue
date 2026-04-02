@@ -87,9 +87,10 @@
         </el-form-item>
 
         <el-form-item label="角色" prop="role">
-          <el-select v-model="form.role" :disabled="role === 'admin'" style="width: 100%">
+          <el-select v-model="form.role"  style="width: 100%">
             <el-option label="普通用户" value="user" />
-            <el-option label="管理员" value="admin" v-if="role === 'owner'" />
+
+            <el-option v-if="hasAuthorizePower" label="管理员" value="admin" />
           </el-select>
         </el-form-item>
 
@@ -130,6 +131,12 @@ import request from '@/utils/request'
 
 // 当前用户角色
 const role = localStorage.getItem('role')
+const userPermissions = JSON.parse(localStorage.getItem('permissions') || '{}')
+const canAccessAdmin = userPermissions.can_access_admin === true
+// 判断当前用户是否拥有“管理授权”的权力
+const hasAuthorizePower = computed(() => {
+  return role === 'owner' || (role === 'admin' && canAccessAdmin)
+})
 
 // 用户列表及搜索
 const users = ref([])
@@ -165,9 +172,10 @@ const pagedData = computed(() => {
 // 权限控制
 // --------------------------
 const canEdit = (row) => {
-  if (role === 'owner') return row.role !== 'owner'
+  // 有权限的管理员可以修改其他管理员
+  if (role === 'owner' || canAccessAdmin) return row.role !== 'owner'
   if (role === 'admin') {
-    // 管理员只能编辑普通用户（user）
+    // 普通管理员只能编辑普通用户（user）
     return row.role === 'user'
   }
   return false

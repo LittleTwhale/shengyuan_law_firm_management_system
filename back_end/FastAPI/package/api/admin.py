@@ -83,7 +83,15 @@ def update_permissions(
     # 2. 细粒度权限校验（带入目标用户，触发防越权保护）
     check_admin_permission(current_user, target_user)
 
-    # 3. 防止 Owner 误操作锁死自己
+    # 3. 细粒度权限校验：Owner 才能分配或撤销后台管理权
+    if permission_update.can_access_admin is not None:
+        if current_user.role != 'owner':
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="越权操作：仅 Owner 有权分配或撤销后台管理权"
+            )
+
+    # 4. 防止 Owner 误操作锁死自己
     if current_user.id == target_user_id and current_user.role == 'owner':
         if permission_update.can_access_admin is False:
             raise HTTPException(status_code=400, detail="Owner 不能撤销自己的后台管理权限")
