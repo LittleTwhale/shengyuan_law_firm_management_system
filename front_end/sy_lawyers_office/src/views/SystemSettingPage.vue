@@ -14,11 +14,13 @@
               placeholder="搜索姓名或账号"
               style="width: 250px; margin-right: 15px"
               clearable
+              @clear="handleSearch"
+              @keyup.enter="handleSearch"
             />
-            <el-button type="primary" @click="fetchUsers">刷新列表</el-button>
+            <el-button type="primary" @click="handleSearch">搜索 / 刷新列表</el-button>
           </div>
 
-          <el-table :data="filteredUsers" border stripe v-loading="loading">
+          <el-table :data="users" border stripe v-loading="loading">
             <el-table-column prop="id" label="ID" width="60" align="center" />
             <el-table-column prop="real_name" label="姓名" width="120" />
             <el-table-column prop="role" label="当前角色" width="100">
@@ -95,12 +97,38 @@
               </template>
             </el-table-column>
 
+            <el-table-column label="查看全部银行案件事项" width="150" align="center">
+              <template #default="{ row }">
+                <el-switch
+                  v-model="row.permissions.can_view_all_bank_events"
+                  @change="updatePermission(row, 'can_view_all_bank_events')"
+                  active-text="开启"
+                  style="--el-switch-on-color: #13ce66"
+                />
+              </template>
+            </el-table-column>
+
             <el-table-column label="最后更新时间" min-width="180">
               <template #default="{ row }">
                 {{ row.updated_at || '-' }}
               </template>
             </el-table-column>
           </el-table>
+
+          <div
+            class="pagination-wrapper"
+            style="margin-top: 20px; display: flex; justify-content: flex-end"
+          >
+            <el-pagination
+              v-model:current-page="userPage"
+              v-model:page-size="userPageSize"
+              :total="userTotal"
+              :page-sizes="[10, 20, 50, 100]"
+              layout="total, sizes, prev, pager, next"
+              @size-change="handleUserSizeChange"
+              @current-change="handleUserCurrentChange"
+            />
+          </div>
         </div>
       </el-tab-pane>
 
@@ -300,6 +328,11 @@ const loading = ref(false)
 const users = ref([])
 const searchKeyword = ref('')
 
+// 新增：用户列表的分页状态
+const userPage = ref(1)
+const userPageSize = ref(10)
+const userTotal = ref(0)
+
 // --- 公告管理状态 ---
 const announcementsList = ref([])
 const noticeLoading = ref(false)
@@ -308,16 +341,24 @@ const currentNotice = ref(null)
 
 // 公告分页状态
 const noticePage = ref(1)
-const noticePageSize = ref(20)
+const noticePageSize = ref(10)
 const noticeTotal = ref(0)
 
 // 获取用户及权限列表
 const fetchUsers = async () => {
   loading.value = true
   try {
-    const res = await request.get('/admin/system/users_with_permissions')
+    const skip = (userPage.value - 1) * userPageSize.value
+    const res = await request.get('/admin/system/users_with_permissions', {
+      params: {
+        skip: skip,
+        limit: userPageSize.value,
+        keyword: searchKeyword.value || undefined, // 传递搜索关键词
+      },
+    })
 
-    users.value = res.data.map((u) => ({
+    // 解析新的数据结构
+    users.value = (res.data.items || []).map((u) => ({
       ...u,
       permissions: u.permissions || {
         can_review_case: false,
@@ -326,14 +367,35 @@ const fetchUsers = async () => {
         finance_manage: false,
         party_admin: false,
         volume_manage: false,
+        can_view_all_bank_events: false,
       },
     }))
+    userTotal.value = res.data.total || 0
   } catch (err) {
     console.error(err)
     ElMessage.error('获取用户权限列表失败，请检查后端接口')
   } finally {
     loading.value = false
   }
+}
+
+// 专门处理搜索的逻辑（每次搜索应该回到第一页）
+const handleSearch = () => {
+  userPage.value = 1
+  fetchUsers()
+}
+
+// 处理用户分页大小变化
+const handleUserSizeChange = (val) => {
+  userPageSize.value = val
+  userPage.value = 1
+  fetchUsers()
+}
+
+// 处理用户页码变化
+const handleUserCurrentChange = (val) => {
+  userPage.value = val
+  fetchUsers()
 }
 
 // 更新权限
@@ -350,16 +412,6 @@ const updatePermission = async (user, permissionType) => {
     ElMessage.error(errorMessage)
   }
 }
-
-const filteredUsers = computed(() => {
-  if (!searchKeyword.value) return users.value
-  const lowerKey = searchKeyword.value.toLowerCase()
-  return users.value.filter(
-    (u) =>
-      (u.real_name && u.real_name.toLowerCase().includes(lowerKey)) ||
-      (u.accounts && u.accounts.toLowerCase().includes(lowerKey)),
-  )
-})
 
 const getRoleTag = (role) => {
   if (role === 'owner') return 'danger'

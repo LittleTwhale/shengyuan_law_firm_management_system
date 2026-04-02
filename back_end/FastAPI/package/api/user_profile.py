@@ -69,14 +69,28 @@ def change_password(
     return user_crud.change_password(db, user_id, old_password, new_password)
 
 
-@router.get("/reminders", response_model=List[EventReminderOut])
+@router.get("/reminders")
 def get_user_reminders(
-        days: int = 7,  # 默认查询7天
+        days: int = 7,
+        main_lawyer_id: Optional[int] = None,  # 接收主办律师筛选参数
+        skip: int = 0,  # 接收分页参数
+        limit: int = 20,  # 接收分页参数
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_active_user)
 ):
-    """获取用户的待办事项提醒"""
-    return get_upcoming_events(db, current_user.id, days)
+    """获取用户的待办事项提醒（支持过滤和分页）"""
+    has_bank_event_perm = current_user.permissions.get("can_view_all_bank_events",
+                                                       False) if current_user.permissions else False
+
+    return get_upcoming_events(
+        db=db,
+        user_id=current_user.id,
+        days=days,
+        can_view_all_bank_events=has_bank_event_perm,
+        main_lawyer_id=main_lawyer_id,
+        skip=skip,
+        limit=limit
+    )
 
 
 @router.get("/my-cases/simple")

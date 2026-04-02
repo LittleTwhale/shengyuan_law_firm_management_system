@@ -2,11 +2,11 @@
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import Optional
 
 from ..database import database
 from ..schemas.user import UserOut, UserPermissionUpdate
-from ..crud.user import get_users, update_user_permissions
+from ..crud.user import get_users_paginated, update_user_permissions
 from ..models.user import User
 from .deps import get_current_active_user
 
@@ -46,19 +46,25 @@ def check_admin_permission(current_user: User, target_user: User = None):
 
 
 # 1. 获取所有用户及其权限列表
-@router.get("/users_with_permissions", response_model=List[UserOut])
+@router.get("/users_with_permissions")
 def get_users_with_permissions(
         skip: int = 0,
-        limit: int = 100,
+        limit: int = 20,  # 默认值
+        keyword: Optional[str] = None,  # 接收前端的搜索词
         db: Session = Depends(database.get_db),
         current_user: User = Depends(get_current_active_user)
 ):
     # 1. 权限校验 (列表接口，不需要传入目标用户)
     check_admin_permission(current_user)
 
-    # 2. 获取用户列表 (复用 CRUD 中的 get_users)
-    users = get_users(db)
-    return users[skip: skip + limit]
+    # 2. 调用新的分页查询函数
+    users, total = get_users_paginated(db, skip=skip, limit=limit, keyword=keyword)
+
+    # 3. 构造分页返回结构
+    return {
+        "items": users,
+        "total": total
+    }
 
 
 # 2. 更新指定用户的权限

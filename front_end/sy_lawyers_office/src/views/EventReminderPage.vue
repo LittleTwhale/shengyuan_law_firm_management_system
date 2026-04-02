@@ -15,10 +15,26 @@
         </div>
 
         <div class="filter">
+          <el-select
+            v-model="mainLawyerId"
+            placeholder="筛选主办律师"
+            clearable
+            filterable
+            @change="handleFilterChange"
+            class="lawyer-select"
+          >
+            <el-option
+              v-for="lawyer in lawyerList"
+              :key="lawyer.id"
+              :label="lawyer.real_name"
+              :value="lawyer.id"
+            />
+          </el-select>
+
           <el-radio-group
             v-show="viewMode === 'table'"
             v-model="daysRange"
-            @change="fetchReminders"
+            @change="handleFilterChange"
             class="responsive-radio"
           >
             <el-radio-button :label="3">近3天</el-radio-button>
@@ -125,6 +141,18 @@
           </el-table-column>
         </el-table>
         <el-empty v-if="!loading && events.length === 0" description="近期无待办事项" />
+
+        <div class="pagination-wrapper" v-if="totalEvents > 0">
+          <el-pagination
+            v-model:current-page="currentPage"
+            v-model:page-size="pageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="totalEvents"
+            layout="total, sizes, prev, pager, next"
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
+          />
+        </div>
       </div>
 
       <div v-else class="calendar-container" v-loading="loading">
@@ -264,7 +292,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue' // 新增引入 watch
 import request from '@/utils/request'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -289,6 +317,13 @@ const daysRange = ref(30) // 默认显示30天
 const viewMode = ref('table') // 视图切换
 const calendarDate = ref(new Date())
 const myCases = ref([]) // 我的业务
+
+// 新增：过滤与分页状态
+const mainLawyerId = ref(null) // 主办律师筛选
+const lawyerList = ref([]) // 律师下拉列表数据
+const currentPage = ref(1) // 当前页码
+const pageSize = ref(10) // 每页条数
+const totalEvents = ref(0) // 总条数
 
 // 抽屉状态
 const drawerVisible = ref(false)
@@ -365,15 +400,43 @@ const fetchMyCases = async () => {
   }
 }
 
-// 获取提醒列表
-const fetchReminders = async () => {
+// 新增：获取律师列表供下拉筛选使用
+const fetchLawyers = async () => {
+  try {
+    const res = await request.get('/cases/users/lawyers')
+    lawyerList.value = res.data
+  } catch (error) {
+    console.error('获取律师列表失败', error)
+  }
+}
+
+// 获取提醒列表 (适配了后端的各项优化)
+const fetchReminders = async (resetPage = false) => {
+  if (resetPage) currentPage.value = 1
   loading.value = true
   try {
+    // 逻辑优化：如果是日历视图，为了渲染完整的月份，向后端请求非常大的 limit 取消分页限制
+    const currentLimit = viewMode.value === 'calendar' ? 1000 : pageSize.value
+    const currentSkip = viewMode.value === 'calendar' ? 0 : (currentPage.value - 1) * pageSize.value
+
     const res = await request.get('/user/profile/reminders', {
-      params: { days: daysRange.value },
+      params: {
+        days: daysRange.value,
+        main_lawyer_id: mainLawyerId.value || null,
+        skip: currentSkip,
+        limit: currentLimit,
+      },
     })
-    // 假设后端返回的数据结构如设计：[{source: 'case'|'custom', days_remaining, event_type...}]
-    events.value = res.data
+
+    // 适配后端新的返回结构： { items: [...], total: ... }
+    if (res.data && res.data.items !== undefined) {
+      events.value = res.data.items
+      totalEvents.value = res.data.total
+    } else {
+      // 兼容旧接口（若后端尚未完全更新）
+      events.value = res.data || []
+      totalEvents.value = events.value.length
+    }
   } catch (error) {
     console.error('获取提醒失败', error)
     ElMessage.error('获取事项提醒失败')
@@ -381,6 +444,28 @@ const fetchReminders = async () => {
     loading.value = false
   }
 }
+
+// 新增：筛选条件改变触发
+const handleFilterChange = () => {
+  fetchReminders(true)
+}
+
+// 新增：分页大小改变触发
+const handleSizeChange = (val) => {
+  pageSize.value = val
+  fetchReminders(true)
+}
+
+// 新增：页码改变触发
+const handleCurrentChange = (val) => {
+  currentPage.value = val
+  fetchReminders(false)
+}
+
+// 新增：监听视图模式切换，切换时重新获取对应数据格式（分页 vs 全量）
+watch(viewMode, () => {
+  fetchReminders(true)
+})
 
 // 提交表单 (新增 / 修改)
 const submitForm = async () => {
@@ -404,7 +489,7 @@ const submitForm = async () => {
           ElMessage.success('创建成功')
         }
         drawerVisible.value = false
-        fetchReminders() // 刷新列表
+        fetchReminders(true) // 刷新列表并重置分页
       } catch (error) {
         console.error(error)
         ElMessage.error('保存失败')
@@ -420,7 +505,12 @@ const handleDelete = async (scheduleId) => {
   try {
     await request.delete(`/user/profile/reminders/custom/${scheduleId}`)
     ElMessage.success('删除成功')
-    fetchReminders()
+
+    // 如果当前页只有一条数据，删除后页码前移
+    if (events.value.length === 1 && currentPage.value > 1) {
+      currentPage.value--
+    }
+    fetchReminders(false)
   } catch (error) {
     console.error(error)
     ElMessage.error('删除失败')
@@ -492,7 +582,8 @@ const shiftDate = (type) => {
 
 onMounted(() => {
   window.addEventListener('resize', handleResize) // 监听窗口大小变化
-  fetchReminders()
+  fetchLawyers() // 新增：挂载时拉取律师列表
+  fetchReminders(true)
   fetchMyCases() // 组件挂载时获取案件下拉数据，用于名称映射
 })
 
@@ -572,10 +663,25 @@ onUnmounted(() => {
   gap: 15px;
 }
 
+/* 新增：律师筛选下拉框样式 */
+.lawyer-select {
+  width: 140px;
+}
+
 .table-container,
 .calendar-container {
   flex: 1;
   overflow-y: auto; /* 防止外层越界，滚动条限制在内部 */
+  display: flex;
+  flex-direction: column;
+}
+
+/* 新增：分页组件外层包装器样式 */
+.pagination-wrapper {
+  margin-top: 15px;
+  display: flex;
+  justify-content: flex-end;
+  padding-bottom: 10px;
 }
 
 /* --- 表格样式定制美化 --- */
@@ -764,9 +870,15 @@ onUnmounted(() => {
 
   .filter {
     width: 100%;
+    flex-wrap: wrap; /* 允许在小屏幕上折行 */
     overflow-x: auto; /* 单选按钮组太长时允许滑动 */
     padding-bottom: 5px;
     justify-content: space-between;
+  }
+
+  .lawyer-select {
+    width: 100%;
+    margin-bottom: 8px;
   }
 
   /* 移动端隐藏日历视图切换按钮 */

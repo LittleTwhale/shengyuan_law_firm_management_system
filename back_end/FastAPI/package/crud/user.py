@@ -1,5 +1,6 @@
 # crud/user.py
 from fastapi import HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -91,6 +92,31 @@ def get_users(db: Session) -> List[User]:
     """
     users = db.query(User).all()
     return cast(List[User], users)
+
+
+def get_users_paginated(db: Session, skip: int = 0, limit: int = 20, keyword: Optional[str] = None):
+    """
+    获取分页用户列表（支持按姓名或账号模糊搜索）
+    """
+    query = db.query(User)
+
+    # 如果有搜索关键字，执行模糊匹配
+    if keyword:
+        search_term = f"%{keyword}%"
+        query = query.filter(
+            or_(
+                User.real_name.ilike(search_term),  # ilike 支持不区分大小写
+                User.accounts.ilike(search_term)
+            )
+        )
+
+    # 获取符合条件的总条数
+    total = query.count()
+
+    # 获取当前页的数据
+    users = query.offset(skip).limit(limit).all()
+
+    return users, total
 
 def get_ordinary_users(db: Session) -> List[User]:
     """

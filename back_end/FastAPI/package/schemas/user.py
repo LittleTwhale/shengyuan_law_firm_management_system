@@ -51,6 +51,7 @@ class UserPermissionUpdate(BaseModel):
     finance_manage: Optional[bool] = Field(None, description="是否拥有财务管理权(查看所有、录入、修改)")
     party_admin: Optional[bool] = Field(None, description="是否允许管理党建资料")
     volume_manage: Optional[bool] = Field(None, description="是否允许管理全部电子卷宗")
+    can_view_all_bank_events: Optional[bool] = Field(None, description="是否允许查看所有银行案件的事项提醒")
 
     # 支持任意动态字段
     class Config:
