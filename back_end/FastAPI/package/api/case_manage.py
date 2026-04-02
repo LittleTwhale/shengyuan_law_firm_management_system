@@ -582,6 +582,7 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
                     "loan_date": parse_date(row_data.get("借款日")),
                     "loan_due_date": parse_date(row_data.get("到期日")),
                     "statute_of_limitations": parse_date(row_data.get("诉讼时效")),
+                    "guarantee_due_date": parse_date(row_data.get("保证到期日")),
                     "case_acceptance_date": parse_date(row_data.get("收案日期")),
                     "material_fetcher": str(row_data.get("取材料人", "")).strip() or None,
                     "missing_specific_materials": str(row_data.get("缺少具体材料", "")).strip() or None,
@@ -613,6 +614,8 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
                     "auction_status": str(row_data.get("拍卖程序", "")).strip() or None,
                     "auction_deal_price": parse_decimal(row_data.get("拍卖变卖成交价")),
                     "execution_settlement_content": str(row_data.get("执行和解内容", "")).strip() or None,
+                    "execution_settlement_due_date": parse_date(row_data.get("执行和解到期日")),
+                    "execution_settlement_tracking": str(row_data.get("执行和解案件履行跟踪情况", "")).strip() or None,
                     "procedure_termination_date": parse_date(row_data.get("终本时间")),
                     "termination_reason": str(row_data.get("终本原因", "")).strip() or None,
                     "execution_conclusion_date": parse_date(row_data.get("终结执行时间")),
@@ -801,7 +804,7 @@ async def batch_sync_excel(
         current_user: User = Depends(get_current_active_user)
 ):
     """
-    🚀 高级批量同步接口：支持通过 Excel 覆盖更新现有案件
+    高级批量同步接口：支持通过 Excel 覆盖更新现有案件
     逻辑：若 ID 存在则更新，若 ID 不存在则新增
     """
     try:
@@ -910,6 +913,7 @@ async def batch_sync_excel(
                     "loan_date": parse_date(row_data.get("借款日")),
                     "loan_due_date": parse_date(row_data.get("到期日")),
                     "statute_of_limitations": parse_date(row_data.get("诉讼时效")),
+                    "guarantee_due_date": parse_date(row_data.get("保证到期日")),
                     "case_acceptance_date": parse_date(row_data.get("收案日期")),
                     "material_fetcher": row_data.get("取材料人"),
                     "pre_litigation_collection": row_data.get("诉前催收情况"),
@@ -940,6 +944,8 @@ async def batch_sync_excel(
                     "auction_status": row_data.get("拍卖程序"),
                     "auction_deal_price": parse_decimal(row_data.get("拍卖变卖成交价")),
                     "execution_settlement_content": row_data.get("执行和解内容"),
+                    "execution_settlement_due_date": parse_date(row_data.get("执行和解到期日")),
+                    "execution_settlement_tracking": str(row_data.get("执行和解案件履行跟踪情况", "")).strip() or None,
                     "procedure_termination_date": parse_date(row_data.get("终本时间")),
                     "termination_reason": row_data.get("终本原因"),
                     "execution_conclusion_date": parse_date(row_data.get("终结执行时间")),

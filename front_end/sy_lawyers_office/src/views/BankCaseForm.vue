@@ -323,10 +323,15 @@
                 </el-form-item>
               </el-col>
               <el-col :span="8">
-                <el-form-item label="证件号" label-width="70px">
+                <el-form-item
+                  label="证件号"
+                  label-width="70px"
+                  :prop="'party_bank_borrowers.' + index + '.id_number'"
+                  :rules="{ required: true, message: '证件号必填', trigger: 'blur' }"
+                >
                   <el-input
                     v-model="item.id_number"
-                    placeholder="身份证/统信代码"
+                    placeholder="身份证/统信代码必填"
                     :disabled="isRestricted"
                   />
                 </el-form-item>
@@ -804,7 +809,7 @@
           <el-form-item label="贷款类型" prop="bank_case_details.loan_type" label-width="150px">
             <el-input
               v-model="formData.bank_case_details.loan_type"
-              placeholder="如：普惠金融、信用贷等"
+              placeholder="必填，如：普惠金融、信用贷等"
             />
           </el-form-item>
         </el-col>
@@ -842,6 +847,7 @@
               :precision="2"
               :step="1000"
               style="width: 100%"
+              placeholder="必填"
             />
           </el-form-item>
         </el-col>
@@ -867,6 +873,7 @@
               type="date"
               value-format="YYYY-MM-DD"
               style="width: 100%"
+              placeholder="必填"
             />
           </el-form-item>
         </el-col>
@@ -877,6 +884,7 @@
               type="date"
               value-format="YYYY-MM-DD"
               style="width: 100%"
+              placeholder="必填"
               @change="handleLoanDueDateChange"
             />
           </el-form-item>
@@ -897,7 +905,23 @@
           </el-form-item>
         </el-col>
 
-        <el-col :span="12">
+        <el-col :span="8">
+          <el-form-item
+            label="保证到期日"
+            prop="bank_case_details.guarantee_due_date"
+            label-width="150px"
+          >
+            <el-date-picker
+              v-model="formData.bank_case_details.guarantee_due_date"
+              type="date"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+              placeholder="默认到期日两年后"
+            />
+          </el-form-item>
+        </el-col>
+
+        <el-col :span="16">
           <el-form-item
             label="抵/质押物信息"
             prop="bank_case_details.collateral_info"
@@ -906,6 +930,7 @@
             <el-input
               type="textarea"
               :rows="2"
+              placeholder="必填，如无请填“无”"
               v-model="formData.bank_case_details.collateral_info"
             />
           </el-form-item>
@@ -1282,6 +1307,26 @@
             />
           </el-form-item>
         </el-col>
+
+        <el-col :span="12">
+          <el-form-item label="调解到期日" prop="mediation_due_date" label-width="150px">
+            <el-date-picker
+              v-model="formData.mediation_due_date"
+              type="date"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item
+            label="调解案件履行跟踪情况"
+            prop="bank_case_details.mediation_tracking"
+            label-width="160px"
+          >
+            <el-input v-model="formData.bank_case_details.mediation_tracking" />
+          </el-form-item>
+        </el-col>
       </el-row>
 
       <el-divider content-position="left" class="workflow-divider execution-zone"
@@ -1539,23 +1584,14 @@
         >八、 执行结案与回款</el-divider
       >
       <el-row :gutter="24">
-        <el-col :span="24">
+        <el-col :span="12">
           <el-form-item
-            label="执行和解内容"
-            prop="bank_case_details.execution_settlement_content"
+            label="执行和解到期日"
+            prop="bank_case_details.execution_settlement_due_date"
             label-width="150px"
           >
-            <el-input
-              type="textarea"
-              :rows="2"
-              v-model="formData.bank_case_details.execution_settlement_content"
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="调解到期日" prop="mediation_due_date" label-width="150px">
             <el-date-picker
-              v-model="formData.mediation_due_date"
+              v-model="formData.bank_case_details.execution_settlement_due_date"
               type="date"
               value-format="YYYY-MM-DD"
               style="width: 100%"
@@ -1564,11 +1600,11 @@
         </el-col>
         <el-col :span="12">
           <el-form-item
-            label="调解案件履行跟踪情况"
-            prop="bank_case_details.mediation_tracking"
+            label="执行和解跟踪情况"
+            prop="bank_case_details.execution_settlement_tracking"
             label-width="160px"
           >
-            <el-input v-model="formData.bank_case_details.mediation_tracking" />
+            <el-input v-model="formData.bank_case_details.execution_settlement_tracking" />
           </el-form-item>
         </el-col>
 
@@ -1645,6 +1681,20 @@
             label-width="150px"
           >
             <el-input v-model="formData.bank_case_details.collection_source" />
+          </el-form-item>
+        </el-col>
+
+        <el-col :span="24">
+          <el-form-item
+            label="执行和解内容"
+            prop="bank_case_details.execution_settlement_content"
+            label-width="150px"
+          >
+            <el-input
+              type="textarea"
+              :rows="2"
+              v-model="formData.bank_case_details.execution_settlement_content"
+            />
           </el-form-item>
         </el-col>
       </el-row>
@@ -1790,24 +1840,31 @@ const bankRequiredCaseStatusOptions = [
   '执行完毕',
 ]
 
-// 自动计算诉讼时效功能 (到期日往后推三年)
+// 自动计算诉讼时效功能和保证到期日功能(诉讼时效为借款到期日往后推3年，保证到期日为借款到期日往后推2年)
 const handleLoanDueDateChange = (val) => {
   if (!val) {
     formData.bank_case_details.statute_of_limitations = null
+    formData.bank_case_details.guarantee_due_date = null
     return
   }
-  const date = new Date(val)
-  date.setFullYear(date.getFullYear() + 3)
+  const dateLimitation = new Date(val)
+  dateLimitation.setFullYear(dateLimitation.getFullYear() + 3)
 
-  const yyyy = date.getFullYear()
-  const mm = String(date.getMonth() + 1).padStart(2, '0')
-  const dd = String(date.getDate()).padStart(2, '0')
+  const dateGuarantee = new Date(val)
+  dateGuarantee.setFullYear(dateGuarantee.getFullYear() + 2)
 
-  formData.bank_case_details.statute_of_limitations = `${yyyy}-${mm}-${dd}`
+  const formatDateStr = (date) => {
+    const yyyy = date.getFullYear()
+    const mm = String(date.getMonth() + 1).padStart(2, '0')
+    const dd = String(date.getDate()).padStart(2, '0')
+    return `${yyyy}-${mm}-${dd}`
+  }
+
+  formData.bank_case_details.statute_of_limitations = formatDateStr(dateLimitation)
+  formData.bank_case_details.guarantee_due_date = formatDateStr(dateGuarantee)
 }
 
 // ================= 当事人操作方法 =================
-
 // 1. 委托银行
 const addClient = () => {
   formData.party_clients.push({
@@ -1933,20 +1990,17 @@ const removeOtherParty = (index) => {
 .party-section {
   margin-bottom: 24px;
 }
-
 .party-section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
 }
-
 .section-title {
   font-weight: bold;
   font-size: 14px;
   color: #606266;
 }
-
 .party-card {
   border: 1px solid #e4e7ed;
   border-radius: 4px;
@@ -1954,11 +2008,9 @@ const removeOtherParty = (index) => {
   background-color: #fff;
   transition: all 0.3s;
 }
-
 .party-card:hover {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
-
 .party-card-header {
   display: flex;
   justify-content: space-between;
@@ -1968,7 +2020,6 @@ const removeOtherParty = (index) => {
   background-color: #f5f7fa;
   border-radius: 4px 4px 0 0;
 }
-
 .party-index-label {
   font-size: 13px;
   font-weight: 500;
@@ -1977,7 +2028,6 @@ const removeOtherParty = (index) => {
   align-items: center;
   gap: 4px;
 }
-
 .party-card-body {
   padding: 16px 12px 4px 12px;
 }
@@ -1992,7 +2042,6 @@ const removeOtherParty = (index) => {
 .client-card {
   border-left: 3px solid #409eff;
 }
-
 /* 原告样式 */
 .plaintiff-card .party-card-header {
   background-color: #f0f9eb;
@@ -2003,7 +2052,6 @@ const removeOtherParty = (index) => {
 .plaintiff-card {
   border-left: 3px solid #67c23a;
 }
-
 /* 被告样式 */
 .defendant-card .party-card-header {
   background-color: #fdf6ec;
@@ -2014,7 +2062,6 @@ const removeOtherParty = (index) => {
 .defendant-card {
   border-left: 3px solid #e6a23c;
 }
-
 /* 借款人样式 */
 .borrower-card .party-card-header {
   background-color: #e6fffb;
@@ -2025,7 +2072,6 @@ const removeOtherParty = (index) => {
 .borrower-card {
   border-left: 3px solid #13c2c2;
 }
-
 /* 担保人样式 */
 .guarantor-card .party-card-header {
   background-color: #fff7e6;
@@ -2036,7 +2082,6 @@ const removeOtherParty = (index) => {
 .guarantor-card {
   border-left: 3px solid #d48806;
 }
-
 /* 第三人样式 */
 .third-party-card .party-card-header {
   background-color: #ebdcfc;
@@ -2047,7 +2092,6 @@ const removeOtherParty = (index) => {
 .third-party-card {
   border-left: 3px solid #6d14d7;
 }
-
 /* 其他当事人样式 */
 .other-party-card .party-card-header {
   background-color: #f4f4f5;
@@ -2071,7 +2115,6 @@ const removeOtherParty = (index) => {
   align-items: center;
   gap: 5px;
 }
-
 .empty-tip-simple {
   color: #909399;
   font-size: 13px;
@@ -2082,7 +2125,7 @@ const removeOtherParty = (index) => {
   border: 1px dashed #dcdfe6;
 }
 /* =======================================
-   移动端响应式适配 CSS (追加到文件末尾)
+   移动端响应式适配 CSS
    ======================================= */
 @media screen and (max-width: 768px) {
   /* 1. 强制所有 el-col 列占满 100% 宽度，打破原来的 span="8" 等限制 */

@@ -135,6 +135,10 @@
         formatDate(details.statute_of_limitations)
       }}</el-descriptions-item>
 
+      <el-descriptions-item label="保证到期日" :span="2">{{
+        formatDate(details.guarantee_due_date)
+      }}</el-descriptions-item>
+
       <el-descriptions-item label="抵/质押物信息" :span="2">
         <div class="case-detail-content">{{ details.collateral_info || '-' }}</div>
       </el-descriptions-item>
@@ -277,6 +281,13 @@
       <el-descriptions-item label="裁判摘要" :span="2">
         <div class="case-detail-content">{{ details.judgment_summary || '-' }}</div>
       </el-descriptions-item>
+
+      <el-descriptions-item label="调解到期日">{{
+        formatDate(caseData.mediation_due_date)
+      }}</el-descriptions-item>
+      <el-descriptions-item label="调解跟踪情况">{{
+        details.mediation_tracking || '-'
+      }}</el-descriptions-item>
     </el-descriptions>
 
     <el-divider content-position="left" class="section-divider execution"
@@ -372,11 +383,11 @@
       border
       class="unified-descriptions"
     >
-      <el-descriptions-item label="调解到期日">{{
-        formatDate(caseData.mediation_due_date)
+      <el-descriptions-item label="执行和解到期日">{{
+        formatDate(details.execution_settlement_due_date)
       }}</el-descriptions-item>
-      <el-descriptions-item label="调解跟踪情况">{{
-        details.mediation_tracking || '-'
+      <el-descriptions-item label="执行和解跟踪情况">{{
+        details.execution_settlement_tracking || '-'
       }}</el-descriptions-item>
 
       <el-descriptions-item label="终本时间">{{

@@ -44,6 +44,8 @@ class BankCaseBase(BaseModel):
     loan_due_date: Optional[date] = None
     # 诉讼时效
     statute_of_limitations: Optional[date] = None
+    # 保证到期日
+    guarantee_due_date: Optional[date] = None
     # 收案日期
     case_acceptance_date: Optional[date] = None
 
@@ -127,6 +129,10 @@ class BankCaseBase(BaseModel):
 
     # 执行和解内容
     execution_settlement_content: Optional[str] = None
+    # 执行和解到期日
+    execution_settlement_due_date: Optional[date] = None
+    # 执行和解案件履行跟踪情况
+    execution_settlement_tracking: Optional[str] = None
     # 终本时间
     procedure_termination_date: Optional[date] = None
     # 终本原因

@@ -177,6 +177,7 @@ const initialBankDetails = {
   loan_date: null,
   loan_due_date: null,
   statute_of_limitations: null,
+  guarantee_due_date: null,
   collateral_info: null,
   collateral_location: null,
   pre_litigation_collection: null,
@@ -212,7 +213,7 @@ const initialBankDetails = {
 
   // --- 执行查控与财产处置 ---
   property_investigation: null,
-  network_control_status: null, // 注意：已对应后端字段名
+  network_control_status: null,
   execution_plan: null,
   court_execution_measures: null,
   auction_status: null,
@@ -220,6 +221,8 @@ const initialBankDetails = {
 
   // --- 执行结案与回款 ---
   execution_settlement_content: null,
+  execution_settlement_due_date: null,
+  execution_settlement_tracking: null,
   mediation_tracking: null,
   procedure_termination_date: null,
   termination_reason: null,
@@ -327,6 +330,24 @@ const formRules = computed(() => {
     //  银行案件是非必填，其他案件必填
     cause: [{ required: !isBankCase, message: '请填写案由', trigger: 'blur' }],
     fee_method: [{ required: !isBankCase, message: '请填写收费方式', trigger: 'blur' }],
+
+    // 银行案件专属必填校验
+    'bank_case_details.branch_name': [{ required: isBankCase, message: '必填', trigger: 'change' }],
+    'bank_case_details.loan_type': [{ required: isBankCase, message: '必填', trigger: 'blur' }],
+    'bank_case_details.collateral_info': [
+      { required: isBankCase, message: '必填(若无请填"无")', trigger: 'blur' },
+    ],
+    'bank_case_details.case_acceptance_date': [
+      { required: isBankCase, message: '必填', trigger: 'change' },
+    ],
+    'bank_case_details.litigation_target_amount': [
+      { required: isBankCase, message: '必填', trigger: 'blur' },
+    ],
+    'bank_case_details.case_status': [{ required: isBankCase, message: '必填', trigger: 'change' }],
+    'bank_case_details.loan_date': [{ required: isBankCase, message: '必填', trigger: 'change' }],
+    'bank_case_details.loan_due_date': [
+      { required: isBankCase, message: '必填', trigger: 'change' },
+    ],
   }
 })
 
@@ -339,6 +360,11 @@ const handleCategoryChange = (val) => {
     if (!formData.bank_case_details) {
       formData.bank_case_details = JSON.parse(JSON.stringify(initialBankDetails))
     }
+    // 自动为必填的三项各添加一条空数据（如果原本为空）
+    if (formData.party_plaintiffs.length === 0) addEmptyParty(formData.party_plaintiffs, '原告')
+    if (formData.party_defendants.length === 0) addEmptyParty(formData.party_defendants, '被告')
+    if (formData.party_bank_borrowers.length === 0)
+      addEmptyParty(formData.party_bank_borrowers, '借款人')
   }
 }
 
@@ -606,6 +632,26 @@ const handleSubmit = async () => {
       if (formData.party_clients.length === 0) {
         ElMessage.error('请至少添加一位委托人')
         return
+      }
+      if (formData.case_category === '银行案件') {
+        // 校验原告
+        if (formData.party_plaintiffs.length === 0) {
+          ElMessage.error('请至少添加一位原告/申请人')
+          loading.value = false
+          return
+        }
+        // 校验被告
+        if (formData.party_defendants.length === 0) {
+          ElMessage.error('请至少添加一位被告/被申请人')
+          loading.value = false
+          return
+        }
+        // 校验借款人
+        if (formData.party_bank_borrowers.length === 0) {
+          ElMessage.error('请至少添加一位借款人')
+          loading.value = false
+          return
+        }
       }
 
       loading.value = true

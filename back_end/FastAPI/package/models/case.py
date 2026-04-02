@@ -129,6 +129,7 @@ class BankCase(Base):
     loan_date = Column(Date, comment="借款日")
     loan_due_date = Column(Date, comment="到期日")
     statute_of_limitations = Column(Date, comment="诉讼时效")
+    guarantee_due_date = Column(Date, comment="保证到期日")
     case_acceptance_date = Column(Date, comment="收案日期")
 
     # 诉讼流程细节
@@ -175,6 +176,8 @@ class BankCase(Base):
 
     # 结案与终本
     execution_settlement_content = Column(Text, comment="执行和解内容")
+    execution_settlement_due_date = Column(Date, comment="执行和解到期日")
+    execution_settlement_tracking = Column(Text, comment="执行和解案件履行跟踪情况")
     procedure_termination_date = Column(Date, comment="终本时间")
     termination_reason = Column(Text, comment="终本原因")
     execution_conclusion_date = Column(Date, comment="终结执行时间")

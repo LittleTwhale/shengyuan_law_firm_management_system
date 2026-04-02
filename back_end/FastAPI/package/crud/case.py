@@ -847,7 +847,8 @@ def get_upcoming_events(
         if can_view_all_bank_events:
             date_conditions.extend([
                 between(BankCase.statute_of_limitations, today, target_date),
-                between(BankCase.execution_recovery_date, today, target_date)
+                between(BankCase.execution_recovery_date, today, target_date),
+                between(BankCase.guarantee_due_date, today, target_date)
             ])
     else:
         date_conditions = [
@@ -861,7 +862,8 @@ def get_upcoming_events(
         if can_view_all_bank_events:
             date_conditions.extend([
                 BankCase.statute_of_limitations >= today,
-                BankCase.execution_recovery_date >= today
+                BankCase.execution_recovery_date >= today,
+                BankCase.guarantee_due_date >= today
             ])
 
     # 组装基础查询
@@ -896,6 +898,7 @@ def get_upcoming_events(
         if case.case_category == "银行案件" and case.bank_case_details:
             check_points.append(("诉讼时效到期", case.bank_case_details.statute_of_limitations))
             check_points.append(("恢复执行时间", case.bank_case_details.execution_recovery_date))
+            check_points.append(("保证到期", case.bank_case_details.guarantee_due_date))
 
         # 动态获取当事人列表中的委托人名称
         clients = [p.name for p in case.parties if p.party_type and '委托' in p.party_type and p.name]
@@ -1071,13 +1074,13 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
     bank_specific_headers = [
         "支行名称", "案件状态", "银行要求案件状态", "缺少具体材料", "抵/质押物信息", "抵押物位置", "客户经理",
         "贷款类型", "贷款账号",
-        "贷款本金", "诉讼标的金额(含利息)", "信用卡违约金", "借款日", "到期日", "诉讼时效", "收案日期",
+        "贷款本金", "诉讼标的金额(含利息)", "信用卡违约金", "借款日", "到期日", "诉讼时效", "保证到期日", "收案日期",
         "取材料人", "诉前催收情况", "盖章日", "材料提交法院日", "承办法官", "裁判时间", "裁判方式",
         "裁判摘要", "支持律师费金额", "被告支付律师费金额", "是否还清", "是否有二审/再审",
         "执行案号", "执行立案时间", "执行法官", "借款人工作单位", "是否为恢复执行", "收取执行材料时间",
         "执行材料提交法院时间", "执行本金金额", "执行律师费金额", "财产调查情况", "网络查控财产情况",
         "承办人执行方案", "法院执行措施", "查封冻结时间", "拍卖程序", "拍卖变卖成交价",
-        "执行和解内容", "终本时间", "终本原因", "终结执行时间", "恢复执行时间", "还清时间",
+        "执行和解内容", "执行和解到期日", "执行和解案件履行跟踪情况", "终本时间", "终本原因", "终结执行时间", "恢复执行时间", "还清时间",
         "执行回款总金额", "执行回款来源", "执行和解跟进及回款额", "扣划跟进及回款额", "调解案件履行跟踪情况"
     ]
     party_detail_headers = [
@@ -1201,43 +1204,64 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
         if case.case_category == "银行案件":
             bank = case.bank_case_details
             bank_specific_data = [
-                bank.branch_name if bank else "", bank.case_status if bank else "",
+                bank.branch_name if bank else "",
+                bank.case_status if bank else "",
                 bank.bank_required_case_status if bank else "",
-                bank.missing_specific_materials if bank else "", bank.collateral_info if bank else "",
+                bank.missing_specific_materials if bank else "",
+                bank.collateral_info if bank else "",
                 bank.collateral_location if bank else "",
-                bank.account_manager if bank else "", bank.loan_type if bank else "", bank.loan_account if bank else "",
+                bank.account_manager if bank else "",
+                bank.loan_type if bank else "",
+                bank.loan_account if bank else "",
                 format_decimal(bank.loan_principal if bank else 0),
                 format_decimal(bank.litigation_target_amount if bank else 0),
-                format_decimal(bank.credit_card_penalty if bank else 0), format_date(bank.loan_date if bank else None),
+                format_decimal(bank.credit_card_penalty if bank else 0),
+                format_date(bank.loan_date if bank else None),
                 format_date(bank.loan_due_date if bank else None),
                 format_date(bank.statute_of_limitations if bank else None),
-                format_date(bank.case_acceptance_date if bank else None), bank.material_fetcher if bank else "",
-                bank.pre_litigation_collection if bank else "", format_date(bank.seal_date if bank else None),
-                format_date(bank.material_submission_date if bank else None), bank.handling_judge if bank else "",
-                format_date(bank.judgment_date if bank else None), bank.judgment_method if bank else "",
-                bank.judgment_summary if bank else "", format_decimal(bank.lawyer_fee_supported if bank else 0),
+                format_date(bank.guarantee_due_date if bank else None),
+                format_date(bank.case_acceptance_date if bank else None),
+                bank.material_fetcher if bank else "",
+                bank.pre_litigation_collection if bank else "",
+                format_date(bank.seal_date if bank else None),
+                format_date(bank.material_submission_date if bank else None),
+                bank.handling_judge if bank else "",
+                format_date(bank.judgment_date if bank else None),
+                bank.judgment_method if bank else "",
+                bank.judgment_summary if bank else "",
+                format_decimal(bank.lawyer_fee_supported if bank else 0),
                 format_decimal(bank.defendant_paid_lawyer_fee if bank else 0),
                 format_bool(bank.is_settled if bank else False),
                 format_bool(bank.has_second_instance_or_retrial if bank else False),
                 bank.execution_case_number if bank else "",
-                format_date(bank.execution_filing_date if bank else None), bank.execution_judge if bank else "",
-                bank.borrower_work_unit if bank else "", format_bool(bank.is_execution_recovery if bank else False),
+                format_date(bank.execution_filing_date if bank else None),
+                bank.execution_judge if bank else "",
+                bank.borrower_work_unit if bank else "",
+                format_bool(bank.is_execution_recovery if bank else False),
                 format_date(bank.execution_material_receipt_date if bank else None),
                 format_date(bank.execution_material_submission_date if bank else None),
                 format_decimal(bank.execution_principal if bank else 0),
                 format_decimal(bank.execution_lawyer_fee if bank else 0),
-                bank.property_investigation if bank else "", bank.network_control_status if bank else "",
-                bank.execution_plan if bank else "", bank.court_execution_measures if bank else "",
-                format_date(bank.seizure_freeze_date if bank else None), bank.auction_status if bank else "",
+                bank.property_investigation if bank else "",
+                bank.network_control_status if bank else "",
+                bank.execution_plan if bank else "",
+                bank.court_execution_measures if bank else "",
+                format_date(bank.seizure_freeze_date if bank else None),
+                bank.auction_status if bank else "",
                 format_decimal(bank.auction_deal_price if bank else 0),
                 bank.execution_settlement_content if bank else "",
-                format_date(bank.procedure_termination_date if bank else None), bank.termination_reason if bank else "",
+                format_date(bank.execution_settlement_due_date if bank else None),
+                bank.execution_settlement_tracking if bank else "",
+                format_date(bank.procedure_termination_date if bank else None),
+                bank.termination_reason if bank else "",
                 format_date(bank.execution_conclusion_date if bank else None),
                 format_date(bank.execution_recovery_date if bank else None),
                 format_date(bank.payoff_date if bank else None),
                 format_decimal(bank.execution_collection_amount if bank else 0),
-                bank.collection_source if bank else "", format_json(bank.execution_settlement_log if bank else None),
-                format_json(bank.deduction_log if bank else None), bank.mediation_tracking if bank else ""
+                bank.collection_source if bank else "",
+                format_json(bank.execution_settlement_log if bank else None),
+                format_json(bank.deduction_log if bank else None),
+                bank.mediation_tracking if bank else ""
             ]
             bank_rows.append(base_data_part1 + party_columns_data + base_data_part2 + bank_specific_data)
         else:
