@@ -56,12 +56,13 @@ def list_cases_by_user_role(
         main_lawyer_id: Optional[int] = None,  # 主办律师筛选
         year: Optional[str] = None,  # 年份筛选
         sort_field: str = "created_at",  # 排序字段，默认按创建时间
-        sort_dir: str = "desc"  # 排序方向，默认降序（最新在前）
+        sort_dir: str = "desc",  # 排序方向，默认降序（最新在前）
+        can_view_all_bank: bool = False # 是否允许查看所有银行案件
 ) -> List[Case]:
     """
     根据用户角色返回案件列表
     - 普通用户：只能看到自己为主办律师或协办律师的案件
-    - admin/owner：可以看到全部案件
+    - admin/owner/can_view_all_bank_events：可以看到全部案件
     """
     query = db.query(Case).options(
         joinedload(Case.main_lawyer),
@@ -78,16 +79,19 @@ def list_cases_by_user_role(
 
     # 角色与主办律师筛选逻辑
     if role not in ["admin", "owner"]:
-        # 普通律师：只能看到自己相关的案件
-        query = query.filter(
-            or_(
-                Case.main_lawyer_id == user_id,
-                Case.assistant_lawyer_id == user_id,
-                Case.assistant_lawyer_2_id == user_id,
-                Case.execution_lawyer_id == user_id,
-                Case.execution_assistant_id == user_id
-            )
+        user_involved_cond = or_(
+            Case.main_lawyer_id == user_id,
+            Case.assistant_lawyer_id == user_id,
+            Case.assistant_lawyer_2_id == user_id,
+            Case.execution_lawyer_id == user_id,
+            Case.execution_assistant_id == user_id
         )
+        if can_view_all_bank:
+            # 有权限：能看自己的所有案件 + 别人的银行案件
+            query = query.filter(or_(user_involved_cond, Case.case_category == "银行案件"))
+        else:
+            # 无权限：只能看自己相关的案件
+            query = query.filter(user_involved_cond)
 
     if main_lawyer_id is not None:
         query = query.filter(Case.main_lawyer_id == main_lawyer_id)
@@ -131,7 +135,8 @@ def count_cases_by_user_role(
         keyword: Optional[str] = None,  # 关键词查询
         category: Optional[str] = None,  # 案件类型筛选
         main_lawyer_id: Optional[int] = None,  # 主办律师筛选
-        year: Optional[str] = None  # 年份筛选
+        year: Optional[str] = None,  # 年份筛选
+        can_view_all_bank: bool = False # 是否允许查看所有银行案件
 ) -> int:
     """
     根据用户角色统计案件总数
@@ -142,15 +147,19 @@ def count_cases_by_user_role(
 
     # 角色筛选
     if role not in ["admin", "owner"]:
-        query = query.filter(
-            or_(
-                Case.main_lawyer_id == user_id,
-                Case.assistant_lawyer_id == user_id,
-                Case.assistant_lawyer_2_id == user_id,
-                Case.execution_lawyer_id == user_id,
-                Case.execution_assistant_id == user_id
-            )
+        user_involved_cond = or_(
+            Case.main_lawyer_id == user_id,
+            Case.assistant_lawyer_id == user_id,
+            Case.assistant_lawyer_2_id == user_id,
+            Case.execution_lawyer_id == user_id,
+            Case.execution_assistant_id == user_id
         )
+        if can_view_all_bank:
+            # 有权限：能看自己的所有案件 + 别人的银行案件
+            query = query.filter(or_(user_involved_cond, Case.case_category == "银行案件"))
+        else:
+            # 无权限：只能看自己相关的案件
+            query = query.filter(user_involved_cond)
 
     if main_lawyer_id is not None:
         query = query.filter(Case.main_lawyer_id == main_lawyer_id)
@@ -183,7 +192,8 @@ def list_bank_cases_by_user_role(
         year: Optional[str] = None,
         case_status: Optional[str] = None,
         sort_field: str = "created_at",  # 排序字段，默认按创建时间
-        sort_dir: str = "desc"  # 排序方向，默认降序（最新在前）
+        sort_dir: str = "desc",  # 排序方向，默认降序（最新在前）
+        can_view_all_bank: bool = False # 是否允许查看所有银行案件
 ) -> List[Case]:
     """
     根据用户角色返回银行案件列表
@@ -201,7 +211,7 @@ def list_bank_cases_by_user_role(
     ).filter(Case.is_deleted == False, Case.case_category == "银行案件")
 
     # 角色筛选
-    if role not in ["admin", "owner"]:
+    if role not in ["admin", "owner"] and not can_view_all_bank:
         query = query.filter(
             or_(
                 Case.main_lawyer_id == user_id,
@@ -272,13 +282,14 @@ def count_bank_cases_by_user_role(
         client_name: Optional[str] = None,
         year: Optional[str] = None,
         case_status: Optional[str] = None,
+        can_view_all_bank: bool = False
 ) -> int:
     """
     根据用户角色统计案件总数
     """
     query = db.query(Case).filter(Case.is_deleted == False, Case.case_category == "银行案件")
     # 角色筛选
-    if role not in ["admin", "owner"]:
+    if role not in ["admin", "owner"] and not can_view_all_bank:
         query = query.filter(
             or_(
                 Case.main_lawyer_id == user_id,
@@ -982,7 +993,13 @@ def get_upcoming_events(
     }
 
 
-def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: CaseExportQuery) -> BytesIO:
+def export_cases_to_excel(
+        db: Session,
+        user_id: int,
+        role: str,
+        query_params: CaseExportQuery,
+        can_view_all_bank: bool = False,
+) -> BytesIO:
     """
     导出业务数据为Excel文件 (主表看概况 + 子表查详情)
     优化版：采用 WriteOnly 模式，纯 Python 预计算
@@ -1001,15 +1018,17 @@ def export_cases_to_excel(db: Session, user_id: int, role: str, query_params: Ca
 
     # 权限控制
     if role not in ["admin", "owner"]:
-        query = query.filter(
-            or_(
-                Case.main_lawyer_id == user_id,
-                Case.assistant_lawyer_id == user_id,
-                Case.assistant_lawyer_2_id == user_id,
-                Case.execution_lawyer_id == user_id,
-                Case.execution_assistant_id == user_id
-            )
+        user_involved_cond = or_(
+            Case.main_lawyer_id == user_id,
+            Case.assistant_lawyer_id == user_id,
+            Case.assistant_lawyer_2_id == user_id,
+            Case.execution_lawyer_id == user_id,
+            Case.execution_assistant_id == user_id
         )
+        if can_view_all_bank:
+            query = query.filter(or_(user_involved_cond, Case.case_category == "银行案件"))
+        else:
+            query = query.filter(user_involved_cond)
 
     # 2. 动态筛选条件
     if query_params.case_ids:

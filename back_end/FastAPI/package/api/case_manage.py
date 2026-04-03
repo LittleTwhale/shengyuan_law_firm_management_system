@@ -66,6 +66,10 @@ def get_cases(
     """
     获取案件列表
     """
+    # 提取权限标识
+    user_perms = current_user.permissions or {}
+    can_view_all_bank = user_perms.get("can_view_all_bank_events", False)
+
     cases = list_cases_by_user_role(
         db=db,
         user_id=current_user.id,
@@ -78,6 +82,7 @@ def get_cases(
         year=year,
         sort_field=sort_field,
         sort_dir=sort_dir,
+        can_view_all_bank=can_view_all_bank,
     )
     total = count_cases_by_user_role(
         db=db,
@@ -87,6 +92,7 @@ def get_cases(
         category=category,  # 传递给统计函数
         main_lawyer_id=main_lawyer_id,
         year=year,
+        can_view_all_bank=can_view_all_bank,
     )
     # 拦截转换：用 CaseParty 覆盖 client_name
     cases_simple = []
@@ -114,6 +120,10 @@ def get_bank_cases(
     """
     获取银行案件列表
     """
+    # 提取权限标识
+    user_perms = current_user.permissions or {}
+    can_view_all_bank = user_perms.get("can_view_all_bank_events", False)
+
     cases = list_bank_cases_by_user_role(
         db=db,
         user_id=current_user.id,
@@ -127,6 +137,7 @@ def get_bank_cases(
         case_status=case_status,
         sort_field=sort_field,
         sort_dir=sort_dir,
+        can_view_all_bank=can_view_all_bank,
     )
     total = count_bank_cases_by_user_role(
         db=db,
@@ -137,6 +148,7 @@ def get_bank_cases(
         client_name=client_name,
         year=year,
         case_status=case_status,
+        can_view_all_bank=can_view_all_bank,
     )
     # 拦截转换：用 CaseParty 覆盖 client_name
     cases_simple = []
@@ -160,8 +172,12 @@ async def export_cases(
     """
     根据筛选条件导出案件明细 (支持分Sheet导出普通案件和银行案件)
     """
+    # 提取权限标识
+    user_perms = current_user.permissions or {}
+    can_view_all_bank = user_perms.get("can_view_all_bank_events", False)
+
     # 将重度 CPU 计算任务扔进 FastAPI 的底层线程池执行，坚决不阻塞主 Event Loop
-    excel_io = await run_in_threadpool(export_cases_to_excel, db, current_user.id, current_user.role, query)
+    excel_io = await run_in_threadpool(export_cases_to_excel, db, current_user.id, current_user.role, query, can_view_all_bank)
 
     # --- 获取文件真实大小，用于前端进度条 ---
     excel_io.seek(0, 2)  # 将指针移动到文件流末尾
