@@ -71,11 +71,18 @@ def check_interest_conflict_for_case(db: Session, case_id: int):
     单条审核时的利益冲突检测 (两步法 + selectinload 极致优化版)
     """
     current_case = db.query(Case).options(
-        selectinload(Case.parties)
+        selectinload(Case.parties),
+        selectinload(Case.bank_case_details)
     ).filter(Case.case_id == case_id).first()
 
     if not current_case:
         return {"has_conflict": False}
+
+    # ====== 提取待审案件的支行名称  ======
+    branch_name = None
+    if current_case.case_category == "银行案件" and current_case.bank_case_details and current_case.bank_case_details.branch_name:
+        branch_name = current_case.bank_case_details.branch_name.strip()
+    # ====================================================
 
     current_parties = current_case.parties
 
@@ -159,6 +166,7 @@ def check_interest_conflict_for_case(db: Session, case_id: int):
             # 优化点：第二步用 selectinload 精准拉取对象
             existing_cases = db.query(Case).options(
                 selectinload(Case.parties),
+                selectinload(Case.bank_case_details),
                 joinedload(Case.main_lawyer)
             ).filter(Case.case_id.in_(matched_case_ids)).all()
 
@@ -175,6 +183,18 @@ def check_interest_conflict_for_case(db: Session, case_id: int):
                         else:
                             for opp in valid_opponents:
                                 if opp in db_name or db_name in opp:
+                                    # ====== 银行案件支行双重校验 ======
+                                    is_bank_case_db = c.case_category == "银行案件"
+                                    is_generic_bank_name = any(gb in opp for gb in ["银行", "农商行", "信用社"])
+
+                                    if is_generic_bank_name:
+                                        if branch_name and branch_name not in db_name:
+                                            continue
+                                        if is_bank_case_db and c.bank_case_details and c.bank_case_details.branch_name:
+                                            db_branch = c.bank_case_details.branch_name.strip()
+                                            if db_branch not in opp:
+                                                continue
+                                    # ==============================================
                                     match_level = "fuzzy"
                                     matched_db_name = db_name
                                     break
@@ -219,6 +239,7 @@ def check_interest_conflict_for_case(db: Session, case_id: int):
             # 第二步：使用 selectinload 拉取
             history_cases = db.query(Case).options(
                 selectinload(Case.parties),
+                selectinload(Case.bank_case_details),
                 joinedload(Case.main_lawyer)
             ).filter(Case.case_id.in_(history_case_ids)).all()
 
@@ -239,6 +260,18 @@ def check_interest_conflict_for_case(db: Session, case_id: int):
                     else:
                         for c_kw in valid_new_clients:
                             if c_kw in db_name or db_name in c_kw:
+                                # ====== 银行案件支行双重校验 ======
+                                is_bank_case_db = c.case_category == "银行案件"
+                                is_generic_bank_name = any(gb in c_kw for gb in ["银行", "农商行", "信用社"])
+
+                                if is_generic_bank_name:
+                                    if branch_name and branch_name not in db_name:
+                                        continue
+                                    if is_bank_case_db and c.bank_case_details and c.bank_case_details.branch_name:
+                                        db_branch = c.bank_case_details.branch_name.strip()
+                                        if db_branch not in c_kw:
+                                            continue
+                                # ==============================================
                                 match_level = "fuzzy"
                                 matched_party = p
                                 matched_db_name = db_name

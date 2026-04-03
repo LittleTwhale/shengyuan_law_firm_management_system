@@ -1,5 +1,7 @@
+# utils/keywords_helper.py
 import re
 from typing import List, Set
+
 
 def get_valid_keywords(name_set: set) -> list:
     """
@@ -13,7 +15,12 @@ def get_valid_keywords(name_set: set) -> list:
         "公司", "有限公司", "有限责任公司", "集团", "股份", "股份有限公司",
         "分公司", "厂", "中心", "工作室", "企业", "合伙企业", "合伙",
         "银行", "支行", "分行", "法院", "检察院", "公安局", "派出所",
-        "局", "厅", "局集团", "局集团有限公司"
+        "局", "厅", "局集团", "局集团有限公司",
+
+        # ====== 高频银行泛指词汇（防止灾难性模糊扫描） ======
+        "农村商业银行", "中国农业银行", "中国建设银行", "中国工商银行", "中国银行",
+        "交通银行", "邮政储蓄银行", "农商行", "信用社"
+        # ================================================================
     }
 
     # 2. 常见后缀 (用于从尾部剥离)
@@ -30,6 +37,9 @@ def get_valid_keywords(name_set: set) -> list:
     valid_keywords = []
     for name in name_set:
         name = name.strip()
+
+        # 如果名字“完全等于”泛化词汇（如只填了"农村商业银行"），直接抛弃不作为模糊词
+        # 它们在主干逻辑中依然会参与 exact 确切匹配，不用担心漏掉
         if not name or name in stop_words:
             continue
 

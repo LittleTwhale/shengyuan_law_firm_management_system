@@ -1847,11 +1847,6 @@ const handleLoanDueDateChange = (val) => {
     formData.bank_case_details.guarantee_due_date = null
     return
   }
-  const dateLimitation = new Date(val)
-  dateLimitation.setFullYear(dateLimitation.getFullYear() + 3)
-
-  const dateGuarantee = new Date(val)
-  dateGuarantee.setFullYear(dateGuarantee.getFullYear() + 2)
 
   const formatDateStr = (date) => {
     const yyyy = date.getFullYear()
@@ -1860,8 +1855,20 @@ const handleLoanDueDateChange = (val) => {
     return `${yyyy}-${mm}-${dd}`
   }
 
+  // 1. 自动计算诉讼时效 (固定推3年)
+  const dateLimitation = new Date(val)
+  dateLimitation.setFullYear(dateLimitation.getFullYear() + 3)
   formData.bank_case_details.statute_of_limitations = formatDateStr(dateLimitation)
-  formData.bank_case_details.guarantee_due_date = formatDateStr(dateGuarantee)
+
+  // 2. 只有存在担保人时，才自动计算保证到期日 (推2年)
+  if (formData.party_bank_guarantors && formData.party_bank_guarantors.length > 0) {
+    const dateGuarantee = new Date(val)
+    dateGuarantee.setFullYear(dateGuarantee.getFullYear() + 2)
+    formData.bank_case_details.guarantee_due_date = formatDateStr(dateGuarantee)
+  } else {
+    // 如果没有担保人，确保该字段为空
+    formData.bank_case_details.guarantee_due_date = null
+  }
 }
 
 // ================= 当事人操作方法 =================
@@ -1905,9 +1912,20 @@ const addGuarantor = () => {
     address: '',
     legal_representative: '',
   })
+
+  // 添加担保人时，如果已经填了借款到期日，自动触发推算
+  if (formData.bank_case_details.loan_due_date) {
+    handleLoanDueDateChange(formData.bank_case_details.loan_due_date)
+  }
 }
+
 const removeGuarantor = (index) => {
   formData.party_bank_guarantors.splice(index, 1)
+
+  // 如果把担保人全部删光了，自动清空保证到期日
+  if (formData.party_bank_guarantors.length === 0) {
+    formData.bank_case_details.guarantee_due_date = null
+  }
 }
 
 // 4. 第三人
