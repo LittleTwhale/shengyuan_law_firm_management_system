@@ -1,20 +1,25 @@
 <template>
   <div class="event-reminders-page">
     <div class="main-content">
-      <div class="header">
-        <div class="header-left">
-          <h2>事项与日程</h2>
-          <el-radio-group v-model="viewMode" size="small" class="view-switch">
-            <el-radio-button label="table">
-              <el-icon><List /></el-icon> 列表视图
-            </el-radio-button>
-            <el-radio-button label="calendar" class="hide-on-mobile">
-              <el-icon><Calendar /></el-icon> 日历视图
-            </el-radio-button>
-          </el-radio-group>
+      <div class="header-section">
+        <div class="header-top">
+          <div class="header-title-group">
+            <h2>事项与日程</h2>
+            <el-radio-group v-model="viewMode" size="small" class="view-switch">
+              <el-radio-button label="table">
+                <el-icon><List /></el-icon> 列表视图
+              </el-radio-button>
+              <el-radio-button label="calendar" class="hide-on-mobile">
+                <el-icon><Calendar /></el-icon> 日历视图
+              </el-radio-button>
+            </el-radio-group>
+          </div>
+          <el-button type="primary" class="add-btn" :icon="Plus" @click="openDrawer()">
+            新建日程
+          </el-button>
         </div>
 
-        <div class="filter">
+        <div class="filter-bar">
           <el-select
             v-model="mainLawyerId"
             placeholder="筛选主办律师"
@@ -33,6 +38,17 @@
 
           <el-radio-group
             v-show="viewMode === 'table'"
+            v-model="relationFilter"
+            @change="handleFilterChange"
+            class="responsive-radio"
+          >
+            <el-radio-button label="all">全部</el-radio-button>
+            <el-radio-button label="mine">我的业务</el-radio-button>
+            <el-radio-button label="others">他人业务</el-radio-button>
+          </el-radio-group>
+
+          <el-radio-group
+            v-show="viewMode === 'table'"
             v-model="daysRange"
             @change="handleFilterChange"
             class="responsive-radio"
@@ -42,9 +58,6 @@
             <el-radio-button :label="30">近30天</el-radio-button>
             <el-radio-button :label="0">全部</el-radio-button>
           </el-radio-group>
-          <el-button type="primary" class="add-btn" :icon="Plus" @click="openDrawer()">
-            新建日程
-          </el-button>
         </div>
       </div>
 
@@ -58,11 +71,18 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="来源" width="90" align="center">
+          <el-table-column label="来源" width="100" align="center">
             <template #default="scope">
-              <el-tag :type="scope.row.source === 'case' ? 'info' : 'success'" size="small">
-                {{ scope.row.source === 'case' ? '系统业务' : '自定义' }}
-              </el-tag>
+              <template v-if="scope.row.source === 'case'">
+                <el-tag
+                  :type="scope.row.is_mine ? 'primary' : 'info'"
+                  size="small"
+                  :effect="scope.row.is_mine ? 'light' : 'plain'"
+                >
+                  {{ scope.row.is_mine ? '我的业务' : '他人业务' }}
+                </el-tag>
+              </template>
+              <el-tag v-else type="success" size="small" effect="light"> 自定义 </el-tag>
             </template>
           </el-table-column>
 
@@ -213,7 +233,17 @@
           placement="top"
         >
           <el-card class="timeline-card" shadow="hover">
-            <h4>{{ activity.event_type }}</h4>
+            <h4>
+              {{ activity.event_type }}
+              <el-tag
+                size="small"
+                type="info"
+                v-if="activity.source === 'case' && !activity.is_mine"
+                style="margin-left: 6px; font-weight: normal"
+              >
+                他人业务
+              </el-tag>
+            </h4>
             <p v-if="getDisplayCaseNumber(activity) !== '--'" class="timeline-desc text-primary">
               <el-icon><Briefcase /></el-icon> {{ getDisplayCaseNumber(activity) }} ({{
                 getDisplayClientName(activity)
@@ -292,7 +322,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue' // 新增引入 watch
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue' // 引入 watch
 import request from '@/utils/request'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -314,11 +344,12 @@ const router = useRouter()
 const events = ref([])
 const loading = ref(false)
 const daysRange = ref(30) // 默认显示30天
+const relationFilter = ref('all') // 关联筛选 'all', 'mine', 'others'
 const viewMode = ref('table') // 视图切换
 const calendarDate = ref(new Date())
 const myCases = ref([]) // 我的业务
 
-// 新增：过滤与分页状态
+// 过滤与分页状态
 const mainLawyerId = ref(null) // 主办律师筛选
 const lawyerList = ref([]) // 律师下拉列表数据
 const currentPage = ref(1) // 当前页码
@@ -400,7 +431,7 @@ const fetchMyCases = async () => {
   }
 }
 
-// 新增：获取律师列表供下拉筛选使用
+// 获取律师列表供下拉筛选使用
 const fetchLawyers = async () => {
   try {
     const res = await request.get('/cases/users/lawyers')
@@ -423,6 +454,7 @@ const fetchReminders = async (resetPage = false) => {
       params: {
         days: daysRange.value,
         main_lawyer_id: mainLawyerId.value || null,
+        relation: relationFilter.value, // 传给后端的关系参数
         skip: currentSkip,
         limit: currentLimit,
       },
@@ -445,24 +477,24 @@ const fetchReminders = async (resetPage = false) => {
   }
 }
 
-// 新增：筛选条件改变触发
+// 筛选条件改变触发
 const handleFilterChange = () => {
   fetchReminders(true)
 }
 
-// 新增：分页大小改变触发
+// 分页大小改变触发
 const handleSizeChange = (val) => {
   pageSize.value = val
   fetchReminders(true)
 }
 
-// 新增：页码改变触发
+// 页码改变触发
 const handleCurrentChange = (val) => {
   currentPage.value = val
   fetchReminders(false)
 }
 
-// 新增：监听视图模式切换，切换时重新获取对应数据格式（分页 vs 全量）
+// 监听视图模式切换，切换时重新获取对应数据格式（分页 vs 全量）
 watch(viewMode, () => {
   fetchReminders(true)
 })
@@ -582,7 +614,7 @@ const shiftDate = (type) => {
 
 onMounted(() => {
   window.addEventListener('resize', handleResize) // 监听窗口大小变化
-  fetchLawyers() // 新增：挂载时拉取律师列表
+  fetchLawyers() // 挂载时拉取律师列表
   fetchReminders(true)
   fetchMyCases() // 组件挂载时获取案件下拉数据，用于名称映射
 })
@@ -636,37 +668,53 @@ onUnmounted(() => {
   padding-bottom: 10px;
 }
 
-.header {
+/* ================= 头部与筛选栏重构样式 ================= */
+
+.header-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.header-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 15px;
   border-bottom: 1px solid #ebeef5;
+  padding-bottom: 16px;
 }
 
-.header-left {
+.header-title-group {
   display: flex;
   align-items: center;
   gap: 20px;
 }
 
-.header h2 {
+.header-title-group h2 {
   margin: 0;
   font-size: 20px;
   color: #303133;
 }
 
-.filter {
+/* 新增的独立灰色筛选卡片层 */
+.filter-bar {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 16px;
+  flex-wrap: wrap;
+  background-color: #f8f9fb;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid #ebeef5;
 }
 
-/* 新增：律师筛选下拉框样式 */
+/* 律师筛选下拉框样式 */
 .lawyer-select {
   width: 140px;
 }
+
+/* ======================================================== */
 
 .table-container,
 .calendar-container {
@@ -676,7 +724,7 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
-/* 新增：分页组件外层包装器样式 */
+/* 分页组件外层包装器样式 */
 .pagination-wrapper {
   margin-top: 15px;
   display: flex;
@@ -782,6 +830,8 @@ onUnmounted(() => {
   font-size: 14px;
   color: #303133;
   font-weight: 600;
+  display: flex;
+  align-items: center;
 }
 .timeline-desc {
   margin: 0 0 6px 0;
@@ -828,7 +878,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 8px; /* 替代原本 Element Plus 默认的 margin-left */
+  gap: 8px;
 }
 
 /* 覆盖 Element Plus 默认的兄弟按钮边距，全权由外层 gap 控制 */
@@ -836,7 +886,7 @@ onUnmounted(() => {
   margin-left: 0 !important;
 }
 
-/* --- 移动端响应式适配 (视口宽度 <= 992px) --- */
+/* --- 平板端响应式适配 (视口宽度 <= 992px) --- */
 @media (max-width: 992px) {
   .event-reminders-page {
     flex-direction: column;
@@ -849,7 +899,7 @@ onUnmounted(() => {
   }
 }
 
-/* --- 移动端响应式适配 (视口宽度 <= 768px) --- */
+/* --- 移动端响应式极致适配 (视口宽度 <= 768px) --- */
 @media (max-width: 768px) {
   .event-reminders-page {
     margin: 10px;
@@ -861,24 +911,42 @@ onUnmounted(() => {
     padding: 16px;
   }
 
-  /* 顶部从左右分布改为上下分布 */
-  .header {
+  /* 顶部重新排版：垂直居左 */
+  .header-top {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
+    align-items: stretch;
+    gap: 16px;
+    padding-bottom: 12px;
   }
 
-  .filter {
-    width: 100%;
-    flex-wrap: wrap; /* 允许在小屏幕上折行 */
-    overflow-x: auto; /* 单选按钮组太长时允许滑动 */
-    padding-bottom: 5px;
-    justify-content: space-between;
+  .header-title-group {
+    justify-content: space-between; /* 标题和切换按钮分布两端 */
+  }
+
+  /* 筛选栏全部垂直化 */
+  .filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px;
+    gap: 12px;
   }
 
   .lawyer-select {
     width: 100%;
-    margin-bottom: 8px;
+  }
+
+  /* 单选按钮组在手机上撑满等宽 */
+  :deep(.responsive-radio) {
+    display: flex;
+    width: 100%;
+  }
+  :deep(.responsive-radio .el-radio-button) {
+    flex: 1;
+  }
+  :deep(.responsive-radio .el-radio-button__inner) {
+    width: 100%;
+    padding: 8px 0;
+    font-size: 13px; /* 字体略微缩小防折行 */
   }
 
   /* 移动端隐藏日历视图切换按钮 */

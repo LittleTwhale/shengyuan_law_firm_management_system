@@ -815,6 +815,7 @@ def get_upcoming_events(
         days: int = 30,
         can_view_all_bank_events: bool = False,
         main_lawyer_id: Optional[int] = None,  # 主办律师筛选
+        relation_filter: str = "all",  # 接收前端传来的关系筛选参数
         skip: int = 0,  # 分页
         limit: int = 50  # 分页
 ) -> dict:
@@ -830,7 +831,7 @@ def get_upcoming_events(
     events = []
 
     # ================= 1. 获取系统提取的案件节点 =================
-    # 基础案件范围条件
+    # 基础案件范围条件（我参与的）
     user_involved_cond = or_(
         Case.main_lawyer_id == user_id,
         Case.assistant_lawyer_id == user_id,
@@ -839,13 +840,32 @@ def get_upcoming_events(
         Case.execution_assistant_id == user_id
     )
 
-    # 查看全部银行案件事项权限
-    if can_view_all_bank_events:
-        final_case_cond = or_(user_involved_cond, Case.case_category == "银行案件")
-    else:
-        final_case_cond = user_involved_cond
+    # 安全的“非我参与”条件，防止 SQL NULL 值穿透导致数据丢失
+    not_mine_cond = and_(
+        or_(Case.main_lawyer_id != user_id, Case.main_lawyer_id.is_(None)),
+        or_(Case.assistant_lawyer_id != user_id, Case.assistant_lawyer_id.is_(None)),
+        or_(Case.assistant_lawyer_2_id != user_id, Case.assistant_lawyer_2_id.is_(None)),
+        or_(Case.execution_lawyer_id != user_id, Case.execution_lawyer_id.is_(None)),
+        or_(Case.execution_assistant_id != user_id, Case.execution_assistant_id.is_(None))
+    )
 
-    # 构建数据库层面的日期过滤条件（不查多余数据）
+    # 严格区分关系过滤
+    if relation_filter == "mine":
+        final_case_cond = user_involved_cond
+    elif relation_filter == "others":
+        if can_view_all_bank_events:
+            # 修复：使用 not_mine_cond 替代原本的 ~user_involved_cond
+            final_case_cond = and_(Case.case_category == "银行案件", not_mine_cond)
+        else:
+            # 如果没有全行查看权限，不可能看到他人的案件
+            final_case_cond = Case.case_id == -1
+    else:  # "all"
+        if can_view_all_bank_events:
+            final_case_cond = or_(user_involved_cond, Case.case_category == "银行案件")
+        else:
+            final_case_cond = user_involved_cond
+
+    # 构建数据库层面的日期过滤条件
     if days > 0:
         date_conditions = [
             between(Case.hearing_date, today, target_date),
@@ -915,6 +935,14 @@ def get_upcoming_events(
         clients = [p.name for p in case.parties if p.party_type and '委托' in p.party_type and p.name]
         real_client_name = "、".join(clients) if clients else (case.client_name or "")
 
+        is_mine = (
+            case.main_lawyer_id == user_id or
+            case.assistant_lawyer_id == user_id or
+            case.assistant_lawyer_2_id == user_id or
+            case.execution_lawyer_id == user_id or
+            case.execution_assistant_id == user_id
+        )
+
         for event_type, event_date in check_points:
             if event_date:
                 # 检查日期是否符合条件：
@@ -928,57 +956,61 @@ def get_upcoming_events(
                         "event_type": event_type,
                         "event_date": event_date,
                         "days_remaining": (event_date - today).days,
-                        "source": "case",  # 标记为系统提取
+                        "source": "case",
+                        "is_mine": is_mine,
                     })
 
     # ================= 2. 获取用户自定义的日程 =================
-    schedules_query = db.query(UserSchedule).outerjoin(Case, UserSchedule.related_case_id == Case.case_id)
+    # 只有在筛选“全部”或“我的案件”时，才抓取当前用户的自定义日程
+    if relation_filter in ["all", "mine"]:
+        schedules_query = db.query(UserSchedule).outerjoin(Case, UserSchedule.related_case_id == Case.case_id)
 
-    schedule_self_cond = UserSchedule.user_id == user_id
-    schedule_related_cond = and_(
-        UserSchedule.related_case_id != None,
-        Case.is_deleted == False,
-        user_involved_cond
-    )
-
-    if can_view_all_bank_events:
-        schedule_bank_cond = and_(
+        schedule_self_cond = UserSchedule.user_id == user_id
+        schedule_related_cond = and_(
             UserSchedule.related_case_id != None,
             Case.is_deleted == False,
-            Case.case_category == "银行案件"
+            user_involved_cond
         )
-        final_schedule_cond = or_(schedule_self_cond, schedule_related_cond, schedule_bank_cond)
-    else:
-        final_schedule_cond = or_(schedule_self_cond, schedule_related_cond)
 
-    schedules_query = schedules_query.filter(final_schedule_cond)
+        if can_view_all_bank_events:
+            schedule_bank_cond = and_(
+                UserSchedule.related_case_id != None,
+                Case.is_deleted == False,
+                Case.case_category == "银行案件"
+            )
+            final_schedule_cond = or_(schedule_self_cond, schedule_related_cond, schedule_bank_cond)
+        else:
+            final_schedule_cond = or_(schedule_self_cond, schedule_related_cond)
 
-    if main_lawyer_id:
-        schedules_query = schedules_query.filter(Case.main_lawyer_id == main_lawyer_id)
+        schedules_query = schedules_query.filter(final_schedule_cond)
 
-    if days > 0:
-        schedules_query = schedules_query.filter(between(UserSchedule.event_date, today, target_date))
-    else:
-        schedules_query = schedules_query.filter(UserSchedule.event_date >= today)
+        if main_lawyer_id:
+            schedules_query = schedules_query.filter(Case.main_lawyer_id == main_lawyer_id)
 
-    # 预加载可能关联的案件
-    custom_schedules = schedules_query.options(joinedload(UserSchedule.related_case)).all()
+        if days > 0:
+            schedules_query = schedules_query.filter(between(UserSchedule.event_date, today, target_date))
+        else:
+            schedules_query = schedules_query.filter(UserSchedule.event_date >= today)
 
-    for sched in custom_schedules:
-        c_num = sched.related_case.case_number if sched.related_case else None
-        c_client = sched.related_case.client_name if sched.related_case else None
+        # 预加载可能关联的案件
+        custom_schedules = schedules_query.options(joinedload(UserSchedule.related_case)).all()
 
-        events.append({
-            "case_id": sched.related_case_id,
-            "case_number": c_num,
-            "client_name": c_client,
-            "event_type": sched.title,  # 自定义标题作为事件类型
-            "event_date": sched.event_date,
-            "days_remaining": (sched.event_date - today).days,
-            "source": "custom",  # 标记为自定义
-            "schedule_id": sched.id,
-            "description": sched.description
-        })
+        for sched in custom_schedules:
+            c_num = sched.related_case.case_number if sched.related_case else None
+            c_client = sched.related_case.client_name if sched.related_case else None
+
+            events.append({
+                "case_id": sched.related_case_id,
+                "case_number": c_num,
+                "client_name": c_client,
+                "event_type": sched.title,  # 自定义标题作为事件类型
+                "event_date": sched.event_date,
+                "days_remaining": (sched.event_date - today).days,
+                "source": "custom", # 标记为自定义
+                "is_mine": True, # 自定义日程是当前用户的
+                "schedule_id": sched.id,
+                "description": sched.description
+            })
 
     # ================= 3. 统一排序并分页返回 =================
     events.sort(key=lambda x: x['days_remaining'])

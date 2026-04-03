@@ -73,6 +73,7 @@ def change_password(
 def get_user_reminders(
         days: int = 7,
         main_lawyer_id: Optional[int] = None,  # 接收主办律师筛选参数
+        relation: str = "all",
         skip: int = 0,  # 接收分页参数
         limit: int = 20,  # 接收分页参数
         db: Session = Depends(get_db),
@@ -88,6 +89,7 @@ def get_user_reminders(
         days=days,
         can_view_all_bank_events=has_bank_event_perm,
         main_lawyer_id=main_lawyer_id,
+        relation_filter=relation,
         skip=skip,
         limit=limit
     )
