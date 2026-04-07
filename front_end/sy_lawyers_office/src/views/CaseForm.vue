@@ -141,8 +141,18 @@ const isRestricted = computed(() => {
   return props.currentUserRole === 'user' && props.reviewStatus === '已审核'
 })
 
+// 专门控制当事人区域的受限状态
+const isPartyRestricted = computed(() => {
+  // 如果是银行案件，当事人信息不受限（即使已审核也允许普通用户修改）
+  if (formData.case_category === '银行案件') {
+    return false
+  }
+  return isRestricted.value
+})
+
 // 将受限状态下发给子组件
 provide('isRestricted', isRestricted)
+provide('isPartyRestricted', isPartyRestricted)
 
 const emit = defineEmits(['update:visible', 'submit'])
 
