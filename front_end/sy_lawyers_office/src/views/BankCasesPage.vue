@@ -150,7 +150,19 @@
         >
           <template #default="scope">
             <div class="row-actions">
-              <el-button size="small" @click="viewCase(scope.row)">查看</el-button>
+              <el-dropdown
+                split-button
+                size="small"
+                @click="viewCase(scope.row, 'current')"
+                @command="(cmd) => viewCase(scope.row, cmd)"
+              >
+                查看
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="blank">新标签页打开</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
               <el-button size="small" type="warning" @click="handleEditClick(scope.row)"
                 >编辑</el-button
               >
@@ -711,14 +723,20 @@ const handleBatchDelete = async () => {
 }
 
 // 查看案件详情
-const viewCase = (row) => {
-  const routeData = router.resolve({
+const viewCase = (row, mode = 'current') => {
+  const routeLocation = {
     path: `/main/cases/${row.case_id}`,
     query: {
-      from: '/main/cases/bank_cases',
+      from: '/main/cases/bank_cases', // 明确传入来源为银行案件列表
     },
-  })
-  window.open(routeData.href, '_blank')
+  }
+
+  if (mode === 'blank') {
+    const routeData = router.resolve(routeLocation)
+    window.open(routeData.href, '_blank')
+  } else {
+    router.push(routeLocation)
+  }
 }
 
 // 记录当前操作案件的审核状态

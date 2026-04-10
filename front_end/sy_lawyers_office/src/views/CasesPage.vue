@@ -128,7 +128,19 @@
         >
           <template #default="scope">
             <div class="row-actions">
-              <el-button size="small" @click="viewCase(scope.row)">查看</el-button>
+              <el-dropdown
+                split-button
+                size="small"
+                @click="viewCase(scope.row, 'current')"
+                @command="(cmd) => viewCase(scope.row, cmd)"
+              >
+                查看
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="blank">新标签页打开</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
               <el-button size="small" type="warning" @click="handleEditClick(scope.row)"
                 >编辑</el-button
               >
@@ -544,7 +556,7 @@ const loadCases = async () => {
         year: selectedYear.value || '', // 年份筛选
         sort_field: currentSortField.value,
         sort_dir: currentSortDir.value,
-        main_lawyer_id: selectedLawyerId.value,// 主办律师筛选
+        main_lawyer_id: selectedLawyerId.value, // 主办律师筛选
       },
     })
     cases.value = res.data.items || []
@@ -695,16 +707,23 @@ const handleFormSubmit = () => {
 
 // -------------------------- 查看案件相关 --------------------------
 const router = useRouter()
-const viewCase = (row) => {
-  // 1. 解析路由目标，生成完整的 href
-  // router.resolve 可以接受与 router.push 相同的参数（path 或 name）
-  const routeData = router.resolve({
+const viewCase = (row, mode = 'current') => {
+  const routeLocation = {
     path: `/main/cases/${row.case_id}`,
-  })
+    query: {
+      from: '/main/cases', // 明确传入来源路由，方便详情页返回
+    },
+  }
 
-  // 2. 使用原生 window.open 打开新窗口
-  // routeData.href 就是解析出来的完整链接
-  window.open(routeData.href, '_blank')
+  if (mode === 'blank') {
+    // 方案 A：新标签页打开
+    const routeData = router.resolve(routeLocation)
+    // routeData.href 就是解析出来的完整链接
+    window.open(routeData.href, '_blank')
+  } else {
+    // 方案 B：当前标签页直接跳转
+    router.push(routeLocation)
+  }
 }
 
 // -------------------------- 删除案件相关 --------------------------

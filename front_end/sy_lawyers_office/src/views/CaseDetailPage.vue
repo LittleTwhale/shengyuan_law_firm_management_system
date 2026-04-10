@@ -192,11 +192,21 @@ const attachmentFileList = ref([])
 const loadingAttachments = ref(false)
 
 const goBack = () => {
-  // 如果有明确的来源参数则使用来源，否则尝试回退一级，最后保底去案件列表
+  // 1. 如果有明确的来源参数，直接跳转回来源页
   if (route.query.from) {
     router.push(route.query.from)
-  } else {
-    // 调用 router.back() 或 window.history.back()
+  }
+  // 2. 如果没有来源，且浏览器的历史记录只有1条（说明是新标签页打开的）
+  else if (window.history.length <= 1) {
+    // 尝试关闭当前新标签页
+    window.close()
+    // 兜底方案：如果因为浏览器安全策略无法关闭，则强制跳转回总业务列表
+    setTimeout(() => {
+      router.push('/main/cases')
+    }, 100)
+  }
+  // 3. 正常情况：在当前标签页跳转的，直接后退
+  else {
     router.back()
   }
 }
