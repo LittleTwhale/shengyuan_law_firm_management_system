@@ -449,10 +449,15 @@ const checkUrgentReminders = async () => {
 
   try {
     const res = await request.get('/user/profile/reminders', {
-      params: { days: 7 },
+      params: { days: 7, limit: 100 },
     })
 
-    const urgentEvents = res.data
+    let urgentEvents = []
+    if (res.data && res.data.items !== undefined) {
+      urgentEvents = res.data.items
+    } else {
+      urgentEvents = res.data || []
+    }
 
     if (urgentEvents.length > 0) {
       const messageHtml = `
@@ -483,7 +488,7 @@ const checkUrgentReminders = async () => {
         title: `⚠ 紧急事项提醒（${urgentEvents.length}）`,
         dangerouslyUseHTMLString: true,
         message: messageHtml,
-        duration: 0,
+        duration: 0, // 不自动关闭
         type: 'warning',
         customClass: 'urgent-notification',
         showClose: true,

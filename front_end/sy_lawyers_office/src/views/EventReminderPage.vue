@@ -137,7 +137,7 @@
                   业务
                 </el-button>
 
-                <template v-if="scope.row.source === 'custom'">
+                <template v-if="scope.row.source === 'custom' && scope.row.is_creator">
                   <el-button
                     size="small"
                     type="warning"
@@ -155,6 +155,10 @@
                       <el-button size="small" type="danger" plain :icon="Delete">删除</el-button>
                     </template>
                   </el-popconfirm>
+                </template>
+
+                <template v-else-if="scope.row.source === 'custom' && !scope.row.is_creator">
+                  <el-tag size="small" type="info" effect="plain">他人创建</el-tag>
                 </template>
               </div>
             </template>

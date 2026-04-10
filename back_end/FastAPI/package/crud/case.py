@@ -993,11 +993,30 @@ def get_upcoming_events(
             schedules_query = schedules_query.filter(UserSchedule.event_date >= today)
 
         # 预加载可能关联的案件
-        custom_schedules = schedules_query.options(joinedload(UserSchedule.related_case)).all()
+        custom_schedules = schedules_query.options(
+            joinedload(UserSchedule.related_case).joinedload(Case.parties)
+        ).all()
 
         for sched in custom_schedules:
             c_num = sched.related_case.case_number if sched.related_case else None
-            c_client = sched.related_case.client_name if sched.related_case else None
+            c_client = None
+            if sched.related_case:
+                clients = [p.name for p in sched.related_case.parties if
+                           p.party_type and '委托' in p.party_type and p.name]
+                c_client = "、".join(clients) if clients else (sched.related_case.client_name or "")
+
+            # 判定“业务归属”：如果有关联案件，当前用户是不是这个案件的参与律师？
+            is_involved = False
+            if sched.related_case:
+                is_involved = (
+                        sched.related_case.main_lawyer_id == user_id or
+                        sched.related_case.assistant_lawyer_id == user_id or
+                        sched.related_case.assistant_lawyer_2_id == user_id or
+                        sched.related_case.execution_lawyer_id == user_id or
+                        sched.related_case.execution_assistant_id == user_id
+                )
+            else:
+                is_involved = True  # 没有关联案件
 
             events.append({
                 "case_id": sched.related_case_id,
@@ -1007,7 +1026,8 @@ def get_upcoming_events(
                 "event_date": sched.event_date,
                 "days_remaining": (sched.event_date - today).days,
                 "source": "custom", # 标记为自定义
-                "is_mine": True, # 自定义日程是当前用户的
+                "is_mine": is_involved,               # 业务归属判断（我的业务 vs 他人业务）
+                "is_creator": sched.user_id == user_id, # 判断是不是当前用户亲自创建的
                 "schedule_id": sched.id,
                 "description": sched.description
             })
