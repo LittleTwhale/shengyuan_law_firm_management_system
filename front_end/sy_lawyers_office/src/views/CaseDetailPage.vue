@@ -141,11 +141,32 @@
         <iframe v-else-if="previewType === 'pdf'" :src="previewUrl" class="pdf-iframe" />
       </div>
     </el-dialog>
+
+    <el-dialog
+      v-model="showProgressDialog"
+      :title="progressTitle"
+      width="350px"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      :show-close="false"
+      center
+      class="progress-dialog"
+    >
+      <div class="progress-container">
+        <el-progress
+          type="dashboard"
+          :percentage="progressPercent"
+          :color="progressColors"
+          :stroke-width="10"
+        />
+        <div class="progress-text">{{ progressText }}</div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, provide } from 'vue'
+import { onMounted, onUnmounted, provide, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
@@ -190,6 +211,21 @@ const caseId = route.params.id
 const attachments = ref([])
 const attachmentFileList = ref([])
 const loadingAttachments = ref(false)
+
+// -------------------------- 进度条相关状态 --------------------------
+const showProgressDialog = ref(false)
+const progressTitle = ref('正在处理')
+const progressPercent = ref(0)
+const progressText = ref('')
+// 进度条渐变色配置，显得更美观
+const progressColors = [
+  { color: '#f56c6c', percentage: 20 },
+  { color: '#e6a23c', percentage: 40 },
+  { color: '#5cb87a', percentage: 60 },
+  { color: '#1989fa', percentage: 80 },
+  { color: '#6f7ad3', percentage: 100 },
+]
+// ---------------------------------------------------------------------------
 
 const goBack = () => {
   // 1. 如果有明确的来源参数，直接跳转回来源页
@@ -284,12 +320,37 @@ const formatFileSize = (row) => {
 // 下载附件
 const downloadAttachment = async (attachment) => {
   try {
-    ElMessage.info('正在获取文件，请稍候...')
+    // 重置并显示进度条
+    progressTitle.value = '准备下载附件'
+    progressPercent.value = 0
+    progressText.value = '正在连接服务器...'
+    showProgressDialog.value = true
 
-    // 1. 发起请求，注意 responseType: 'blob' 必须加上
+    // 1. 发起请求，注意 responseType: 'blob' 必须加上，并监听 onDownloadProgress
     const res = await request.get(`/attachments/${attachment.attachment_id}/download`, {
       responseType: 'blob',
+      onDownloadProgress: (progressEvent) => {
+        progressTitle.value = '正在下载'
+        if (progressEvent.total) {
+          // 如果后端返回了 Content-Length，计算真实进度
+
+          progressPercent.value = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          const loadedMb = (progressEvent.loaded / (1024 * 1024)).toFixed(2)
+          const totalMb = (progressEvent.total / (1024 * 1024)).toFixed(2)
+          progressText.value = `${loadedMb} MB / ${totalMb} MB`
+        } else {
+          // 如果未返回 Content-Length (例如被Nginx gzip或者分块传输)，走备用逻辑
+          const loadedMb = (progressEvent.loaded / (1024 * 1024)).toFixed(2)
+          // 让进度条每次跳一点，但不超过 95%
+          progressPercent.value = progressPercent.value >= 95 ? 95 : progressPercent.value + 5
+          progressText.value = `已下载 ${loadedMb} MB (总大小未知)`
+        }
+      },
     })
+
+    // 请求完成后，设置为 100%
+    progressPercent.value = 100
+    progressText.value = '下载完毕，正在保存...'
 
     // 2. 获取文件名（从传入的 attachment 对象中获取，或者从响应头 Content-Disposition 提取）
     const fileName = attachment.file_name || '附件下载'
@@ -308,9 +369,17 @@ const downloadAttachment = async (attachment) => {
     // 4. 清理内存
     document.body.removeChild(link)
     window.URL.revokeObjectURL(downloadUrl)
+
+    ElMessage.success('下载成功')
   } catch (err) {
     console.error('下载附件失败:', err)
     ElMessage.error('附件下载失败，请检查网络或权限')
+    showProgressDialog.value = false
+  } finally {
+    // 延迟 500ms 关闭弹窗，让用户能看清 100% 的状态
+    setTimeout(() => {
+      showProgressDialog.value = false
+    }, 500)
   }
 }
 
@@ -339,12 +408,32 @@ const previewAttachment = async (attachment) => {
 
   // 2. 发起携带 Token 的请求获取文件流
   try {
-    ElMessage.info('正在加载预览，请稍候...')
+    // 重置并显示进度条
+    progressTitle.value = '准备预览环境'
+    progressPercent.value = 0
+    progressText.value = '正在缓冲文件...'
+    showProgressDialog.value = true
 
     // 使用统一的 request 请求，附带 responseType: 'blob'
     const res = await request.get(`/attachments/${attachment.attachment_id}/preview`, {
       responseType: 'blob',
+      onDownloadProgress: (progressEvent) => {
+        progressTitle.value = '加载预览中'
+        if (progressEvent.total) {
+          progressPercent.value = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          const loadedMb = (progressEvent.loaded / (1024 * 1024)).toFixed(2)
+          const totalMb = (progressEvent.total / (1024 * 1024)).toFixed(2)
+          progressText.value = `${loadedMb} MB / ${totalMb} MB`
+        } else {
+          const loadedMb = (progressEvent.loaded / (1024 * 1024)).toFixed(2)
+          progressPercent.value = progressPercent.value >= 95 ? 95 : progressPercent.value + 5
+          progressText.value = `已缓冲 ${loadedMb} MB (总大小未知)`
+        }
+      },
     })
+
+    progressPercent.value = 100
+    progressText.value = '缓冲完毕，即将渲染...'
 
     // 确定 Blob 的 MIME 类型 (特别注意：后端将 Word 转成了 PDF，所以此处可以强制指定为 pdf 格式)
     let contentType = fileType
@@ -369,6 +458,10 @@ const previewAttachment = async (attachment) => {
   } catch (err) {
     console.error('获取预览失败:', err)
     ElMessage.error('预览加载失败，请检查网络或权限')
+  } finally {
+    setTimeout(() => {
+      showProgressDialog.value = false
+    }, 500)
   }
 }
 
@@ -542,6 +635,20 @@ const formatDateTime = (dateVal) => {
   height: 100%;
   border: 1px solid #ffffff;
   border-radius: 4px;
+}
+
+/* 进度条弹窗特定样式 */
+.progress-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 15px 0;
+}
+.progress-text {
+  margin-top: 20px;
+  font-size: 14px;
+  color: #606266;
 }
 
 /* 移动端细微样式调整 */

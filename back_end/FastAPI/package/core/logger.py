@@ -174,6 +174,7 @@ file_handler.setFormatter(PLAIN_FORMATTER)
 # 1. 配置应用自己的 Logger
 app_logger = logging.getLogger("shengyuan_app")
 app_logger.setLevel(logging.INFO)
+app_logger.addFilter(EndpointFilter())
 app_logger.propagate = False
 if not app_logger.handlers:
     app_logger.addHandler(console_handler)
