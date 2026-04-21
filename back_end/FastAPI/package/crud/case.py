@@ -1257,7 +1257,7 @@ def export_cases_to_excel(
             format_date(case.closing_date), case.location or "", case.details or "",
             case.main_lawyer.real_name if case.main_lawyer else "",
             case.assistant_lawyer.real_name if case.assistant_lawyer else "",
-            Case.assistant_lawyer_2.real_name if case.assistant_lawyer_2 else "",
+            case.assistant_lawyer_2.real_name if case.assistant_lawyer_2 else "",
             case.execution_lawyer.real_name if case.execution_lawyer else "",
             case.execution_assistant.real_name if case.execution_assistant else "",
             case.review_status, case.reviewer.real_name if case.reviewer else "",
