@@ -69,6 +69,22 @@
           />
         </el-select>
 
+        <el-select
+          v-model="selectedExecutionLawyerId"
+          placeholder="执行主办律师筛选"
+          clearable
+          filterable
+          @change="handleSearch"
+          class="toolbar-item filter-select"
+        >
+          <el-option
+            v-for="lawyer in lawyers"
+            :key="lawyer.id"
+            :label="lawyer.real_name"
+            :value="lawyer.id"
+          />
+        </el-select>
+
         <el-date-picker
           v-model="selectedYear"
           type="year"
@@ -403,6 +419,26 @@
           </el-select>
         </el-form-item>
 
+        <el-form-item
+          label="执行主办律师"
+          v-if="currentUserRole === 'admin' || currentUserRole === 'owner'"
+        >
+          <el-select
+            v-model="exportForm.execution_lawyer_id"
+            placeholder="全部执行律师"
+            clearable
+            filterable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="lawyer in lawyers"
+              :key="lawyer.id"
+              :label="lawyer.real_name"
+              :value="lawyer.id"
+            />
+          </el-select>
+        </el-form-item>
+
         <el-form-item label="委托日期区间">
           <el-date-picker
             v-model="exportForm.dateRange"
@@ -503,6 +539,7 @@ const getReviewStatusType = (status) => {
 }
 
 const selectedLawyerId = ref(null) // 选中的主办律师ID
+const selectedExecutionLawyerId = ref(null) // 选中的执行主办律师ID
 // 年份变量，默认为当前年份字符串
 const selectedYear = ref(new Date().getFullYear().toString())
 // 排序相关的响应式变量
@@ -557,6 +594,7 @@ const loadCases = async () => {
         sort_field: currentSortField.value,
         sort_dir: currentSortDir.value,
         main_lawyer_id: selectedLawyerId.value, // 主办律师筛选
+        execution_lawyer_id: selectedExecutionLawyerId.value, // 执行主办律师筛选
       },
     })
     cases.value = res.data.items || []
@@ -749,6 +787,7 @@ const exportForm = reactive({
   keyword: '',
   case_category: '',
   main_lawyer_id: null,
+  execution_lawyer_id: null,
   year: '',
   dateRange: [],
 })
@@ -816,6 +855,7 @@ const handleExportClick = () => {
   exportForm.keyword = searchKeyword.value || ''
   exportForm.case_category = selectedCategory.value || ''
   exportForm.main_lawyer_id = selectedLawyerId.value || null
+  exportForm.execution_lawyer_id = selectedExecutionLawyerId.value || null
   exportForm.year = selectedYear.value || ''
   exportForm.dateRange = [] // 默认不设置具体日期区间
 
@@ -835,6 +875,7 @@ const submitExport = async () => {
       keyword: exportForm.keyword || null,
       case_category: exportForm.case_category || null,
       main_lawyer_id: exportForm.main_lawyer_id || null,
+      execution_lawyer_id: exportForm.execution_lawyer_id || null,
       year: exportForm.year || null,
       start_date:
         exportForm.dateRange && exportForm.dateRange.length === 2 ? exportForm.dateRange[0] : null,

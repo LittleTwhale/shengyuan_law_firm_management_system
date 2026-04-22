@@ -57,6 +57,7 @@ def get_cases(
     keyword: Optional[str] = None,  # 新增搜索关键词参数
     category: Optional[str] = None,  # 新增案件类别参数
     main_lawyer_id: Optional[int] = None,  # 新增主办律师参数
+    execution_lawyer_id: Optional[int] = None, # 新增执行主办律师参数
     year: Optional[str] = None,  # 新增年份参数
     sort_field: Optional[str] = "created_at",  # 排序参数
     sort_dir: Optional[str] = "desc",  # 排序方式
@@ -79,6 +80,7 @@ def get_cases(
         keyword=keyword,  # 传递给CRUD函数
         category=category,  # 传递给CRUD函数
         main_lawyer_id=main_lawyer_id,
+        execution_lawyer_id=execution_lawyer_id,
         year=year,
         sort_field=sort_field,
         sort_dir=sort_dir,
@@ -91,6 +93,7 @@ def get_cases(
         keyword=keyword,  # 传递给统计函数
         category=category,  # 传递给统计函数
         main_lawyer_id=main_lawyer_id,
+        execution_lawyer_id=execution_lawyer_id,
         year=year,
         can_view_all_bank=can_view_all_bank,
     )
@@ -109,6 +112,7 @@ def get_bank_cases(
     limit: int = 100,
     keyword: Optional[str] = None,  # 搜索关键词参数
     main_lawyer_id: Optional[int] = None,
+    execution_lawyer_id: Optional[int] = None,
     client_name: Optional[str] = None,
     year: Optional[str] = None,
     case_status: Optional[str] = None,
@@ -132,6 +136,7 @@ def get_bank_cases(
         limit=limit,
         keyword=keyword,
         main_lawyer_id=main_lawyer_id,
+        execution_lawyer_id=execution_lawyer_id,
         client_name=client_name,
         year=year,
         case_status=case_status,
@@ -145,6 +150,7 @@ def get_bank_cases(
         role=current_user.role,
         keyword=keyword,  # 传递给统计函数
         main_lawyer_id=main_lawyer_id,
+        execution_lawyer_id=execution_lawyer_id,
         client_name=client_name,
         year=year,
         case_status=case_status,

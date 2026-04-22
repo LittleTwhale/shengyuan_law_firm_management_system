@@ -67,6 +67,22 @@
         </el-select>
 
         <el-select
+          v-model="selectedExecutionLawyerId"
+          placeholder="执行主办律师筛选"
+          clearable
+          filterable
+          @change="handleSearch"
+          class="toolbar-item filter-select"
+        >
+          <el-option
+            v-for="lawyer in lawyers"
+            :key="lawyer.id"
+            :label="lawyer.real_name"
+            :value="lawyer.id"
+          />
+        </el-select>
+
+        <el-select
           v-model="selectedCaseStatus"
           placeholder="案件状态筛选"
           clearable
@@ -325,6 +341,26 @@
           </el-select>
         </el-form-item>
 
+        <el-form-item
+          label="执行主办律师"
+          v-if="currentUserRole === 'admin' || currentUserRole === 'owner'"
+        >
+          <el-select
+            v-model="exportForm.execution_lawyer_id"
+            placeholder="全部执行律师"
+            clearable
+            filterable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="lawyer in lawyers"
+              :key="lawyer.id"
+              :label="lawyer.real_name"
+              :value="lawyer.id"
+            />
+          </el-select>
+        </el-form-item>
+
         <el-form-item label="案件状态">
           <el-select
             v-model="exportForm.case_status"
@@ -501,6 +537,7 @@ const cases = ref([])
 const tableLoading = ref(false)
 const searchKeyword = ref('') // 搜索关键词
 const selectedLawyerId = ref(null) // 选中的主办律师ID
+const selectedExecutionLawyerId = ref(null) // 选中的执行主办律师ID
 // 年份变量，默认为当前年份字符串
 const selectedYear = ref(new Date().getFullYear().toString())
 // 委托银行相关响应式变量
@@ -619,6 +656,7 @@ const loadBankCases = async () => {
         sort_field: currentSortField.value, // 排序字段
         sort_dir: currentSortDir.value, // 排序方向
         main_lawyer_id: selectedLawyerId.value, // 主办律师筛选
+        execution_lawyer_id: selectedExecutionLawyerId.value, // 执行主办律师筛选
         client_name: selectedBank.value, // 委托银行筛选
       },
     })
@@ -879,6 +917,7 @@ const exportForm = reactive({
   keyword: '',
   client_name: null,
   main_lawyer_id: null,
+  execution_lawyer_id: null,
   year: '',
   dateRange: [],
   case_status: null,
@@ -948,6 +987,7 @@ const handleExportClick = () => {
   exportForm.keyword = searchKeyword.value || ''
   exportForm.client_name = selectedBank.value || null
   exportForm.main_lawyer_id = selectedLawyerId.value || null
+  exportForm.execution_lawyer_id = selectedExecutionLawyerId.value || null
   exportForm.case_status = selectedCaseStatus.value || null
   exportForm.year = selectedYear.value || ''
   exportForm.dateRange = []
@@ -966,6 +1006,7 @@ const submitExport = async () => {
       keyword: exportForm.keyword || null,
       case_category: '银行案件',
       main_lawyer_id: exportForm.main_lawyer_id || null,
+      execution_lawyer_id: exportForm.execution_lawyer_id || null,
       client_name: exportForm.client_name || null,
       year: exportForm.year || null,
       case_status: exportForm.case_status || null,

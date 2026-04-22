@@ -54,6 +54,7 @@ def list_cases_by_user_role(
         keyword: Optional[str] = None,  # 关键词查询
         category: Optional[str] = None,  # 案件类型筛选
         main_lawyer_id: Optional[int] = None,  # 主办律师筛选
+        execution_lawyer_id: Optional[int] = None, # 执行主办律师筛选
         year: Optional[str] = None,  # 年份筛选
         sort_field: str = "created_at",  # 排序字段，默认按创建时间
         sort_dir: str = "desc",  # 排序方向，默认降序（最新在前）
@@ -96,6 +97,10 @@ def list_cases_by_user_role(
     if main_lawyer_id is not None:
         query = query.filter(Case.main_lawyer_id == main_lawyer_id)
 
+    # 执行主办律师过滤
+    if execution_lawyer_id is not None:
+        query = query.filter(Case.execution_lawyer_id == execution_lawyer_id)
+
     # 类别筛选
     if category:
         query = query.filter(Case.case_category == category)
@@ -135,6 +140,7 @@ def count_cases_by_user_role(
         keyword: Optional[str] = None,  # 关键词查询
         category: Optional[str] = None,  # 案件类型筛选
         main_lawyer_id: Optional[int] = None,  # 主办律师筛选
+        execution_lawyer_id: Optional[int] = None, # 执行主办律师筛选
         year: Optional[str] = None,  # 年份筛选
         can_view_all_bank: bool = False # 是否允许查看所有银行案件
 ) -> int:
@@ -164,6 +170,9 @@ def count_cases_by_user_role(
     if main_lawyer_id is not None:
         query = query.filter(Case.main_lawyer_id == main_lawyer_id)
 
+    if execution_lawyer_id is not None:
+        query = query.filter(Case.execution_lawyer_id == execution_lawyer_id)
+
     # 类别筛选
     if category:
         query = query.filter(Case.case_category == category)
@@ -188,6 +197,7 @@ def list_bank_cases_by_user_role(
         limit: int = 100,
         keyword: Optional[str] = None,
         main_lawyer_id: Optional[int] = None,  # 主办律师筛选
+        execution_lawyer_id: Optional[int] = None, # 执行主办律师筛选
         client_name: Optional[str] = None, # 委托银行筛选
         year: Optional[str] = None,
         case_status: Optional[str] = None,
@@ -224,6 +234,9 @@ def list_bank_cases_by_user_role(
 
     if main_lawyer_id is not None:
         query = query.filter(Case.main_lawyer_id == main_lawyer_id)
+
+    if execution_lawyer_id is not None:
+        query = query.filter(Case.execution_lawyer_id == execution_lawyer_id)
 
     # 委托银行筛选逻辑 (兼容新表 CaseParty 和老字段 client_name)
     if client_name:
@@ -279,6 +292,7 @@ def count_bank_cases_by_user_role(
         role: str,
         keyword: Optional[str] = None,
         main_lawyer_id: Optional[int] = None,
+        execution_lawyer_id: Optional[int] = None,
         client_name: Optional[str] = None,
         year: Optional[str] = None,
         case_status: Optional[str] = None,
@@ -302,6 +316,9 @@ def count_bank_cases_by_user_role(
 
     if main_lawyer_id is not None:
         query = query.filter(Case.main_lawyer_id == main_lawyer_id)
+
+    if execution_lawyer_id is not None:
+        query = query.filter(Case.execution_lawyer_id == execution_lawyer_id)
 
     # 委托银行筛选逻辑 (兼容新表 CaseParty 和老字段 client_name)
     if client_name:
@@ -1099,6 +1116,8 @@ def export_cases_to_excel(
             query = query.filter(Case.case_category == query_params.case_category)
         if query_params.main_lawyer_id:
             query = query.filter(Case.main_lawyer_id == query_params.main_lawyer_id)
+        if query_params.execution_lawyer_id:
+            query = query.filter(Case.execution_lawyer_id == query_params.execution_lawyer_id)
         if query_params.client_name:
             query = query.filter(
                 or_(
@@ -1210,32 +1229,32 @@ def export_cases_to_excel(
                 p_id = p.id_number or "-"
 
                 if "委托人" in ptype:
-                    clients_name.append(pname);
-                    clients_phone.append(p_phone);
+                    clients_name.append(pname)
+                    clients_phone.append(p_phone)
                     clients_id.append(p_id)
                 elif ptype in ["原告", "申请人", "上诉人"]:
-                    plaintiffs_name.append(pname);
-                    plaintiffs_phone.append(p_phone);
+                    plaintiffs_name.append(pname)
+                    plaintiffs_phone.append(p_phone)
                     plaintiffs_id.append(p_id)
                 elif ptype in ["被告", "被告人", "被申请人", "被上诉人"]:
-                    defendants_name.append(pname);
-                    defendants_phone.append(p_phone);
+                    defendants_name.append(pname)
+                    defendants_phone.append(p_phone)
                     defendants_id.append(p_id)
                 elif ptype == "第三人":
-                    thirds_name.append(pname);
-                    thirds_phone.append(p_phone);
+                    thirds_name.append(pname)
+                    thirds_phone.append(p_phone)
                     thirds_id.append(p_id)
                 elif ptype == "借款人":
-                    borrowers_name.append(pname);
-                    borrowers_phone.append(p_phone);
+                    borrowers_name.append(pname)
+                    borrowers_phone.append(p_phone)
                     borrowers_id.append(p_id)
                 elif ptype == "担保人":
-                    guarantors_name.append(pname);
-                    guarantors_phone.append(p_phone);
+                    guarantors_name.append(pname)
+                    guarantors_phone.append(p_phone)
                     guarantors_id.append(p_id)
                 else:
                     others_name.append(f"{pname}({ptype})" if ptype else pname)
-                    others_phone.append(p_phone);
+                    others_phone.append(p_phone)
                     others_id.append(p_id)
 
         party_columns_data = [
