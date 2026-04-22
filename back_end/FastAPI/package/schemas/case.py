@@ -439,6 +439,9 @@ class CaseSimpleOut(BaseModel):
     case_status: Optional[str] = Field(None, description="案件状态 / Case status")
     review_status: str = Field(..., description="案件审核状态 / Review status")
     main_lawyer: Optional[UserOut] = Field(None, description="主办律师 / Main lawyer")
+    execution_lawyer: Optional[UserOut] = Field(None, description="执行主办律师 / Execution lawyer")
+    litigation_fee_payment_amount: Optional[Decimal] =Field(0, description="诉讼费缴费金额 / Litigation fee payment amount")
+    litigation_fee_refund_amount: Optional[Decimal] = Field(0, description="诉讼费退费金额 / Litigation fee refund amount")
     created_at: datetime = Field(..., description="创建时间 / Created at")
 
     class Config:

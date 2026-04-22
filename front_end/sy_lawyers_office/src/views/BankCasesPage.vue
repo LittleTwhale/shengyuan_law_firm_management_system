@@ -141,6 +141,24 @@
           align="center"
         />
 
+        <el-table-column label="执行主办律师" min-width="120" align="center">
+          <template #default="scope">
+            {{ scope.row.execution_lawyer?.real_name || '-' }}
+          </template>
+        </el-table-column>
+
+        <el-table-column label="诉讼费缴费金额" min-width="130" align="center">
+          <template #default="scope">
+            {{ scope.row.litigation_fee_payment_amount ?? '-' }}
+          </template>
+        </el-table-column>
+
+        <el-table-column label="诉讼费退费金额" min-width="130" align="center">
+          <template #default="scope">
+            {{ scope.row.litigation_fee_refund_amount ?? '-' }}
+          </template>
+        </el-table-column>
+
         <el-table-column label="审核状态" min-width="100" align="center">
           <template #default="scope">
             <el-tag :type="getReviewStatusType(scope.row.review_status)" effect="dark" size="small">
