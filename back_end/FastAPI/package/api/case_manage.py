@@ -896,6 +896,7 @@ async def batch_sync_excel(
     """
     高级批量同步接口：支持通过 Excel 覆盖更新现有案件
     逻辑：若 ID 存在则更新，若 ID 不存在则新增
+    包含对律师信息的同步更新
     """
     try:
         contents = await file.read()
@@ -925,6 +926,26 @@ async def batch_sync_excel(
     def parse_bool(val):
         return str(val).strip() == "是"
 
+    # 律师姓名到ID的缓存字典，避免批量导入时频繁查询数据库
+    lawyer_cache = {}
+
+    def get_lawyer_id(name_val):
+        """将 Excel 中的律师姓名转换为数据库中的 User ID"""
+        name_str = str(name_val).strip() if name_val else ""
+        if not name_str or name_str.lower() in ["none", "nan", "null", ""]:
+            return None
+
+        if name_str in lawyer_cache:
+            return lawyer_cache[name_str]
+
+        # 依赖已经导入的 get_user_id_by_name 函数
+        user_id = get_user_id_by_name(db, name_str)
+        if user_id:
+            lawyer_cache[name_str] = user_id
+            return user_id
+        else:
+            raise ValueError(f"系统中不存在姓名为 '{name_str}' 的用户")
+
     success_count = 0
     update_count = 0
     errors = []
@@ -939,12 +960,20 @@ async def batch_sync_excel(
             continue
 
         try:
-            # 1. 查找现有案件
+            # 1. 解析并校验律师信息（如果名字填错，会抛出 ValueError 直接进入 except 记录错误，不影响其他行）
+            main_lawyer_id = get_lawyer_id(row_data.get("主办律师"))
+            assistant_lawyer_id = get_lawyer_id(row_data.get("助理律师"))
+            assistant_lawyer_2_id = get_lawyer_id(row_data.get("第二助理律师"))
+            execution_lawyer_id = get_lawyer_id(row_data.get("执行主办律师"))
+            execution_assistant_id = get_lawyer_id(row_data.get("执行助理律师"))
+            reviewer_id = get_lawyer_id(row_data.get("审核人"))
+
+            # 2. 查找现有案件
             existing_case = None
             if case_id:
                 existing_case = db.query(Case).filter(Case.case_id == case_id).first()
 
-            # 2. 准备基础字段数据 (全量字段映射)
+            # 3. 准备基础字段数据 (加入解析后的律师ID)
             case_update_dict = {
                 "commission_date": parse_date(row_data.get("委托日期")),
                 "case_category": row_data.get("业务类别"),
@@ -965,6 +994,16 @@ async def batch_sync_excel(
                 "closing_date": parse_date(row_data.get("结案时间")),
                 "location": row_data.get("案件地点"),
                 "details": row_data.get("案件详情"),
+
+                # --- 律师更新部分 ---
+                "main_lawyer_id": main_lawyer_id,
+                "assistant_lawyer_id": assistant_lawyer_id,
+                "assistant_lawyer_2_id": assistant_lawyer_2_id,
+                "execution_lawyer_id": execution_lawyer_id,
+                "execution_assistant_id": execution_assistant_id,
+                "reviewer_id": reviewer_id,
+                # -------------------------
+
                 "is_major": parse_bool(row_data.get("是否重大")),
                 "has_paper_file": parse_bool(row_data.get("是否纸质卷宗")),
                 "is_dismissed": parse_bool(row_data.get("是否解除")),
@@ -979,13 +1018,13 @@ async def batch_sync_excel(
                 "litigation_fee_payment_amount": parse_decimal(row_data.get("诉讼费缴费金额")),
                 "litigation_fee_refund_date": parse_date(row_data.get("诉讼费退费时间")),
                 "litigation_fee_refund_amount": parse_decimal(row_data.get("诉讼费退费金额")),
-                "application_execution_date": parse_date(row_data.get("申请执行日")),
+                "execution_application_date": parse_date(row_data.get("申请执行日")),
                 "mediation_due_date": parse_date(row_data.get("调解到期日")),
                 "execution_due_date": parse_date(row_data.get("执行到期日")),
                 "advisory_due_date": parse_date(row_data.get("顾问到期日")),
             }
 
-            # 3. 处理银行案件专属字段
+            # 4. 处理银行案件专属字段
             bank_data = None
             if row_data.get("业务类别") == "银行案件":
                 bank_data = {
@@ -1046,7 +1085,7 @@ async def batch_sync_excel(
                     "mediation_tracking": row_data.get("调解案件履行跟踪情况"),
                 }
 
-            # 4. 执行更新或新增
+            # 5. 执行更新或新增
             if existing_case:
                 # 更新 Case 表
                 for key, value in case_update_dict.items():
@@ -1073,6 +1112,10 @@ async def batch_sync_excel(
 
             db.commit()
 
+        except ValueError as ve:
+            # 捕获找不到律师等值错误，将其作为行错误收集并不中断后续执行
+            db.rollback()
+            errors.append(f"第{row_idx}行({case_number})解析失败: {str(ve)}")
         except Exception as e:
             db.rollback()
             errors.append(f"第{row_idx}行({case_number})处理失败: {str(e)}")
