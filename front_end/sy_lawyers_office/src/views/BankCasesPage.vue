@@ -10,7 +10,12 @@
           <el-icon><Refresh /></el-icon>
           批量同步(更新)
         </el-button>
-        <el-button type="danger" :disabled="selectedCases.length === 0" @click="handleBatchDelete">
+        <el-button
+          v-if="hasDeletePermission"
+          type="danger"
+          :disabled="selectedCases.length === 0"
+          @click="handleBatchDelete"
+        >
           批量删除
         </el-button>
         <el-button
@@ -203,7 +208,7 @@
               <el-button
                 size="small"
                 type="danger"
-                :disabled="currentUserRole === 'user' && scope.row.review_status === '已审核'"
+                :disabled="!hasDeletePermission && scope.row.review_status === '已审核'"
                 @click="deleteCase(scope.row.case_id)"
                 >删除</el-button
               >
@@ -529,7 +534,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import CaseForm from './CaseForm.vue'
@@ -546,6 +551,14 @@ const checkDeviceType = () => {
 // 当前用户信息
 const currentUserID = ref(localStorage.getItem('user_id'))
 const currentUserRole = ref(localStorage.getItem('role'))
+
+// 允许删除的特定用户 ID 白名单
+const allowedDeleteUserIds = ['1', '2', '3']
+
+// 计算属性，判断当前登录用户是否有删除权限
+const hasDeletePermission = computed(() => {
+  return allowedDeleteUserIds.includes(currentUserID.value)
+})
 
 // 表格与分页数据
 const page = ref(1)
