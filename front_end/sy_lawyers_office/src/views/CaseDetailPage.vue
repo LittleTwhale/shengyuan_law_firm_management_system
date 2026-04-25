@@ -4,6 +4,52 @@
 
     <h2 class="page-title">业务详情与卷宗</h2>
 
+    <div class="action-bar">
+      <el-button class="generate-btn" type="primary" @click="openGenerateDialog" round>
+        <el-icon><Document /></el-icon>
+        自动生成文书
+      </el-button>
+    </div>
+
+    <el-dialog
+      v-model="showGenerateDialog"
+      title="选择文书模板"
+      width="450px"
+      :close-on-click-modal="false"
+    >
+      <el-form label-width="80px" @submit.prevent>
+        <el-form-item label="选择模板">
+          <el-select
+            v-model="selectedTemplateId"
+            placeholder="请选择需要填充的Word模板"
+            style="width: 100%"
+            filterable
+          >
+            <el-option
+              v-for="tpl in wordTemplates"
+              :key="tpl.id"
+              :label="tpl.name"
+              :value="tpl.id"
+            />
+          </el-select>
+        </el-form-item>
+        <div style="font-size: 12px; color: #909399; margin-left: 80px">
+          提示：只有 Word 格式的模板支持自动填充。
+        </div>
+      </el-form>
+      <template #footer>
+        <el-button @click="showGenerateDialog = false">取消</el-button>
+        <el-button
+          type="primary"
+          @click="handleGenerateDocument"
+          :loading="isGenerating"
+          :disabled="!selectedTemplateId"
+        >
+          <el-icon v-if="!isGenerating"><Download /></el-icon> 生成并下载
+        </el-button>
+      </template>
+    </el-dialog>
+
     <el-tabs v-model="activeTab" type="border-card" class="detail-tabs">
       <el-tab-pane label="业务详情" name="detail">
         <el-card
@@ -170,7 +216,7 @@ import { onMounted, onUnmounted, provide, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
-
+import { Document, Download } from '@element-plus/icons-vue'
 // 引入拆分的组件
 import GeneralCaseDetail from './GeneralCaseDetail.vue'
 import CaseVolumePanel from '@/views/CaseVolumePanel.vue'
@@ -246,6 +292,95 @@ const goBack = () => {
     router.back()
   }
 }
+
+// ================== 自动生成文书逻辑 ==================
+const showGenerateDialog = ref(false)
+const selectedTemplateId = ref(null)
+const wordTemplates = ref([])
+const isGenerating = ref(false)
+
+// 打开弹窗并获取模板列表
+const openGenerateDialog = async () => {
+  showGenerateDialog.value = true
+  selectedTemplateId.value = null
+  try {
+    // 获取所有模板（假设最多取1000个），你可以使用你在 DocumentPage 里的路由
+    const res = await request.get('/template/document?limit=1000&skip=0')
+    // 过滤出 Word 文档
+    wordTemplates.value = res.data.filter((tpl) =>
+      [
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ].includes(tpl.file_type),
+    )
+  } catch (err) {
+    ElMessage.error('获取模板列表失败')
+    console.error(err)
+  }
+}
+
+// 提交生成并处理文件下载
+const handleGenerateDocument = async () => {
+  if (!selectedTemplateId.value) return
+  isGenerating.value = true
+
+  try {
+    // 注意：这里必须加上 responseType: 'blob' 才能接收二进制文件流
+    const res = await request.post(
+      `/template/document/${selectedTemplateId.value}/generate/${caseId}`,
+      {},
+      {
+        responseType: 'blob',
+      },
+    )
+
+    // 提取后端传来的文件名 (通过 headers 里的 Content-Disposition)
+    let filename = '自动生成文书.docx'
+    const disposition =
+      res.headers['content-disposition'] || res.headers['Content-Disposition'] || ''
+
+    if (disposition) {
+      // 优先解析 RFC 5987 格式: filename*=UTF-8''xxx
+      const encodedMatch = disposition.match(/filename\*=UTF-8''([^;]*)/i)
+      if (encodedMatch) {
+        try {
+          filename = decodeURIComponent(encodedMatch[1])
+        } catch (e) {
+          console.warn('解码文件名失败，使用原始值', e)
+          filename = encodedMatch[1] // 解码失败时直接用未解码的值
+        }
+      } else {
+        // 兜底：普通 filename="xxx" 或 filename=xxx
+        const normalMatch = disposition.match(/filename="?([^";]+)"?/)
+        if (normalMatch) {
+          filename = normalMatch[1]
+        }
+      }
+    }
+
+    // 触发下载
+    const blob = new Blob([res.data], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    })
+    const downloadUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(downloadUrl)
+
+    showGenerateDialog.value = false
+    ElMessage.success('文书生成成功！')
+  } catch (err) {
+    console.error('文书生成失败:', err)
+    ElMessage.error('文书生成失败，请检查模板是否损坏或重试')
+  } finally {
+    isGenerating.value = false
+  }
+}
+// =========================================================
 
 const loadCaseDetail = async () => {
   loading.value = true
@@ -550,6 +685,32 @@ const formatDateTime = (dateVal) => {
 </script>
 
 <style scoped>
+/* 修改操作栏为左对齐 */
+.action-bar {
+  display: flex;
+  justify-content: flex-start; /* 原为 flex-end */
+  margin-bottom: 15px;
+}
+
+/* 方案一：强化按钮样式 */
+.generate-btn {
+  background: linear-gradient(135deg, #409eff 0%, #6a11cb 100%);
+  border: none;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.35);
+  transition: all 0.3s ease;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.generate-btn:hover {
+  background: linear-gradient(135deg, #66b1ff 0%, #8b5cf6 100%);
+  box-shadow: 0 6px 20px rgba(64, 158, 255, 0.45);
+  transform: translateY(-1px);
+}
+
+.generate-btn:active {
+  transform: translateY(1px);
+}
 .case-detail {
   padding: 20px;
 }
