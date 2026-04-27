@@ -301,8 +301,12 @@ async def generate_document_from_template(
         "案由": case.cause or "",
         "主办律师": case.main_lawyer.real_name if case.main_lawyer else "",
         "委托日期": case.commission_date.strftime("%Y年%m月%d日") if case.commission_date else "",
+        "开庭时间": case.hearing_date.strftime("%Y年%m月%d日") if case.hearing_date else "",
+        "结案时间": case.closing_date.strftime("%Y年%m月%d日") if case.closing_date else "",
         "业务收入":case.case_income or "0.00",
-        "法院案号": case.case_code or "",  # 法院案号
+        "法院案号": case.case_code or "",
+        "介入阶段": case.stage or "",
+        "案件详情": case.details or "",
 
         # 动态提取当事人信息（完全依赖 CaseParty 表）
         "委托人": get_party_names("委托人"),

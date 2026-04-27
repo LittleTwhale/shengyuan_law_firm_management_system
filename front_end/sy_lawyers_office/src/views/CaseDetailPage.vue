@@ -34,7 +34,7 @@
           </el-select>
         </el-form-item>
         <div style="font-size: 12px; color: #909399; margin-left: 80px">
-          提示：只有 Word 格式的模板支持自动填充。
+          提示：只有 Word 格式的模板支持自动填充。文书模板中的审批表暂不支持自动填充，请至业务管理中点击下载审批表获取系统自动生成的通用审批表
         </div>
       </el-form>
       <template #footer>
