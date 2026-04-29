@@ -131,6 +131,7 @@ provide('isMobile', isMobile)
 const props = defineProps({
   visible: { type: Boolean, default: false },
   caseId: { type: [Number, String], default: null },
+  cloneId: { type: [Number, String], default: null }, // 接收克隆的源业务ID
   currentUserId: { type: [Number, String], default: null },
   currentUserRole: { type: String, default: '' },
   reviewStatus: { type: String, default: '' },
@@ -161,7 +162,13 @@ const dialogVisible = computed({
   set: (val) => emit('update:visible', val),
 })
 
-const dialogTitle = computed(() => (props.caseId ? '编辑业务' : '新增业务'))
+// 根据不同状态动态计算弹窗标题
+const dialogTitle = computed(() => {
+  if (props.caseId) return '编辑业务'
+  if (props.cloneId) return '复用业务'
+  return '新增业务'
+})
+
 const loading = ref(false)
 const formRef = ref(null)
 const rawFiles = ref([])
@@ -388,11 +395,11 @@ const fetchLawyers = async () => {
   }
 }
 
-// 获取详情并填充表单
-const fetchCaseDetail = async () => {
-  if (!props.caseId) return
+// 获取详情并填充表单 (修改为接收动态目标ID)
+const fetchCaseDetail = async (targetId) => {
+  if (!targetId) return
   try {
-    const res = await request.get(`/cases/${props.caseId}`)
+    const res = await request.get(`/cases/${targetId}`)
     const data = res.data
 
     // 填充基础数据
@@ -526,7 +533,15 @@ const fetchCaseDetail = async () => {
       formData.bank_case_details = JSON.parse(JSON.stringify(initialBankDetails))
     }
 
-    await loadFormAttachments(props.caseId)
+    // 如果是复用模式，剥离不该复制的信息
+    if (props.cloneId && !props.caseId) {
+      formData.attachments = [] // 不带旧附件过来
+      formData.case_code = null // 法院案号不能重复
+      // 可按需在这里把想要置空的内容重置：例如 closing_status = null 等
+    } else {
+      // 只有正常编辑，才去拉取旧附件
+      await loadFormAttachments(targetId)
+    }
   } catch (err) {
     console.error(err)
     ElMessage.error('加载业务数据失败')
@@ -602,14 +617,22 @@ const addEmptyParty = (arr, type) => {
   })
 }
 
+// 优化侦听器，覆盖 cloneId 分支
 watch(
   () => props.visible,
   (val) => {
     if (val) {
       fetchLawyers()
       if (props.caseId) {
-        fetchCaseDetail()
+        // 编辑模式
+        fetchCaseDetail(props.caseId)
+      } else if (props.cloneId) {
+        // 复用模式
+        if (formRef.value) formRef.value.clearValidate()
+        rawFiles.value = [] // 清除旧的待上传文件
+        fetchCaseDetail(props.cloneId)
       } else {
+        // 纯新增模式
         // 清除表单校验错误提示
         if (formRef.value) formRef.value.clearValidate()
 
@@ -788,6 +811,7 @@ const handleSubmit = async () => {
         // ================== 提交保存 ==================
         let res
         let targetCaseId
+        // ✅ 只有明确传了 caseId 才是更新，复用由于 caseId 为空会走新建逻辑
         if (props.caseId) {
           res = await request.put(`/cases/case_update/${props.caseId}`, submitData)
           targetCaseId = props.caseId
@@ -795,7 +819,7 @@ const handleSubmit = async () => {
         } else {
           res = await request.post('/cases/case_create', submitData)
           targetCaseId = res.data.case_id
-          ElMessage.success('创建成功')
+          ElMessage.success(props.cloneId ? '复用创建成功' : '创建成功') // 顺手优化下提示文案
         }
 
         // ================== 附件上传 ==================
@@ -804,7 +828,7 @@ const handleSubmit = async () => {
             const fd = new FormData()
             const file = fileItem.raw || fileItem
             fd.append('file', file)
-            fd.append('case_id', targetCaseId)
+            fd.append('case_id', targetCaseId) // ✅ 如果是复用生成的，这里会把暂存区的附件挂载到新业务下
 
             return request.post('/attachments/', fd, {
               headers: { 'Content-Type': 'multipart/form-data' },

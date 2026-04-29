@@ -137,7 +137,7 @@
         />
         <el-table-column
           label="操作"
-          min-width="400"
+          min-width="290"
           header-align="center"
           align="left"
           :fixed="isMobile ? false : 'right'"
@@ -157,31 +157,44 @@
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
-              <el-button size="small" type="warning" @click="handleEditClick(scope.row)"
-                >编辑</el-button
-              >
+
+              <el-button size="small" type="warning" @click="handleEditClick(scope.row)">
+                编辑
+              </el-button>
+
               <el-button
                 size="small"
                 type="danger"
-                :disabled="currentUserRole === 'user' && scope.row.review_status === '已审核'"
+                :disabled="isDeleteDisabled(scope.row)"
                 @click="deleteCase(scope.row.case_id)"
               >
                 删除
               </el-button>
-              <el-button size="small" type="primary" plain @click="handleUploadClick(scope.row)">
-                <el-icon><Upload /></el-icon>
-                上传附件
-              </el-button>
-              <el-button
-                v-if="scope.row.review_status === '已审核'"
-                link
-                type="primary"
-                size="small"
-                @click="handleDownloadApproval(scope.row)"
-              >
-                <el-icon><Document /></el-icon>
-                下载审批表
-              </el-button>
+
+              <el-dropdown trigger="click" @command="(cmd) => handleMoreAction(cmd, scope.row)">
+                <el-button size="small" plain>
+                  更多 <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="clone">
+                      <el-icon><CopyDocument /></el-icon> 复用此业务
+                    </el-dropdown-item>
+
+                    <el-dropdown-item command="upload">
+                      <el-icon><Upload /></el-icon> 上传附件
+                    </el-dropdown-item>
+
+                    <el-dropdown-item
+                      v-if="scope.row.review_status === '已审核'"
+                      command="download"
+                    >
+                      <el-icon><Download /></el-icon>
+                      下载审批表
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </div>
           </template>
         </el-table-column>
@@ -209,6 +222,7 @@
       :current-user-id="currentUserID"
       :current-user-role="currentUserRole"
       :case-id="formMode === 'edit' ? currentCaseId : null"
+      :clone-id="currentCloneId"
       :review-status="currentReviewStatus"
       @submit="handleFormSubmit"
     />
@@ -492,7 +506,16 @@ import request from '@/utils/request'
 import { ElMessage, ElNotification } from 'element-plus'
 import CaseForm from './CaseForm.vue' // 引入抽离的CaseForm组件
 import { useRouter } from 'vue-router'
-import { Check, Document, Loading, Upload, UploadFilled, Download } from '@element-plus/icons-vue' // 新增了 Download 图标
+import {
+  Check,
+  Document,
+  Loading,
+  Upload,
+  UploadFilled,
+  Download,
+  ArrowDown,
+  CopyDocument,
+} from '@element-plus/icons-vue'
 
 // -------------------------- 响应式/移动端适配相关 --------------------------
 const isMobile = ref(false)
@@ -503,6 +526,30 @@ const checkDeviceType = () => {
 // -------------------------- 当前用户数据 ----------------------------
 const currentUserID = ref(localStorage.getItem('user_id'))
 const currentUserRole = ref(localStorage.getItem('role'))
+
+// >>>>>>>>> 删除权限综合判断逻辑 >>>>>>>>>
+// 允许删除银行案件的特定用户 ID 白名单
+const allowedDeleteUserIds = ['1', '2', '3']
+
+// 计算属性，判断当前登录用户是否在白名单内
+const hasDeletePermission = computed(() => {
+  return allowedDeleteUserIds.includes(currentUserID.value)
+})
+
+// 判断某一行数据是否禁用删除功能
+const isDeleteDisabled = (row) => {
+  // 如果案件未审核或已拒绝，任何人均不禁用（均可删除）
+  if (row.review_status !== '已审核') return false
+
+  // 如果是“已审核”的案件，按业务分类区分逻辑：
+  if (row.case_category === '银行案件') {
+    // 银行案件：不在白名单内的用户禁用
+    return !hasDeletePermission.value
+  } else {
+    // 其他案件：普通 user 禁用
+    return currentUserRole.value === 'user'
+  }
+}
 
 // -------------------------- 表格与分页相关 --------------------------
 const page = ref(1)
@@ -550,6 +597,7 @@ const currentSortDir = ref('desc') // 默认降序（最新的在前面）
 // 明确指定formMode的类型为'add'或'edit'
 const formMode = ref('add') // 表单模式：'add'（新增）/'edit'（编辑）
 const currentCaseId = ref('') // 当前编辑的案件ID（编辑时用）
+const currentCloneId = ref(null) // 用于记录正在被复用的业务ID
 
 // -------------------------- 数据存储相关 --------------------------
 const lawyers = ref([]) // 律师列表
@@ -664,10 +712,8 @@ const handleSelectionChange = (val) => {
 const handleBatchDelete = async () => {
   if (selectedCases.value.length === 0) return
 
-  // 1. 权限过滤：检查是否有普通用户无权删除的“已审核”案件
-  const validCases = selectedCases.value.filter(
-    (row) => !(currentUserRole.value === 'user' && row.review_status === '已审核'),
-  )
+  // 1. 权限过滤：根据不同业务类型，检查是否有无权删除的案件
+  const validCases = selectedCases.value.filter((row) => !isDeleteDisabled(row))
 
   if (validCases.length === 0) {
     ElMessage.warning('选中的案件已审核，您无权删除')
@@ -706,6 +752,7 @@ const showFormDialog = ref(false)
 const handleAddClick = () => {
   formMode.value = 'add'
   currentCaseId.value = null // 确保编辑 ID 清空
+  currentCloneId.value = null // 重置克隆ID
   currentReviewStatus.value = '' // 重置审核状态
   // 清空表单数据（避免残留）
   Object.assign(formData, JSON.parse(JSON.stringify({})))
@@ -732,6 +779,26 @@ const handleEditClick = async (row) => {
   } catch (err) {
     console.error('加载案件详情失败:', err)
     ElMessage.error('加载案件详情失败，请稍后重试')
+  }
+}
+
+// -------------------------- 复用案件相关 --------------------------
+const handleCloneClick = (row) => {
+  formMode.value = 'add' // 模式依然是新增
+  currentCaseId.value = null // 不是编辑，所以置空
+  currentCloneId.value = row.case_id // 记录要复用的源ID
+  currentReviewStatus.value = ''
+  showFormDialog.value = true
+}
+
+// 更多下拉菜单处理函数
+const handleMoreAction = (command, row) => {
+  if (command === 'clone') {
+    handleCloneClick(row) // 调用我们之前写的复用函数
+  } else if (command === 'upload') {
+    handleUploadClick(row) // 原有的上传附件函数
+  } else if (command === 'download') {
+    handleDownloadApproval(row) // 原有的下载审批表函数
   }
 }
 
