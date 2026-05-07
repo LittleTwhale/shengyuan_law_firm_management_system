@@ -2,7 +2,7 @@
 import os
 from typing import List, Optional, Tuple
 
-from sqlalchemy import or_
+from sqlalchemy import or_, func, Text
 from sqlalchemy.orm import Session, joinedload
 
 from ..core.config import PDF_VOLUME_ROOT
@@ -58,7 +58,7 @@ def _apply_volume_filters(query, db: Session, current_user: User, params: Option
 
     # ---------------- 2. 业务筛选条件 ----------------
     if params:
-        # 关键词搜索 (同时匹配 卷宗名称 OR 案件号 OR 委托人)
+        # 关键词搜索 (同时匹配 卷宗名称 OR 案件号 OR 委托人 OR 卷内文件)
         if params.keyword:
             search = f"%{params.keyword}%"
             # 注意：CaseVolume.name 是卷宗名，Case.case_number 是案号
@@ -66,7 +66,16 @@ def _apply_volume_filters(query, db: Session, current_user: User, params: Option
                 or_(
                     CaseVolume.name.ilike(search),
                     Case.case_number.ilike(search),
-                    Case.client_name.ilike(search)
+                    Case.client_name.ilike(search),
+                    # 同时搜索卷内文件：文件名、摘要、OCR全文、标签
+                    CaseVolume.files.any(
+                        or_(
+                            VolumeFile.file_name.ilike(search),
+                            VolumeFile.summary.ilike(search),
+                            VolumeFile.ocr_content.ilike(search),
+                            func.cast(VolumeFile.tags, Text).ilike(search)
+                        )
+                    )
                 )
             )
 
@@ -313,7 +322,7 @@ def get_files_in_volume(
                 VolumeFile.summary.like(search_term),
                 VolumeFile.ocr_content.like(search_term),
                 # 简单处理 JSON 字段的字符串搜索
-                VolumeFile.tags.cast(str).like(search_term)
+                func.cast(VolumeFile.tags, Text).like(search_term)
             )
         )
 
@@ -346,7 +355,8 @@ def search_all_files(
         or_(
             VolumeFile.file_name.like(search_term),
             VolumeFile.summary.like(search_term),
-            VolumeFile.ocr_content.like(search_term)
+            VolumeFile.ocr_content.like(search_term),
+            func.cast(VolumeFile.tags, Text).like(search_term)
         )
     )
 
@@ -377,7 +387,8 @@ def search_files_with_count(
             or_(
                 VolumeFile.file_name.like(search_term),
                 VolumeFile.summary.like(search_term),
-                VolumeFile.ocr_content.like(search_term)
+                VolumeFile.ocr_content.like(search_term),
+                func.cast(VolumeFile.tags, Text).like(search_term)
             )
         )
 

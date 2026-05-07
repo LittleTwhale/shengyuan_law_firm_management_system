@@ -108,6 +108,32 @@ def check_volume_write_permission(db: Session, user: User, case_id: int):
     return True
 
 
+def check_volume_read_permission(db: Session, user: User, case_id: int):
+    """
+    检查用户是否有权查看指定案件的卷宗【读操作】
+    与写权限的区别：不要求案件状态为"已审核"
+    """
+    if user.role in ['owner']:
+        return
+    if user.permissions and user.permissions.get("volume_manage"):
+        return
+
+    case = db.query(Case).filter(Case.case_id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="关联案件不存在")
+
+    is_related = (
+            case.main_lawyer_id == user.id or
+            case.assistant_lawyer_id == user.id or
+            case.assistant_lawyer_2_id == user.id or
+            case.execution_lawyer_id == user.id or
+            case.execution_assistant_id == user.id
+    )
+
+    if not is_related:
+        raise HTTPException(status_code=403, detail="您无权查看此案件的卷宗")
+
+
 # ==========================================
 # 1. 卷宗 (CaseVolume) 接口
 # ==========================================
@@ -177,10 +203,29 @@ def get_volume_detail(
     if not volume:
         raise HTTPException(status_code=404, detail="卷宗不存在")
 
-    # 这里也可以加一个 Read 权限校验，但 get_volumes_by_case 里的逻辑通常已经覆盖
-    # 如果需要严格控制，可以复用 crud._apply_volume_filters 的逻辑进行二次检查
-
+    check_volume_read_permission(db, current_user, volume.case_id)
     return volume
+
+
+@router.get("/{volume_id}/files", response_model=schemas.VolumeFilePageOut)
+def list_files_in_volume(
+        volume_id: int,
+        keyword: Optional[str] = None,
+        category: Optional[str] = None,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """
+    获取卷宗内文件列表（支持关键词搜索和分类筛选）
+    搜索范围：文件名、标签、摘要备注、OCR识别内容
+    """
+    volume = crud.get_volume_by_id(db, volume_id)
+    if not volume:
+        raise HTTPException(status_code=404, detail="卷宗不存在")
+
+    check_volume_read_permission(db, current_user, volume.case_id)
+    files = crud.get_files_in_volume(db, volume_id, category=category, keyword=keyword)
+    return {"total": len(files), "items": files}
 
 
 @router.put("/{volume_id}", response_model=schemas.CaseVolumeOut)
@@ -250,43 +295,55 @@ def delete_volume(
 
 def background_ocr_task(file_id: int, file_path: str, file_type: str):
     """
-    后台 OCR 任务
+    后台 OCR 任务：对上传文件执行智能文本提取并写入数据库
     """
-    print(f"[Task] 开始处理文件 ID: {file_id}")
+    print(f"[OCR Task] 开始处理 file_id={file_id}, path={file_path}, type={file_type}")
 
-    # =================  针对 .doc 的特殊等待逻辑 =================
-    if file_path.endswith('.doc'):
+    # === .doc 文件等待 Word→PDF 转换完成 ===
+    real_path = file_path
+    if file_path.lower().endswith('.doc') and not file_path.lower().endswith('.docx'):
         pdf_path = os.path.splitext(file_path)[0] + ".pdf"
-        # 简单的轮询等待，最多等 20 秒
-        max_retries = 10
+        max_retries = 15  # 最多等 30 秒
         for i in range(max_retries):
             if os.path.exists(pdf_path):
+                real_path = pdf_path
+                file_type = "application/pdf"
+                print(f"[OCR Task] .doc 已转为 PDF: {pdf_path}")
                 break
-            print(f"[Task] 等待 .doc 转 PDF 完成... ({i + 1}/{max_retries})")
-            time.sleep(2)  # 每次等2秒
-    # ===================================================================
+            print(f"[OCR Task] 等待 .doc 转 PDF ... ({i + 1}/{max_retries})")
+            time.sleep(2)
+        else:
+            print(f"[OCR Task] 警告: .doc 转 PDF 超时，尝试直接处理原文件")
 
-    # 执行智能提取 (耗时操作)
+    # === 执行智能提取 ===
     try:
-        content = perform_smart_extraction(file_path, file_type)
+        content = perform_smart_extraction(real_path, file_type)
     except Exception as e:
-        print(f"[Task] Extraction failed: {e}")
+        print(f"[OCR Task] 提取异常: {e}")
+        content = ""
+
+    if not content or not content.strip():
+        print(f"[OCR Task] 未提取到有效内容 file_id={file_id}")
         return
 
-    if not content:
-        print(f"[Task] 未提取到内容 ID: {file_id}")
-        return
+    # === 截断过长内容，避免数据库写入问题 ===
+    max_len = 500000
+    if len(content) > max_len:
+        print(f"[OCR Task] 内容过长 ({len(content)} 字符)，截断至 {max_len}")
+        content = content[:max_len]
 
-    # 更新数据库
+    # === 写入数据库 ===
     db = SessionLocal()
     try:
         file_obj = db.query(VolumeFile).filter(VolumeFile.id == file_id).first()
         if file_obj:
             file_obj.ocr_content = content
             db.commit()
-            print(f"[Task] 成功更新数据库 ID: {file_id}, 字数: {len(content)}")
+            print(f"[OCR Task] 成功写入 ocr_content, file_id={file_id}, 字数={len(content)}")
+        else:
+            print(f"[OCR Task] 错误: 未找到 file_id={file_id} 的记录")
     except Exception as e:
-        print(f"[Task] DB Error: {e}")
+        print(f"[OCR Task] 数据库写入失败: {e}")
         db.rollback()
     finally:
         db.close()
@@ -447,6 +504,29 @@ def batch_update_sort(
     crud.invalidate_volume_merge_status(db, volume.id)
     return {"msg": "ok"}
 
+
+@router.get("/files/search", response_model=schemas.VolumeFilePageOut)
+def search_files_global(
+        keyword: str,
+        page: int = 1,
+        page_size: int = 20,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """
+    全局文件搜索（跨所有有权限的卷宗）
+    搜索范围：文件名、标签、摘要备注、OCR识别内容
+    """
+    if not keyword or not keyword.strip():
+        return {"total": 0, "items": []}
+
+    skip = (page - 1) * page_size
+    items, total = crud.search_files_with_count(
+        db, current_user, keyword.strip(), skip=skip, limit=page_size
+    )
+    return {"total": total, "items": items}
+
+
 @router.delete("/files/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_volume_file(
         file_id: int,
@@ -498,6 +578,11 @@ def download_volume_file(
     if not file_obj:
         raise HTTPException(status_code=404, detail="文件不存在")
 
+    # 权限校验：通过文件所属卷宗追溯到案件
+    volume = crud.get_volume_by_id(db, file_obj.volume_id)
+    if volume:
+        check_volume_read_permission(db, current_user, volume.case_id)
+
     full_path = os.path.join(ELECTRONIC_VOLUME_ROOT, file_obj.file_path)
     if not os.path.exists(full_path):
         raise HTTPException(status_code=404, detail="文件实体已丢失")
@@ -526,6 +611,11 @@ def preview_volume_file(
     file_obj = crud.get_file_by_id(db, file_id)
     if not file_obj:
         raise HTTPException(status_code=404, detail="文件不存在")
+
+    # 权限校验
+    volume = crud.get_volume_by_id(db, file_obj.volume_id)
+    if volume:
+        check_volume_read_permission(db, current_user, volume.case_id)
 
     full_path = os.path.join(ELECTRONIC_VOLUME_ROOT, file_obj.file_path)
     if not os.path.exists(full_path):
@@ -980,10 +1070,10 @@ def merge_volume_files(
     if not volume:
         raise HTTPException(status_code=404, detail="卷宗不存在")
 
+    check_volume_write_permission(db, current_user, volume.case_id)
+
     # 在开始新的合并前，强制清理旧的合并文件和记录
-    # 这确保了如果合并过程中途失败，不会留下旧的 merged_file_path 指向
     crud.invalidate_volume_merge_status(db, volume_id)
-    # 重新刷新 volume 对象以获取最新的状态 (merged_file_path 应为 None)
     db.refresh(volume)
 
     background_tasks.add_task(background_merge_task, volume_id)
@@ -1001,6 +1091,8 @@ def download_merged_volume(
     volume = crud.get_volume_by_id(db, volume_id)
     if not volume:
         raise HTTPException(status_code=404, detail="卷宗不存在")
+
+    check_volume_read_permission(db, current_user, volume.case_id)
 
     if not volume.merged_file_path:
         raise HTTPException(status_code=404, detail="该卷宗尚未执行合并操作，或合并文件不存在")
@@ -1034,6 +1126,8 @@ def preview_merged_volume(
     volume = crud.get_volume_by_id(db, volume_id)
     if not volume:
         raise HTTPException(status_code=404, detail="卷宗不存在")
+
+    check_volume_read_permission(db, current_user, volume.case_id)
 
     if not volume.merged_file_path:
         raise HTTPException(status_code=404, detail="该卷宗尚未执行合并操作")

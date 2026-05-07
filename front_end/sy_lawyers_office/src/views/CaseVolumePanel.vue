@@ -89,6 +89,23 @@
 
               <el-tag type="warning" effect="plain" v-if="!canEdit">仅查看模式</el-tag>
 
+              <div class="search-bar-compact">
+                <el-input
+                  v-model="fileSearchKeyword"
+                  placeholder="搜索文件名、标签、摘要、OCR..."
+                  :prefix-icon="Search"
+                  size="small"
+                  clearable
+                  class="file-search-input"
+                  @clear="handleFileSearch"
+                  @keyup.enter="handleFileSearch"
+                >
+                  <template #append>
+                    <el-button :icon="Search" size="small" @click="handleFileSearch" :loading="fileSearchLoading" />
+                  </template>
+                </el-input>
+              </div>
+
               <el-radio-group v-model="viewMode" size="small" class="view-mode-group">
                 <el-radio-button label="list">列表排序</el-radio-button>
                 <el-radio-button label="group">按分类分组</el-radio-button>
@@ -522,6 +539,7 @@ import {
   Download,
   Connection,
   View,
+  Search,
 } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 import BatchUploadDialog from '@/components/BatchUploadDialog.vue'
@@ -552,6 +570,10 @@ const showUploadDialog = ref(false)
 const merging = ref(false)
 const viewMode = ref('list')
 const activeNames = ref([])
+
+// 文件搜索状态
+const fileSearchKeyword = ref('')
+const fileSearchLoading = ref(false)
 
 // 轮询计时器引用
 let mergePollingTimer = null
@@ -743,6 +765,8 @@ const selectVolume = (vol) => {
   currentVolume.value = vol
   fileList.value = vol.files || []
   fileList.value.sort((a, b) => a.sort_order - b.sort_order)
+  // 切换卷宗时清空搜索关键词
+  fileSearchKeyword.value = ''
 }
 const refreshCurrentVolume = async () => {
   if (!currentVolumeId.value) return
@@ -757,6 +781,30 @@ const refreshCurrentVolume = async () => {
     }
   } catch (err) {
     console.error(err)
+  }
+}
+
+// 文件搜索：调用后端接口搜索当前卷宗内的文件
+const handleFileSearch = async () => {
+  if (!currentVolumeId.value) return
+  fileSearchLoading.value = true
+  try {
+    const kw = fileSearchKeyword.value.trim()
+    if (!kw) {
+      // 关键词为空，恢复完整列表
+      await refreshCurrentVolume()
+      return
+    }
+    const res = await request.get(`/electronic_volumes/${currentVolumeId.value}/files`, {
+      params: { keyword: kw },
+    })
+    fileList.value = res.data.items || []
+    fileList.value.sort((a, b) => a.sort_order - b.sort_order)
+  } catch (err) {
+    console.error('文件搜索失败', err)
+    ElMessage.error('文件搜索失败')
+  } finally {
+    fileSearchLoading.value = false
   }
 }
 
@@ -1282,6 +1330,19 @@ const formatTime = (val) => {
 .cat-name {
   color: #303133;
 }
+/* 搜索栏紧凑样式 */
+.search-bar-compact {
+  display: flex;
+  align-items: center;
+}
+.file-search-input {
+  width: 280px;
+  transition: width 0.3s ease;
+}
+.file-search-input:focus-within {
+  width: 320px;
+}
+
 .form-tip {
   font-size: 12px;
   color: #999;
@@ -1334,10 +1395,29 @@ const formatTime = (val) => {
   .file-content {
     padding: 10px;
   }
+
+  /* 平板端搜索栏适配 */
+  .file-search-input {
+    width: 220px;
+  }
+  .file-search-input:focus-within {
+    width: 260px;
+  }
 }
 
 @media screen and (max-width: 768px) {
   /* 仅针对小屏幕手机的极致适配 */
+
+  .search-bar-compact {
+    width: 100%;
+  }
+  .file-search-input {
+    width: 100% !important;
+    max-width: 100%;
+  }
+  .file-search-input:focus-within {
+    width: 100% !important;
+  }
 
   .view-mode-group {
     margin-left: 0;
@@ -1359,6 +1439,12 @@ const formatTime = (val) => {
   /* 移动端强制显示三个点操作按钮，不需要 hover 才显示 */
   .vol-actions {
     opacity: 1;
+  }
+
+  /* 移动端操作列宽度更紧凑 */
+  :deep(.el-table .cell) {
+    padding-left: 5px;
+    padding-right: 5px;
   }
 }
 </style>

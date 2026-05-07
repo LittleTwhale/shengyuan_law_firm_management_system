@@ -4,57 +4,27 @@ import os
 import cv2
 import numpy as np
 
-# ============================================================
-# 【第一道防线】环境变量配置
-# 必须在 import paddle 之前设置
-# ============================================================
-
-# 1. 禁用 PIR (新版执行器) - 解决 Windows 崩溃的核心
-os.environ["FLAGS_enable_pir_api"] = "0"
-os.environ["FLAGS_enable_pir_in_executor"] = "0"
-
-# 2. 禁用 MKLDNN (加速库) - 解决识别结果为空/兼容性问题
-os.environ["FLAGS_use_mkldnn"] = "0"
-os.environ["FLAGS_enable_mkldnn"] = "0"
-os.environ["DN_ENABLE_ONEDNN"] = "0"
-
 # PDF与Word处理
 import pdfplumber
 from docx import Document
-# OCR处理
-from paddleocr import PaddleOCR
+
+from rapidocr_onnxruntime import RapidOCR
 
 logger = logging.getLogger(__name__)
 
 # ============================================================
-# 初始化 PaddleOCR
+# 初始化 RapidOCR 引擎 (基于 ONNX Runtime, 稳定无 Bug)
 # ============================================================
 ocr_engine = None
 
-print("--- 正在初始化 PaddleOCR (Minimal Mode) ---")
+print("--- 正在初始化 RapidOCR ---")
 try:
-    # 【修复 1】: 去掉所有报错的参数 (use_gpu, show_log, enable_mkldnn)
-    # 既然环境变量已经禁用了 mkldnn，这里不需要再传参数
-    # 既然 use_gpu 报错，说明它内部可能自动管理或参数名变了，直接去掉
-    ocr_engine = PaddleOCR(
-        use_angle_cls=True,  # 开启方向检测
-        lang="ch",  # 中文
-        ocr_version="PP-OCRv4"  # 尝试强制指定 v4 (更稳定)
-    )
-    print("--- PaddleOCR 初始化成功 (v4) ---")
-    logger.info("PaddleOCR initialized successfully.")
-
+    ocr_engine = RapidOCR()
+    print("--- RapidOCR 初始化成功 ---")
+    logger.info("RapidOCR initialized successfully.")
 except Exception as e:
-    print(f"!!! PaddleOCR v4 初始化出错: {e}")
-
-    try:
-        print("--- 尝试最简参数兜底初始化 ---")
-        # 如果 v4 指定失败，完全交给默认值
-        ocr_engine = PaddleOCR(use_angle_cls=True, lang="ch")
-        print("--- PaddleOCR 初始化成功 (Default) ---")
-    except Exception as e2:
-        print(f"!!! PaddleOCR 彻底失败: {e2}")
-        ocr_engine = None
+    print(f"!!! RapidOCR 初始化出错: {e}")
+    ocr_engine = None
 
 
 def extract_text_from_docx(file_path: str) -> str:
@@ -68,9 +38,7 @@ def extract_text_from_docx(file_path: str) -> str:
 
 
 def _read_image_robust(file_path: str):
-    """
-    读取图片：解决 Windows 中文路径问题
-    """
+    """读取图片：解决 Windows 中文路径问题"""
     try:
         if not os.path.exists(file_path):
             return None
@@ -80,34 +48,35 @@ def _read_image_robust(file_path: str):
         return None
 
 
-def _ocr_image_data(image_data) -> str:
+def _ocr_image_data(image_data, is_bgr: bool = False) -> str:
     """
-    辅助函数：对图片数据进行 PaddleOCR 识别
+    对图片数据进行 RapidOCR 识别。
+    :param image_data: numpy 数组
+    :param is_bgr: True 表示 image_data 是 BGR 格式（OpenCV 来源）
     """
     if ocr_engine is None:
-        return "错误：OCR模型未成功启动"
+        return "[错误] OCR模型未成功启动，请联系管理员"
 
     try:
-        # 【修复 2】: 移除 cls=True 参数
-        # 错误日志明确指出 "unexpected keyword argument 'cls'"
-        # 新版 API 中，只要初始化时设置了 use_angle_cls=True，
-        # 这里直接传 image_data 即可。
-        result = ocr_engine.ocr(image_data)
+        # RapidOCR 官方推荐输入 BGR 格式 (OpenCV 默认格式)
+        # 如果来源是 PIL/pdfplumber (RGB格式)，我们需要把它转为 BGR
+        if not is_bgr and image_data is not None and len(image_data.shape) == 3:
+            if image_data.shape[2] == 3:
+                image_data = cv2.cvtColor(image_data, cv2.COLOR_RGB2BGR)
 
-        page_text = []
-        if result is None:
+        # 核心识别调用，返回结果和耗时
+        result, elapse = ocr_engine(image_data)
+
+        if not result:
             return ""
 
-        # 结果解析兼容
-        # PaddleOCR 返回结构通常是列表的列表
-        ocr_res = result[0] if result else None
-
-        if isinstance(ocr_res, list):
-            for line in ocr_res:
-                # line 结构预期: [[box], ['text', score]]
-                if isinstance(line, list) and len(line) >= 2 and line[1]:
-                    text_content = line[1][0]
-                    page_text.append(text_content)
+        # RapidOCR 返回结构: [ [ [[x,y],...], '识别出的文本', 0.99 (置信度) ], ... ]
+        page_text = []
+        for line in result:
+            if len(line) >= 2:
+                text = line[1]  # 索引1就是文本内容
+                if text and str(text).strip():
+                    page_text.append(str(text).strip())
 
         return "\n".join(page_text)
 
@@ -115,7 +84,7 @@ def _ocr_image_data(image_data) -> str:
         error_msg = f"[OCR运行时错误: {str(e)}]"
         logger.error(error_msg)
         print(f"!!! {error_msg}")
-        return error_msg
+        return ""
 
 
 def extract_pdf_hybrid(file_path: str, min_text_len: int = 50) -> str:
@@ -134,14 +103,13 @@ def extract_pdf_hybrid(file_path: str, min_text_len: int = 50) -> str:
                 if len(clean_text) > min_text_len:
                     full_content.append(f"--- 第 {i + 1} 页 (电子提取) ---\n{text}")
                 else:
-                    # Case B: 扫描件 -> 图片 -> OCR
+                    #  扫描件 -> 图片 -> OCR
                     # 200dpi 够用且快
                     pil_image = page.to_image(resolution=200).original
-
+                    # PIL Image → numpy array (RGB)
                     img_array = np.array(pil_image)
-                    img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-
-                    ocr_text = _ocr_image_data(img_array)
+                    # 传入 is_bgr=False，因为 PIL 生成的是 RGB，上面的函数会自动处理
+                    ocr_text = _ocr_image_data(img_array, is_bgr=False)
                     full_content.append(f"--- 第 {i + 1} 页 (OCR识别) ---\n{ocr_text}")
 
     except Exception as e:
@@ -181,7 +149,7 @@ def perform_smart_extraction(file_path: str, file_type: str) -> str:
         if file_ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.webp']:
             img_array = _read_image_robust(file_path)
             if img_array is not None:
-                return _ocr_image_data(img_array)
+                return _ocr_image_data(img_array, is_bgr=True)
             else:
                 return "图片读取失败"
     except Exception as e:

@@ -35,7 +35,7 @@
         <div class="filter-left">
           <el-input
             v-model="filters.keyword"
-            placeholder="搜索案号、卷宗名或当事人"
+            placeholder="搜索业务号、当事人或关键词"
             prefix-icon="Search"
             class="filter-item-input"
             clearable
@@ -85,15 +85,16 @@
         </div>
       </div>
 
-      <el-table
-        :data="tableData"
-        v-loading="loading"
-        border
-        stripe
-        highlight-current-row
-        class="custom-table"
-        header-cell-class-name="table-header-gray"
-      >
+      <div class="table-responsive-wrapper">
+        <el-table
+          :data="tableData"
+          v-loading="loading"
+          border
+          stripe
+          highlight-current-row
+          class="custom-table"
+          header-cell-class-name="table-header-gray"
+        >
         <el-table-column
           label="关联业务号"
           min-width="180"
@@ -192,6 +193,7 @@
           </template>
         </el-table-column>
       </el-table>
+      </div>
 
       <div class="pagination-wrapper">
         <el-pagination
@@ -563,6 +565,11 @@ const formatTime = (val) => {
 .custom-table {
   width: 100%;
 }
+.table-responsive-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 :deep(.table-header-gray) {
   background-color: #f5f7fa !important;
   color: #606266;
@@ -621,39 +628,59 @@ const formatTime = (val) => {
 @media (max-width: 768px) {
   /* 1. 基础容器适配，防止被内部元素撑开 */
   .volume-dashboard {
-    padding: 12px;
+    padding: 8px;
     box-sizing: border-box;
     width: 100%;
-    overflow-x: hidden; /* 防止整页出现横向滚动条 */
+    overflow-x: hidden;
   }
   .dashboard-header-card {
     flex-direction: column;
     align-items: flex-start;
-    gap: 20px;
-    padding: 16px;
+    gap: 16px;
+    padding: 14px;
     box-sizing: border-box;
     width: 100%;
   }
   .content-card {
-    padding: 16px;
+    padding: 12px;
     box-sizing: border-box;
     width: 100%;
+  }
+
+  /* 标题缩小 */
+  .title-section h2 {
+    font-size: 18px;
+  }
+  .sub-title {
+    font-size: 12px;
   }
 
   /* 2. 统计卡片适配 */
   .stat-group {
     width: 100%;
     justify-content: space-between;
-    gap: 12px;
+    gap: 10px;
     box-sizing: border-box;
   }
   .stat-card {
     flex: 1;
-    min-width: 0; /* 覆盖 PC 端的 200px 最小宽度 */
-    padding: 12px;
+    min-width: 0;
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .icon-wrapper {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+  .stat-icon {
+    font-size: 20px;
   }
   .stat-num {
-    font-size: 20px;
+    font-size: 18px;
+  }
+  .stat-label {
+    font-size: 12px;
   }
 
   /* 3. 搜索和筛选栏适配 */
@@ -662,12 +689,16 @@ const formatTime = (val) => {
     align-items: stretch;
     width: 100%;
     box-sizing: border-box;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
   }
   .filter-left {
     flex-direction: column;
     align-items: stretch;
     width: 100%;
     box-sizing: border-box;
+    gap: 8px;
   }
 
   /* 强制所有输入框宽度 100% 且包含 padding */
@@ -681,20 +712,20 @@ const formatTime = (val) => {
 
   /* 4. 核心修复：深度重置 el-date-picker 的内部强制宽度 */
   :deep(.el-date-editor.el-input__wrapper) {
-    min-width: 0 !important; /* 必须去掉默认的最小宽度 */
+    min-width: 0 !important;
     width: 100%;
     box-sizing: border-box;
-    padding: 0 10px; /* 稍微缩小两边间距 */
+    padding: 0 10px;
   }
 
   :deep(.el-range-input) {
-    min-width: 0 !important; /* 允许内部输入框被极限压缩 */
+    min-width: 0 !important;
     width: 100%;
-    font-size: 13px; /* 稍微减小字号，避免日期文字溢出 */
+    font-size: 13px;
   }
 
   :deep(.el-range-separator) {
-    flex-shrink: 0; /* 防止分隔符被过度挤压 */
+    flex-shrink: 0;
     padding: 0 5px;
   }
 
@@ -705,14 +736,30 @@ const formatTime = (val) => {
   }
   .filter-right .el-button {
     flex: 1;
-    margin: 0; /* 修复可能存在的 margin 导致的排列问题 */
+    margin: 0;
   }
   .filter-right .el-button + .el-button {
-    margin-left: 12px;
+    margin-left: 8px;
+  }
+
+  /* 表格移动端优化 */
+  .table-responsive-wrapper {
+    margin-left: -12px;
+    margin-right: -12px;
+    width: calc(100% + 24px);
+    padding: 0 4px;
+    box-sizing: border-box;
+  }
+
+  /* 表格内字号缩小 */
+  :deep(.custom-table .cell) {
+    font-size: 12px;
+    padding: 6px 4px;
   }
 
   .pagination-wrapper {
     justify-content: center;
+    margin-top: 16px;
   }
 }
 </style>

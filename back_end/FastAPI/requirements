@@ -15,6 +15,5 @@ python-pptx
 docxtpl
 PyPDF2
 reportlab
-paddlepaddle -i https://pypi.tuna.tsinghua.edu.cn/simple
-paddleocr
+rapidocr_onnxruntime
 pdfplumber
