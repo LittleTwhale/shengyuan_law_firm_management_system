@@ -29,3 +29,6 @@ Thumbs.db
 
 # 忽略整个 database 文件夹
 database/
+
+# claude文件
+.claude/

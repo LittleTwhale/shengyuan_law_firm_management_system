@@ -65,7 +65,11 @@
                   :prop="'party_clients.' + index + '.phone'"
                   label-width="90px"
                 >
-                  <el-input v-model="item.phone" placeholder="联系电话" :disabled="isPartyRestricted" />
+                  <el-input
+                    v-model="item.phone"
+                    placeholder="联系电话"
+                    :disabled="isPartyRestricted"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="8">
@@ -83,7 +87,11 @@
               </el-col>
               <el-col :span="12">
                 <el-form-item label="地址" label-width="90px">
-                  <el-input v-model="item.address" placeholder="选填" :disabled="isPartyRestricted" />
+                  <el-input
+                    v-model="item.address"
+                    placeholder="选填"
+                    :disabled="isPartyRestricted"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
@@ -139,7 +147,11 @@
                   label-width="70px"
                   :prop="'party_plaintiffs.' + index + '.party_type'"
                 >
-                  <el-select v-model="item.party_type" style="width: 100%" :disabled="isPartyRestricted">
+                  <el-select
+                    v-model="item.party_type"
+                    style="width: 100%"
+                    :disabled="isPartyRestricted"
+                  >
                     <el-option label="原告" value="原告" />
                     <el-option label="申请人" value="申请人" />
                     <el-option label="上诉人" value="上诉人" />
@@ -153,7 +165,11 @@
                   :prop="'party_plaintiffs.' + index + '.name'"
                   :rules="{ required: true, message: '必填', trigger: 'blur' }"
                 >
-                  <el-input v-model="item.name" placeholder="姓名/名称" :disabled="isPartyRestricted" />
+                  <el-input
+                    v-model="item.name"
+                    placeholder="姓名/名称"
+                    :disabled="isPartyRestricted"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="6">
@@ -163,12 +179,20 @@
               </el-col>
               <el-col :span="6">
                 <el-form-item label="证件号" label-width="70px">
-                  <el-input v-model="item.id_number" placeholder="选填" :disabled="isPartyRestricted" />
+                  <el-input
+                    v-model="item.id_number"
+                    placeholder="选填"
+                    :disabled="isPartyRestricted"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="地址" label-width="70px">
-                  <el-input v-model="item.address" placeholder="选填" :disabled="isPartyRestricted" />
+                  <el-input
+                    v-model="item.address"
+                    placeholder="选填"
+                    :disabled="isPartyRestricted"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
@@ -224,7 +248,11 @@
                   label-width="70px"
                   :prop="'party_defendants.' + index + '.party_type'"
                 >
-                  <el-select v-model="item.party_type" style="width: 100%" :disabled="isPartyRestricted">
+                  <el-select
+                    v-model="item.party_type"
+                    style="width: 100%"
+                    :disabled="isPartyRestricted"
+                  >
                     <el-option label="被告" value="被告" />
                     <el-option label="被申请人" value="被申请人" />
                     <el-option label="被上诉人" value="被上诉人" />
@@ -238,7 +266,11 @@
                   :prop="'party_defendants.' + index + '.name'"
                   :rules="{ required: true, message: '必填', trigger: 'blur' }"
                 >
-                  <el-input v-model="item.name" placeholder="姓名/名称" :disabled="isPartyRestricted" />
+                  <el-input
+                    v-model="item.name"
+                    placeholder="姓名/名称"
+                    :disabled="isPartyRestricted"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="6">
@@ -248,12 +280,20 @@
               </el-col>
               <el-col :span="6">
                 <el-form-item label="证件号" label-width="70px">
-                  <el-input v-model="item.id_number" placeholder="选填" :disabled="isPartyRestricted" />
+                  <el-input
+                    v-model="item.id_number"
+                    placeholder="选填"
+                    :disabled="isPartyRestricted"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="地址" label-width="70px">
-                  <el-input v-model="item.address" placeholder="选填" :disabled="isPartyRestricted" />
+                  <el-input
+                    v-model="item.address"
+                    placeholder="选填"
+                    :disabled="isPartyRestricted"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
@@ -338,7 +378,11 @@
               </el-col>
               <el-col :span="12">
                 <el-form-item label="地址" label-width="90px">
-                  <el-input v-model="item.address" placeholder="选填" :disabled="isPartyRestricted" />
+                  <el-input
+                    v-model="item.address"
+                    placeholder="选填"
+                    :disabled="isPartyRestricted"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
@@ -418,7 +462,11 @@
               </el-col>
               <el-col :span="12">
                 <el-form-item label="地址" label-width="90px">
-                  <el-input v-model="item.address" placeholder="选填" :disabled="isPartyRestricted" />
+                  <el-input
+                    v-model="item.address"
+                    placeholder="选填"
+                    :disabled="isPartyRestricted"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
@@ -475,7 +523,11 @@
                   :prop="'party_third_parties.' + index + '.name'"
                   :rules="{ required: true, message: '必填', trigger: 'blur' }"
                 >
-                  <el-input v-model="item.name" placeholder="姓名/名称" :disabled="isPartyRestricted" />
+                  <el-input
+                    v-model="item.name"
+                    placeholder="姓名/名称"
+                    :disabled="isPartyRestricted"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="8">
@@ -485,12 +537,20 @@
               </el-col>
               <el-col :span="8">
                 <el-form-item label="证件号" label-width="70px">
-                  <el-input v-model="item.id_number" placeholder="选填" :disabled="isPartyRestricted" />
+                  <el-input
+                    v-model="item.id_number"
+                    placeholder="选填"
+                    :disabled="isPartyRestricted"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="地址" label-width="90px">
-                  <el-input v-model="item.address" placeholder="选填" :disabled="isPartyRestricted" />
+                  <el-input
+                    v-model="item.address"
+                    placeholder="选填"
+                    :disabled="isPartyRestricted"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
@@ -561,7 +621,11 @@
                   :prop="'party_others.' + index + '.name'"
                   :rules="{ required: true, message: '必填', trigger: 'blur' }"
                 >
-                  <el-input v-model="item.name" placeholder="姓名/名称" :disabled="isPartyRestricted" />
+                  <el-input
+                    v-model="item.name"
+                    placeholder="姓名/名称"
+                    :disabled="isPartyRestricted"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="6">
@@ -571,12 +635,20 @@
               </el-col>
               <el-col :span="6">
                 <el-form-item label="证件号" label-width="70px">
-                  <el-input v-model="item.id_number" placeholder="选填" :disabled="isPartyRestricted" />
+                  <el-input
+                    v-model="item.id_number"
+                    placeholder="选填"
+                    :disabled="isPartyRestricted"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="地址" label-width="70px">
-                  <el-input v-model="item.address" placeholder="选填" :disabled="isPartyRestricted" />
+                  <el-input
+                    v-model="item.address"
+                    placeholder="选填"
+                    :disabled="isPartyRestricted"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
@@ -635,7 +707,7 @@
           <el-form-item label="案件状态" prop="bank_case_details.case_status" label-width="120px">
             <el-select
               v-model="formData.bank_case_details.case_status"
-                   placeholder="请选择案 件状态"
+              placeholder="请选择案 件状态"
               filterable
               clearable
               style="width: 100%"
@@ -833,8 +905,8 @@
               :precision="2"
               :step="1000"
               style="width: 100%"
-            />
-          </el-form-item>
+              placeholder="必填"
+          /></el-form-item>
         </el-col>
         <el-col :span="8">
           <el-form-item

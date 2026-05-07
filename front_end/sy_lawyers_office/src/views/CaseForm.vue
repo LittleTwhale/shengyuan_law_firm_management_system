@@ -188,8 +188,8 @@ const initialBankDetails = {
   // --- 借贷基础信息 ---
   loan_type: null,
   loan_account: null,
-  loan_principal: 0,
-  litigation_target_amount: 0,
+  loan_principal: null,
+  litigation_target_amount: null,
   credit_card_penalty: 0,
   loan_date: null,
   loan_due_date: null,
@@ -351,6 +351,9 @@ const formRules = computed(() => {
     // 银行案件专属必填校验
     'bank_case_details.branch_name': [{ required: isBankCase, message: '必填', trigger: 'change' }],
     'bank_case_details.loan_type': [{ required: isBankCase, message: '必填', trigger: 'blur' }],
+    'bank_case_details.loan_principal': [
+      { required: isBankCase, message: '必填', trigger: 'blur' },
+    ],
     'bank_case_details.collateral_info': [
       { required: isBankCase, message: '必填(若无请填"无")', trigger: 'blur' },
     ],
