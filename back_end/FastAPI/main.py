@@ -22,6 +22,7 @@ from .package.api.system_admin import router as auth_system_admin_router
 from .package.core.config import PARTY_IMAGE_ROOT
 from .package.core.logger import logger
 from .package.core.user_cache import user_cache
+from .package.utils.search_engine import init_meilisearch
 
 origins = [
     "http://localhost:5173",
@@ -43,6 +44,12 @@ async def lifespan(app: FastAPI):
     logger.info("用户缓存系统已启用，缓存TTL: 5分钟")
     logger.info("系统全局 API 前缀已启用: /api")
     logger.info("==================================================")
+    # 初始化 Meilisearch
+    try:
+        init_meilisearch()
+        logger.info("Meilisearch 搜索引擎索引初始化成功")
+    except Exception as e:
+        logger.error(f"Meilisearch 搜索引擎初始化失败，请检查服务是否启动: {e}")
 
     yield  # 用于分隔启动和关闭逻辑
 

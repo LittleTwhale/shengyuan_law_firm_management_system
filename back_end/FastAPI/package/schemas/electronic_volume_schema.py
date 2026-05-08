@@ -87,6 +87,7 @@ class VolumeFileOut(VolumeFileBase):
     file_type: Optional[str]
     uploaded_by: Optional[int]
     created_at: datetime
+    ocr_content: Optional[str] = None
 
     # 用于前端展示上传者名称（需要在 CRUD 层 join 或 再次查询，或者前端根据 ID 匹配）
     uploader_name: Optional[str] = None

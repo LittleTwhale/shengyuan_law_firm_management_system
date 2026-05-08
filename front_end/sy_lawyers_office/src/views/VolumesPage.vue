@@ -82,6 +82,7 @@
         <div class="filter-right">
           <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
           <el-button :icon="Refresh" @click="resetFilters">重置</el-button>
+          <el-button type="warning" plain icon="Search" @click="globalSearchVisible = true">全文穿透搜索</el-button>
         </div>
       </div>
 
@@ -209,15 +210,18 @@
         />
       </div>
     </div>
+
+    <GlobalFileSearchDialog v-model:visible="globalSearchVisible" />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Folder, Search, Files, Box, Refresh, Location } from '@element-plus/icons-vue' // 新增 Location 图标
+import { Folder, Search, Files, Box, Refresh, Location } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
+import GlobalFileSearchDialog from '@/components/GlobalFileSearchDialog.vue'
 
 const router = useRouter()
 const isAdmin = ref(false)
@@ -226,6 +230,7 @@ const tableData = ref([])
 const lawyers = ref([])
 const totalVolumes = ref(0)
 const mergedCount = ref(0)
+const globalSearchVisible = ref(false)
 
 // 响应式屏幕判断
 const screenWidth = ref(window.innerWidth)

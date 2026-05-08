@@ -17,3 +17,4 @@ PyPDF2
 reportlab
 rapidocr_onnxruntime
 pdfplumber
+meilisearch

@@ -91,19 +91,28 @@
 
               <div class="search-bar-compact">
                 <el-input
-                  v-model="fileSearchKeyword"
-                  placeholder="搜索文件名、标签、摘要、OCR..."
-                  :prefix-icon="Search"
+                  v-model="metaKeyword"
+                  placeholder="检索文件名/摘要/标签..."
                   size="small"
                   clearable
-                  class="file-search-input"
-                  @clear="handleFileSearch"
-                  @keyup.enter="handleFileSearch"
+                  class="file-search-input meta-search-input"
                 >
-                  <template #append>
-                    <el-button :icon="Search" size="small" @click="handleFileSearch" :loading="fileSearchLoading" />
+                  <template #prefix>
+                    <el-icon><Document /></el-icon>
                   </template>
                 </el-input>
+                <el-input
+                  v-model="ocrKeyword"
+                  placeholder="检索OCR全文..."
+                  size="small"
+                  clearable
+                  class="file-search-input ocr-search-input"
+                >
+                  <template #prefix>
+                    <el-icon><Search /></el-icon>
+                  </template>
+                </el-input>
+                <el-button type="primary" link size="small" @click="clearSearch">清空</el-button>
               </div>
 
               <el-radio-group v-model="viewMode" size="small" class="view-mode-group">
@@ -166,227 +175,272 @@
             </div>
           </div>
 
-          <el-table
-            v-if="viewMode === 'list'"
-            ref="dragTableRef"
-            :data="fileList"
-            row-key="id"
-            stripe
-            style="width: 100%; margin-top: 10px"
-            height="calc(100vh - 300px)"
-          >
-            <el-table-column width="40" align="center" v-if="canEdit">
-              <template #default>
-                <el-icon class="drag-handle" style="cursor: move; color: #909399; font-size: 16px"
-                  ><Rank
-                /></el-icon>
-              </template>
-            </el-table-column>
+          <el-skeleton :loading="fileSearchLoading" animated :rows="10">
+            <template #default>
+              <el-table
+                v-if="viewMode === 'list'"
+                ref="dragTableRef"
+                :data="fileList"
+                row-key="id"
+                stripe
+                style="width: 100%; margin-top: 10px"
+                height="calc(100vh - 300px)"
+              >
+                <el-table-column width="40" align="center" v-if="canEdit">
+                  <template #default>
+                    <el-icon
+                      class="drag-handle"
+                      style="cursor: move; color: #909399; font-size: 16px"
+                      ><Rank
+                    /></el-icon>
+                  </template>
+                </el-table-column>
 
-            <el-table-column label="序号" type="index" width="60" align="center" />
+                <el-table-column label="序号" type="index" width="60" align="center" />
 
-            <el-table-column label="文件名" min-width="200" show-overflow-tooltip>
-              <template #default="{ row }">
-                <div class="file-name-cell">
-                  <el-icon v-if="isPdf(row.file_type)" style="color: #f56c6c"><Document /></el-icon>
-                  <el-icon v-else-if="isImage(row.file_type)" style="color: #409eff"
-                    ><Picture
-                  /></el-icon>
-                  <el-icon v-else style="color: #909399"><DocumentCopy /></el-icon>
-                  <span class="fname" @click="handlePreview(row)">{{ row.file_name }}</span>
-                  <el-tag
-                    v-if="row.ocr_content"
-                    type="success"
-                    size="small"
-                    effect="plain"
-                    round
-                    style="transform: scale(0.8); margin-left: 5px"
-                    >OCR</el-tag
-                  >
-                </div>
-                <div v-if="row.summary" class="row-summary">{{ row.summary }}</div>
-              </template>
-            </el-table-column>
-
-            <el-table-column prop="category" label="分类" width="120" align="center">
-              <template #default="{ row }">
-                <el-tag size="small" effect="light">{{ row.category || '未分类' }}</el-tag>
-              </template>
-            </el-table-column>
-
-            <el-table-column label="标签" min-width="120">
-              <template #default="{ row }">
-                <div class="tags-cell">
-                  <el-tag v-for="t in row.tags || []" :key="t" size="small" type="info">{{
-                    t
-                  }}</el-tag>
-                </div>
-              </template>
-            </el-table-column>
-
-            <el-table-column prop="sort_order" label="排序权重" width="80" align="center" />
-
-            <el-table-column label="全卷页码" width="100" align="center">
-              <template #default="{ row }">
-                <span v-if="row.page_start" class="page-badge">
-                  P{{ row.page_start }} - P{{ row.page_end }}
-                </span>
-                <span v-else style="color: #ccc">-</span>
-              </template>
-            </el-table-column>
-
-            <el-table-column prop="uploader_name" label="上传人" width="100" align="center">
-              <template #default="{ row }">
-                <el-tag size="small" type="info" effect="plain">{{
-                  row.uploader_name || '未知'
-                }}</el-tag>
-              </template>
-            </el-table-column>
-
-            <el-table-column prop="created_at" label="上传时间" width="160" align="center">
-              <template #default="{ row }">
-                {{ formatTime(row.created_at) }}
-              </template>
-            </el-table-column>
-
-            <el-table-column
-              label="操作"
-              :width="isMobile ? 200 : 220"
-              align="center"
-              :fixed="isMobile ? false : 'right'"
-            >
-              <template #default="{ row }">
-                <el-button link type="primary" size="small" @click="handlePreview(row)"
-                  >预览</el-button
-                >
-                <el-button link type="primary" size="small" @click="handleDownload(row)"
-                  >下载</el-button
-                >
-                <el-button
-                  v-if="canEdit"
-                  link
-                  type="warning"
-                  size="small"
-                  @click="openEditDialog(row)"
-                  >编辑</el-button
-                >
-                <el-button
-                  v-if="canEdit"
-                  link
-                  type="danger"
-                  size="small"
-                  @click="handleDeleteFile(row)"
-                  >删除</el-button
-                >
-              </template>
-            </el-table-column>
-          </el-table>
-
-          <el-scrollbar
-            v-else
-            height="calc(100vh - 300px)"
-            class="grouped-view"
-            style="margin-top: 10px"
-          >
-            <el-collapse v-model="activeNames">
-              <el-collapse-item v-for="(files, cat) in groupedFiles" :key="cat" :name="cat">
-                <template #title>
-                  <div class="group-header">
-                    <el-icon><FolderOpened /></el-icon>
-                    <span class="cat-name">{{ cat }}</span>
-                    <el-tag size="small" round>{{ files.length }} 份</el-tag>
-                  </div>
-                </template>
-
-                <el-table :data="files" :show-header="true" size="small" border>
-                  <el-table-column label="排序" prop="sort_order" width="60" align="center" />
-                  <el-table-column label="文件名" min-width="200">
-                    <template #default="{ row }">
-                      <div class="file-name-cell">
-                        <span class="fname" @click="handlePreview(row)">{{ row.file_name }}</span>
-                        <el-tag
-                          v-if="row.ocr_content"
-                          type="success"
-                          size="small"
-                          effect="plain"
-                          round
-                          style="transform: scale(0.8)"
-                          >OCR</el-tag
-                        >
-                      </div>
-                      <div v-if="row.summary" class="row-summary">{{ row.summary }}</div>
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="标签" min-width="100">
-                    <template #default="{ row }">
+                <el-table-column label="文件名" min-width="200">
+                  <template #default="{ row }">
+                    <div class="file-name-cell">
+                      <el-icon v-if="isPdf(row.file_type)" style="color: #f56c6c"
+                        ><Document
+                      /></el-icon>
+                      <el-icon v-else-if="isImage(row.file_type)" style="color: #409eff"
+                        ><Picture
+                      /></el-icon>
+                      <el-icon v-else style="color: #909399"><DocumentCopy /></el-icon>
+                      <span
+                        class="fname"
+                        @click="handlePreview(row)"
+                        v-html="DOMPurify.sanitize(row.file_name)"
+                      ></span>
                       <el-tag
-                        v-for="t in row.tags || []"
-                        :key="t"
+                        v-if="row.ocr_content"
+                        type="success"
                         size="small"
-                        style="margin-right: 4px"
-                        >{{ t }}</el-tag
+                        effect="plain"
+                        round
+                        style="transform: scale(0.8); margin-left: 5px"
+                        >OCR</el-tag
                       >
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="全卷页码" width="100" align="center">
-                    <template #default="{ row }">
-                      <span v-if="row.page_start" class="page-badge"
-                        >P{{ row.page_start }}-{{ row.page_end }}</span
-                      >
-                    </template>
-                  </el-table-column>
+                    </div>
+                    <div v-if="row.ocr_content && (metaKeyword || ocrKeyword)" class="ocr-snippet">
+                      <el-icon><Search /></el-icon>
+                      <span v-html="DOMPurify.sanitize(row.ocr_content)"></span>
+                    </div>
+                    <div v-if="row.summary" class="row-summary">{{ row.summary }}</div>
+                  </template>
+                </el-table-column>
 
-                  <el-table-column prop="uploader_name" label="上传人" width="100" align="center">
-                    <template #default="{ row }">
-                      <el-tag size="small" type="info" effect="plain">{{
-                        row.uploader_name || '未知'
+                <el-table-column prop="category" label="分类" width="120" align="center">
+                  <template #default="{ row }">
+                    <el-tag size="small" effect="light">{{ row.category || '未分类' }}</el-tag>
+                  </template>
+                </el-table-column>
+
+                <el-table-column label="标签" min-width="120">
+                  <template #default="{ row }">
+                    <div class="tags-cell">
+                      <el-tag v-for="t in row.tags || []" :key="t" size="small" type="info">{{
+                        t
                       }}</el-tag>
-                    </template>
-                  </el-table-column>
+                    </div>
+                  </template>
+                </el-table-column>
 
-                  <el-table-column prop="created_at" label="上传时间" width="150" align="center">
-                    <template #default="{ row }">
-                      {{ formatTime(row.created_at) }}
-                    </template>
-                  </el-table-column>
+                <el-table-column prop="sort_order" label="排序权重" width="80" align="center" />
 
-                  <el-table-column
-                    label="操作"
-                    width="180"
-                    align="center"
-                    :fixed="isMobile ? false : 'right'"
-                  >
-                    <template #default="{ row }">
-                      <el-button link type="primary" size="small" @click="handlePreview(row)"
-                        >预览</el-button
-                      >
-                      <el-button link type="primary" size="small" @click="handleDownload(row)"
-                        >下载</el-button
-                      >
-                      <el-button
-                        v-if="canEdit"
-                        link
-                        type="warning"
-                        size="small"
-                        @click="openEditDialog(row)"
-                        >编辑</el-button
-                      >
-                      <el-button
-                        v-if="canEdit"
-                        link
-                        type="danger"
-                        size="small"
-                        @click="handleDeleteFile(row)"
-                        >删除</el-button
-                      >
-                    </template>
-                  </el-table-column>
-                </el-table>
-              </el-collapse-item>
-            </el-collapse>
+                <el-table-column label="全卷页码" width="100" align="center">
+                  <template #default="{ row }">
+                    <span v-if="row.page_start" class="page-badge">
+                      P{{ row.page_start }} - P{{ row.page_end }}
+                    </span>
+                    <span v-else style="color: #ccc">-</span>
+                  </template>
+                </el-table-column>
 
-            <el-empty v-if="Object.keys(groupedFiles).length === 0" description="暂无文件" />
-          </el-scrollbar>
+                <el-table-column prop="uploader_name" label="上传人" width="100" align="center">
+                  <template #default="{ row }">
+                    <el-tag size="small" type="info" effect="plain">{{
+                      row.uploader_name || '未知'
+                    }}</el-tag>
+                  </template>
+                </el-table-column>
+
+                <el-table-column prop="created_at" label="上传时间" width="160" align="center">
+                  <template #default="{ row }">
+                    {{ formatTime(row.created_at) }}
+                  </template>
+                </el-table-column>
+
+                <el-table-column
+                  label="操作"
+                  :width="isMobile ? 200 : 220"
+                  align="center"
+                  :fixed="isMobile ? false : 'right'"
+                >
+                  <template #default="{ row }">
+                    <el-button link type="primary" size="small" @click="handlePreview(row)"
+                      >预览</el-button
+                    >
+                    <el-button link type="primary" size="small" @click="handleDownload(row)"
+                      >下载</el-button
+                    >
+                    <el-button
+                      v-if="canEdit"
+                      link
+                      type="warning"
+                      size="small"
+                      @click="openEditDialog(row)"
+                      >编辑</el-button
+                    >
+                    <el-button
+                      v-if="canEdit"
+                      link
+                      type="danger"
+                      size="small"
+                      @click="handleDeleteFile(row)"
+                      >删除</el-button
+                    >
+                  </template>
+                </el-table-column>
+              </el-table>
+
+              <el-scrollbar
+                v-else
+                height="calc(100vh - 300px)"
+                class="grouped-view"
+                style="margin-top: 10px"
+              >
+                <el-collapse v-model="activeNames">
+                  <el-collapse-item v-for="(files, cat) in groupedFiles" :key="cat" :name="cat">
+                    <template #title>
+                      <div class="group-header">
+                        <el-icon><FolderOpened /></el-icon>
+                        <span class="cat-name">{{ cat }}</span>
+                        <el-tag size="small" round>{{ files.length }} 份</el-tag>
+                      </div>
+                    </template>
+
+                    <el-table :data="files" :show-header="true" size="small" border>
+                      <el-table-column label="排序" prop="sort_order" width="60" align="center" />
+                      <el-table-column label="文件名" min-width="200">
+                        <template #default="{ row }">
+                          <div class="file-name-cell">
+                            <span
+                              class="fname"
+                              @click="handlePreview(row)"
+                              v-html="DOMPurify.sanitize(row.file_name)"
+                            ></span>
+                            <el-tag
+                              v-if="row.ocr_content"
+                              type="success"
+                              size="small"
+                              effect="plain"
+                              round
+                              style="transform: scale(0.8)"
+                              >OCR</el-tag
+                            >
+                          </div>
+                          <div
+                            v-if="row.ocr_content && (metaKeyword || ocrKeyword)"
+                            class="ocr-snippet"
+                            style="
+                              font-size: 12px;
+                              color: #666;
+                              margin-top: 4px;
+                              padding: 4px 8px;
+                              background: #f9f9f9;
+                              border-radius: 4px;
+                            "
+                          >
+                            <el-icon><Search /></el-icon>
+                            <span v-html="DOMPurify.sanitize(row.ocr_content)"></span>
+                          </div>
+                          <div v-if="row.summary" class="row-summary">{{ row.summary }}</div>
+                        </template>
+                      </el-table-column>
+                      <el-table-column label="标签" min-width="100">
+                        <template #default="{ row }">
+                          <el-tag
+                            v-for="t in row.tags || []"
+                            :key="t"
+                            size="small"
+                            style="margin-right: 4px"
+                            >{{ t }}</el-tag
+                          >
+                        </template>
+                      </el-table-column>
+                      <el-table-column label="全卷页码" width="100" align="center">
+                        <template #default="{ row }">
+                          <span v-if="row.page_start" class="page-badge"
+                            >P{{ row.page_start }}-{{ row.page_end }}</span
+                          >
+                        </template>
+                      </el-table-column>
+
+                      <el-table-column
+                        prop="uploader_name"
+                        label="上传人"
+                        width="100"
+                        align="center"
+                      >
+                        <template #default="{ row }">
+                          <el-tag size="small" type="info" effect="plain">{{
+                            row.uploader_name || '未知'
+                          }}</el-tag>
+                        </template>
+                      </el-table-column>
+
+                      <el-table-column
+                        prop="created_at"
+                        label="上传时间"
+                        width="150"
+                        align="center"
+                      >
+                        <template #default="{ row }">
+                          {{ formatTime(row.created_at) }}
+                        </template>
+                      </el-table-column>
+
+                      <el-table-column
+                        label="操作"
+                        width="180"
+                        align="center"
+                        :fixed="isMobile ? false : 'right'"
+                      >
+                        <template #default="{ row }">
+                          <el-button link type="primary" size="small" @click="handlePreview(row)"
+                            >预览</el-button
+                          >
+                          <el-button link type="primary" size="small" @click="handleDownload(row)"
+                            >下载</el-button
+                          >
+                          <el-button
+                            v-if="canEdit"
+                            link
+                            type="warning"
+                            size="small"
+                            @click="openEditDialog(row)"
+                            >编辑</el-button
+                          >
+                          <el-button
+                            v-if="canEdit"
+                            link
+                            type="danger"
+                            size="small"
+                            @click="handleDeleteFile(row)"
+                            >删除</el-button
+                          >
+                        </template>
+                      </el-table-column>
+                    </el-table>
+                  </el-collapse-item>
+                </el-collapse>
+
+                <el-empty v-if="Object.keys(groupedFiles).length === 0" description="暂无文件" />
+              </el-scrollbar>
+            </template>
+          </el-skeleton>
         </div>
 
         <el-empty v-else description="请选择左侧卷宗册查看详情" />
@@ -544,6 +598,8 @@ import {
 import request from '@/utils/request'
 import BatchUploadDialog from '@/components/BatchUploadDialog.vue'
 import Sortable from 'sortablejs'
+import { debounce } from 'lodash-es'
+import DOMPurify from 'dompurify'
 
 // 注入父组件传下来的响应式状态
 const isMobile = inject('isMobile', ref(false))
@@ -571,8 +627,9 @@ const merging = ref(false)
 const viewMode = ref('list')
 const activeNames = ref([])
 
-// 文件搜索状态
-const fileSearchKeyword = ref('')
+// 文件搜索状态 — 双关键词
+const metaKeyword = ref('')
+const ocrKeyword = ref('')
 const fileSearchLoading = ref(false)
 
 // 轮询计时器引用
@@ -766,7 +823,8 @@ const selectVolume = (vol) => {
   fileList.value = vol.files || []
   fileList.value.sort((a, b) => a.sort_order - b.sort_order)
   // 切换卷宗时清空搜索关键词
-  fileSearchKeyword.value = ''
+  metaKeyword.value = ''
+  ocrKeyword.value = ''
 }
 const refreshCurrentVolume = async () => {
   if (!currentVolumeId.value) return
@@ -784,19 +842,23 @@ const refreshCurrentVolume = async () => {
   }
 }
 
-// 文件搜索：调用后端接口搜索当前卷宗内的文件
+// 文件搜索：调用后端接口搜索当前卷宗内的文件（支持双关键词组合）
 const handleFileSearch = async () => {
   if (!currentVolumeId.value) return
   fileSearchLoading.value = true
   try {
-    const kw = fileSearchKeyword.value.trim()
-    if (!kw) {
-      // 关键词为空，恢复完整列表
+    const metaKw = metaKeyword.value.trim()
+    const ocrKw = ocrKeyword.value.trim()
+    if (!metaKw && !ocrKw) {
+      // 关键词均为空，恢复完整列表
       await refreshCurrentVolume()
       return
     }
     const res = await request.get(`/electronic_volumes/${currentVolumeId.value}/files`, {
-      params: { keyword: kw },
+      params: {
+        meta_keyword: metaKw || undefined,
+        ocr_keyword: ocrKw || undefined,
+      },
     })
     fileList.value = res.data.items || []
     fileList.value.sort((a, b) => a.sort_order - b.sort_order)
@@ -807,6 +869,21 @@ const handleFileSearch = async () => {
     fileSearchLoading.value = false
   }
 }
+
+// 清空双搜索框
+const clearSearch = () => {
+  metaKeyword.value = ''
+  ocrKeyword.value = ''
+}
+
+// 防抖即时搜索：同时监听两个关键词，400ms 防抖自动触发
+const debouncedFileSearch = debounce(() => {
+  handleFileSearch()
+}, 400)
+
+watch([metaKeyword, ocrKeyword], () => {
+  debouncedFileSearch()
+})
 
 // --- 卷宗增改逻辑 ---
 const openCreateVolumeDialog = () => {
@@ -1330,17 +1407,18 @@ const formatTime = (val) => {
 .cat-name {
   color: #303133;
 }
-/* 搜索栏紧凑样式 */
+/* 搜索栏紧凑样式：双输入框并排 */
 .search-bar-compact {
   display: flex;
   align-items: center;
+  gap: 8px;
 }
 .file-search-input {
-  width: 280px;
+  width: 200px;
   transition: width 0.3s ease;
 }
 .file-search-input:focus-within {
-  width: 320px;
+  width: 300px;
 }
 
 .form-tip {
@@ -1398,10 +1476,10 @@ const formatTime = (val) => {
 
   /* 平板端搜索栏适配 */
   .file-search-input {
-    width: 220px;
+    width: 160px;
   }
   .file-search-input:focus-within {
-    width: 260px;
+    width: 220px;
   }
 }
 
@@ -1410,13 +1488,14 @@ const formatTime = (val) => {
 
   .search-bar-compact {
     width: 100%;
+    flex-wrap: wrap;
   }
   .file-search-input {
-    width: 100% !important;
-    max-width: 100%;
+    flex: 1;
+    min-width: 120px;
   }
   .file-search-input:focus-within {
-    width: 100% !important;
+    flex: 1.5;
   }
 
   .view-mode-group {
@@ -1446,5 +1525,45 @@ const formatTime = (val) => {
     padding-left: 5px;
     padding-right: 5px;
   }
+}
+
+:deep(.search-highlight) {
+  color: #f56c6c;
+  background-color: rgba(245, 108, 108, 0.1);
+  font-weight: bold;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+.ocr-snippet {
+  font-size: 13px;
+  color: #606266;
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: #f4f4f5;
+  border-left: 3px solid #409eff;
+  border-radius: 0 4px 4px 0;
+  line-height: 1.6;
+  word-break: break-all;
+
+  /* 限制最大高度并支持内滚动 */
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+/* 美化 OCR 摘要区域的滚动条 */
+.ocr-snippet::-webkit-scrollbar {
+  width: 6px;
+}
+.ocr-snippet::-webkit-scrollbar-thumb {
+  background: #dcdfe6;
+  border-radius: 3px;
+}
+.ocr-snippet::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ocr-snippet :deep(.search-highlight) {
+  background-color: #fff176;
+  color: #d32f2f;
 }
 </style>

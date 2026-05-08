@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import shutil
 import threading
 import time
@@ -22,7 +23,8 @@ from reportlab.lib.utils import ImageReader  # 引入图片读取工具
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
-from sqlalchemy.orm import Session
+from sqlalchemy import or_, case as sql_case  # 引入 sql_case 用于保持搜索相关性排序
+from sqlalchemy.orm import Session, joinedload
 
 from ..api.deps import get_current_user
 from ..core.config import ELECTRONIC_VOLUME_ROOT, PDF_VOLUME_ROOT
@@ -32,11 +34,12 @@ from ..crud.attachment import convert_word_to_pdf  # 复用现有的Word转PDF�
 # 引入项目依赖
 from ..database.database import get_db, SessionLocal
 from ..models.case import Case
-from ..models.electronic_volume_model import VolumeFile
+from ..models.electronic_volume_model import VolumeFile, CaseVolume
 from ..models.user import User
 from ..schemas import electronic_volume_schema as schemas
 from ..schemas.electronic_volume_schema import SortItem
 from ..utils.ocr_helper import perform_smart_extraction
+from ..utils.search_engine import meili_client
 
 # 确保存储目录存在
 os.makedirs(ELECTRONIC_VOLUME_ROOT, exist_ok=True)
@@ -63,6 +66,62 @@ router = APIRouter(
     tags=["Electronic Volume (电子卷宗)"]
 )
 
+# ==========================================
+# 辅助函数：提取多段高亮文本
+# ==========================================
+def extract_multiple_snippets(highlighted_text: str, max_snippets: int = 5, context_len: int = 30) -> str:
+    """
+    在全文高亮的字符串中，提取最多 max_snippets 个命中片段。
+    每个片段包含关键词前后的 context_len 个字符。
+    """
+    if not highlighted_text:
+        return ""
+
+    pre_tag = '<mark class="search-highlight">'
+    post_tag = '</mark>'
+
+    # 使用极其罕见的 Unicode 占位符替代长 HTML 标签
+    magic_pre = '\uE000'
+    magic_post = '\uE001'
+
+    # 替换成单字符
+    text = highlighted_text.replace(pre_tag, magic_pre).replace(post_tag, magic_post)
+    # 正则匹配被高亮标签包裹的关键词
+    pattern = re.compile(f"{magic_pre}.*?{magic_post}")
+
+    snippets = []
+    last_end = -1
+
+    for m in pattern.finditer(text):
+        if len(snippets) >= max_snippets:
+            break
+
+        start = m.start()
+        end = m.end()
+
+        # 如果这个命中词和上一个命中词靠得太近，跳过以防片段重复
+        if start < last_end:
+            continue
+
+        # 计算安全截取的上下文边界
+        win_start = max(0, start - context_len)
+        win_end = min(len(text), end + context_len)
+
+        snippet = text[win_start:win_end]
+
+        # 补齐可能被切掉的单字符占位符
+        if snippet.count(magic_pre) > snippet.count(magic_post):
+            snippet += magic_post
+        if snippet.count(magic_post) > snippet.count(magic_pre):
+            snippet = magic_pre + snippet
+
+        # 还原回 HTML 标签
+        snippet = snippet.replace(magic_pre, pre_tag).replace(magic_post, post_tag)
+        snippets.append(f"... {snippet.strip()} ...")
+        last_end = win_end + 10  # 稍微拉开下一个片段的距离
+
+    # 使用换行符和虚线拼接多个片段
+    return "<br/><span style='color:#dcdfe6; margin: 2px 0; display: block;'>---</span>".join(snippets)
 
 # ==========================================
 # 辅助函数：权限与业务逻辑检查
@@ -207,25 +266,138 @@ def get_volume_detail(
     return volume
 
 
+def _build_file_item(item, meta_hit=None, ocr_hit=None):
+    """将 ORM 文件对象与 Meilisearch 高亮结果组装为前端需要的字典"""
+    item_data = {
+        "id": item.id,
+        "volume_id": item.volume_id,
+        "file_name": item.file_name,
+        "file_path": item.file_path,
+        "file_size": item.file_size,
+        "file_type": item.file_type,
+        "category": item.category,
+        "sort_order": item.sort_order,
+        "tags": item.tags or [],
+        "summary": item.summary or "",
+        "ocr_content": item.ocr_content or "",
+        "page_start": item.page_start,
+        "page_end": item.page_end,
+        "uploaded_by": item.uploaded_by,
+        "uploader_name": item.uploader.real_name if item.uploader else "未知",
+        "created_at": item.created_at.isoformat() if item.created_at else None,
+    }
+
+    # 注入高亮字段（优先使用 meta 搜索的文件名高亮，OCR 搜索的正文高亮）
+    if meta_hit and '_formatted' in meta_hit:
+        fmt = meta_hit['_formatted']
+        if fmt.get('file_name'):
+            item_data['file_name'] = fmt['file_name']
+        if fmt.get('summary'):
+            item_data['summary'] = fmt['summary']
+        if fmt.get('tags'):
+            item_data['tags'] = fmt['tags']
+    if ocr_hit and '_formatted' in ocr_hit:
+        fmt = ocr_hit['_formatted']
+        if fmt.get('ocr_content'):
+            # 使用辅助函数切出 5 个片段
+            item_data['ocr_content'] = extract_multiple_snippets(fmt['ocr_content'])
+
+    elif meta_hit and '_formatted' in meta_hit and meta_hit['_formatted'].get('ocr_content'):
+        item_data['ocr_content'] = extract_multiple_snippets(meta_hit['_formatted']['ocr_content'])
+
+    return item_data
+
+
 @router.get("/{volume_id}/files", response_model=schemas.VolumeFilePageOut)
 def list_files_in_volume(
         volume_id: int,
-        keyword: Optional[str] = None,
+        meta_keyword: Optional[str] = None,
+        ocr_keyword: Optional[str] = None,
         category: Optional[str] = None,
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
     """
-    获取卷宗内文件列表（支持关键词搜索和分类筛选）
-    搜索范围：文件名、标签、摘要备注、OCR识别内容
+    获取卷宗内文件列表（支持双关键词组合搜索）
+    - meta_keyword: 搜索文件名/摘要/标签
+    - ocr_keyword:  搜索OCR识别全文
+    - 两者可组合（AND 逻辑：文件必须同时匹配两个条件）
     """
     volume = crud.get_volume_by_id(db, volume_id)
     if not volume:
         raise HTTPException(status_code=404, detail="卷宗不存在")
 
     check_volume_read_permission(db, current_user, volume.case_id)
-    files = crud.get_files_in_volume(db, volume_id, category=category, keyword=keyword)
-    return {"total": len(files), "items": files}
+
+    meta_kw = meta_keyword.strip() if meta_keyword and meta_keyword.strip() else None
+    ocr_kw = ocr_keyword.strip() if ocr_keyword and ocr_keyword.strip() else None
+
+    # 无关键词：走原有 CRUD 路径
+    if not meta_kw and not ocr_kw:
+        files = crud.get_files_in_volume(db, volume_id, category=category)
+        return {"total": len(files), "items": files}
+
+    # ---- Meilisearch 搜索 ----
+    base_params = {
+        'limit': 1000,
+        'attributesToHighlight': ['file_name', 'summary', 'tags', 'ocr_content'],
+        'highlightPreTag': '<mark class="search-highlight">',
+        'highlightPostTag': '</mark>',
+        'filter': f'volume_id = {volume_id}',
+    }
+
+    if meta_kw and ocr_kw:
+        # 双关键词：分别搜索，取 ID 交集
+        meta_params = {**base_params, 'attributesToSearchOn': ['file_name', 'summary', 'tags']}
+        ocr_params = {**base_params, 'attributesToSearchOn': ['ocr_content']}
+
+        meta_res = meili_client.index('volume_files').search(meta_kw, meta_params)
+        ocr_res = meili_client.index('volume_files').search(ocr_kw, ocr_params)
+
+        meta_hits = {hit['id']: hit for hit in meta_res.get('hits', [])}
+        ocr_hits = {hit['id']: hit for hit in ocr_res.get('hits', [])}
+
+        intersected = set(meta_hits.keys()) & set(ocr_hits.keys())
+
+        if not intersected:
+            return {"total": 0, "items": []}
+
+        db_items = db.query(VolumeFile) \
+            .options(joinedload(VolumeFile.uploader)) \
+            .filter(VolumeFile.id.in_(list(intersected))) \
+            .order_by(VolumeFile.sort_order.asc(), VolumeFile.id.asc()) \
+            .all()
+
+        result = [_build_file_item(item, meta_hit=meta_hits.get(item.id), ocr_hit=ocr_hits.get(item.id))
+                  for item in db_items]
+        return {"total": len(result), "items": result}
+
+    # 单关键词搜索
+    if meta_kw:
+        base_params['attributesToSearchOn'] = ['file_name', 'summary', 'tags']
+        search_res = meili_client.index('volume_files').search(meta_kw, base_params)
+    else:
+        base_params['attributesToSearchOn'] = ['ocr_content']
+        search_res = meili_client.index('volume_files').search(ocr_kw, base_params)
+
+    hits = search_res.get('hits', [])
+    if not hits:
+        return {"total": 0, "items": []}
+
+    hit_ids = [h['id'] for h in hits]
+    db_items = db.query(VolumeFile) \
+        .options(joinedload(VolumeFile.uploader)) \
+        .filter(VolumeFile.id.in_(hit_ids)) \
+        .order_by(VolumeFile.sort_order.asc(), VolumeFile.id.asc()) \
+        .all()
+
+    hit_map = {h['id']: h for h in hits}
+    is_ocr_search = bool(ocr_kw and not meta_kw)
+    result = [_build_file_item(item,
+                               ocr_hit=hit_map.get(item.id) if is_ocr_search else None,
+                               meta_hit=None if is_ocr_search else hit_map.get(item.id))
+              for item in db_items]
+    return {"total": len(result), "items": result}
 
 
 @router.put("/{volume_id}", response_model=schemas.CaseVolumeOut)
@@ -340,6 +512,27 @@ def background_ocr_task(file_id: int, file_path: str, file_type: str):
             file_obj.ocr_content = content
             db.commit()
             print(f"[OCR Task] 成功写入 ocr_content, file_id={file_id}, 字数={len(content)}")
+            # ================= 同步到 Meilisearch =================
+            try:
+                # 获取关联的 case_id，这是后期搜索进行权限过滤的关键字段
+                volume = db.query(CaseVolume).filter(CaseVolume.id == file_obj.volume_id).first()
+                case_id = volume.case_id if volume else 0
+
+                document = {
+                    "id": file_obj.id,
+                    "volume_id": file_obj.volume_id,
+                    "case_id": case_id,
+                    "file_name": file_obj.file_name,
+                    "category": file_obj.category,
+                    "summary": file_obj.summary or "",
+                    "tags": file_obj.tags or [],
+                    "ocr_content": content
+                }
+                meili_client.index('volume_files').add_documents([document], primary_key='id')
+                print(f"[OCR Task] 成功同步至 Meilisearch, file_id={file_id}")
+            except Exception as meili_e:
+                print(f"[OCR Task] 同步 Meilisearch 失败: {meili_e}")
+            # ==========================================================
         else:
             print(f"[OCR Task] 错误: 未找到 file_id={file_id} 的记录")
     except Exception as e:
@@ -505,7 +698,7 @@ def batch_update_sort(
     return {"msg": "ok"}
 
 
-@router.get("/files/search", response_model=schemas.VolumeFilePageOut)
+@router.get("/files/search")
 def search_files_global(
         keyword: str,
         page: int = 1,
@@ -514,17 +707,107 @@ def search_files_global(
         current_user: User = Depends(get_current_user)
 ):
     """
-    全局文件搜索（跨所有有权限的卷宗）
-    搜索范围：文件名、标签、摘要备注、OCR识别内容
+    全局文件搜索（基于 Meilisearch 极速引擎）
     """
     if not keyword or not keyword.strip():
         return {"total": 0, "items": []}
 
     skip = (page - 1) * page_size
-    items, total = crud.search_files_with_count(
-        db, current_user, keyword.strip(), skip=skip, limit=page_size
-    )
-    return {"total": total, "items": items}
+
+    # ---------------- 1. 计算权限边界 ----------------
+    can_view_all = False
+    if current_user.role in ['owner']:
+        can_view_all = True
+    elif current_user.permissions and current_user.permissions.get("volume_manage"):
+        can_view_all = True
+
+    meili_filter = None
+    if not can_view_all:
+        allowed_cases = db.query(Case.case_id).filter(
+            or_(
+                Case.main_lawyer_id == current_user.id,
+                Case.assistant_lawyer_id == current_user.id,
+                Case.assistant_lawyer_2_id == current_user.id,
+                Case.execution_lawyer_id == current_user.id,
+                Case.execution_assistant_id == current_user.id,
+            )
+        ).all()
+        allowed_case_ids = [c[0] for c in allowed_cases]
+
+        if not allowed_case_ids:
+            return {"total": 0, "items": []}
+
+        meili_filter = f"case_id IN [{', '.join(map(str, allowed_case_ids))}]"
+
+    # ---------------- 2. 请求 Meilisearch ----------------
+    search_params = {
+        'offset': skip,
+        'limit': page_size,
+        'attributesToHighlight': ['ocr_content', 'file_name'],
+        'highlightPreTag': '<mark class="search-highlight">',
+        'highlightPostTag': '</mark>',
+        # 核心修改 2：强制 Meilisearch 截取匹配关键词前后的 50 个字作为摘要，加上省略号
+        'attributesToCrop': ['ocr_content:50'],
+        'cropMarker': ' ... '
+    }
+
+    if meili_filter:
+        search_params['filter'] = meili_filter
+
+    try:
+        search_results = meili_client.index('volume_files').search(keyword.strip(), search_params)
+        total_hits = search_results.get('estimatedTotalHits', 0)
+        hits = search_results.get('hits', [])
+
+        if not hits:
+            return {"total": 0, "items": []}
+
+        hit_ids = [hit['id'] for hit in hits]
+
+        # ---------------- 3. 回查数据库并连表查询 ----------------
+        # 核心修改 3：使用 joinedload 预加载关联的卷宗和案件，否则取不到名字
+        from sqlalchemy.orm import joinedload
+        order = sql_case({id_: idx for idx, id_ in enumerate(hit_ids)}, value=VolumeFile.id)
+
+        db_items = db.query(VolumeFile) \
+            .options(joinedload(VolumeFile.volume).joinedload(CaseVolume.case)) \
+            .filter(VolumeFile.id.in_(hit_ids)) \
+            .order_by(order) \
+            .all()
+
+        # ---------------- 4. 手动组装返回给前端的数据字典 ----------------
+        result_items = []
+        hit_dict = {hit['id']: hit for hit in hits}
+
+        for item in db_items:
+            hit = hit_dict.get(item.id)
+
+            # 手动提取所有前端需要的字段，不受 Schema 约束
+            item_data = {
+                "id": item.id,
+                "file_name": item.file_name,
+                "category": item.category,
+                "volume_id": item.volume_id,
+                "volume_name": item.volume.name if item.volume else "未知卷宗",
+                "case_id": item.volume.case_id if item.volume else None,
+                "case_number": item.volume.case.case_number if item.volume and item.volume.case else "未知案件",
+                "ocr_content": ""
+            }
+
+            # 注入高亮结果
+            if hit and '_formatted' in hit:
+                if 'ocr_content' in hit['_formatted'] and hit['_formatted']['ocr_content']:
+                    item_data['ocr_content'] = hit['_formatted']['ocr_content']
+                if 'file_name' in hit['_formatted'] and hit['_formatted']['file_name']:
+                    item_data['file_name'] = hit['_formatted']['file_name']
+
+            result_items.append(item_data)
+
+        return {"total": total_hits, "items": result_items}
+
+    except Exception as e:
+        print(f"[Search Engine Error] 搜索引擎异常: {e}")
+        raise HTTPException(status_code=500, detail="搜索引擎暂时不可用")
 
 
 @router.delete("/files/{file_id}", status_code=status.HTTP_204_NO_CONTENT)

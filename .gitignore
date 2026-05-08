@@ -32,3 +32,6 @@ database/
 
 # claude文件
 .claude/
+
+# Meilisearch文件
+.Meilisearch/
