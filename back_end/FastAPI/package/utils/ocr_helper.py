@@ -28,10 +28,52 @@ except Exception as e:
 
 
 def extract_text_from_docx(file_path: str) -> str:
-    """提取 Word (.docx) 文本"""
+    """提取 Word (.docx) 文本（包含段落、表格，以及内嵌图片的OCR识别）"""
     try:
         doc = Document(file_path)
-        return "\n".join([para.text for para in doc.paragraphs])
+        full_text = []
+
+        # 1. 提取普通段落文本
+        for para in doc.paragraphs:
+            text = para.text.strip()
+            if text:
+                full_text.append(text)
+
+        # 2. 提取表格内的文本
+        for table in doc.tables:
+            for row in table.rows:
+                row_texts = []
+                for cell in row.cells:
+                    cell_text = cell.text.strip().replace('\n', ' ')
+                    if cell_text and cell_text not in row_texts:
+                        row_texts.append(cell_text)
+                if row_texts:
+                    full_text.append(" | ".join(row_texts))
+
+        # 3. 提取文档中内嵌的图片，并进行 OCR 识别
+        # 遍历文档的所有关联部件 (relationships)
+        image_index = 1
+        for rel in doc.part.rels.values():
+            if "image" in rel.target_ref:
+                try:
+                    # 获取图片的二进制数据
+                    image_bytes = rel.target_part.blob
+                    # 将二进制数据转为 numpy 数组 (OpenCV 格式)
+                    nparr = np.frombuffer(image_bytes, np.uint8)
+                    img_np = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+                    if img_np is not None:
+                        # 复用你现有的图片 OCR 函数 (传入 is_bgr=True)
+                        ocr_text = _ocr_image_data(img_np, is_bgr=True)
+                        if ocr_text:
+                            full_text.append(f"--- [内嵌图片 {image_index} 识别内容] ---")
+                            full_text.append(ocr_text)
+                            image_index += 1
+                except Exception as img_e:
+                    logger.warning(f"Word 内嵌图片识别跳过: {img_e}")
+                    continue
+
+        return "\n".join(full_text)
     except Exception as e:
         logger.error(f"Docx error: {e}")
         return ""

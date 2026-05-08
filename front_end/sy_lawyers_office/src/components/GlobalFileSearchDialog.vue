@@ -198,7 +198,8 @@ const openFileCase = (item) => {
   background: #f9f9f9;
   border-radius: 4px;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 3; /* 旧版 Chrome/Safari/Edge */
+  line-clamp: 3; /* 标准属性（新版浏览器用）*/
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
