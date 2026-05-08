@@ -18,8 +18,10 @@ from .package.api.finance_api import router as auth_finance_router
 from .package.api.party_building_api import router as auth_party_building_router
 from .package.api.electronic_volume_api import router as auth_electronic_volume_router
 from .package.api.system_announcement_api import router as auth_system_announcement_router
+from .package.api.system_admin import router as auth_system_admin_router
 from .package.core.config import PARTY_IMAGE_ROOT
 from .package.core.logger import logger
+from .package.core.user_cache import user_cache
 
 origins = [
     "http://localhost:5173",
@@ -38,6 +40,7 @@ async def lifespan(app: FastAPI):
     # 启动时执行的代码
     logger.info("==================================================")
     logger.info("日志系统已加载，当前日志模式：每日独立存储及自动清理")
+    logger.info("用户缓存系统已启用，缓存TTL: 5分钟")
     logger.info("系统全局 API 前缀已启用: /api")
     logger.info("==================================================")
 
@@ -70,6 +73,19 @@ async def log_requests(request: Request, call_next):
     # 获取客户端 IP (优先读取 Nginx 转发的 X-Forwarded-For)
     client_ip = request.headers.get("X-Forwarded-For") or request.client.host
 
+    # 获取用户信息
+    username = "匿名用户"
+    try:
+        # 尝试从请求头获取 Authorization token
+        auth_header = request.headers.get("authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+            # 使用缓存获取用户信息
+            username = user_cache.get_user_display_name(token)
+    except Exception:
+        # 获取用户信息失败，保持默认用户名
+        pass
+
     # 执行后续的业务逻辑
     response = await call_next(request)
 
@@ -80,6 +96,7 @@ async def log_requests(request: Request, call_next):
     log_msg = (
         f"<== 响应: [{request.method}] {request.url.path} | "
         f"状态码: {response.status_code} | "
+        f"用户: {username} | "
         f"IP: {client_ip} | "
         f"耗时: {process_time:.2f} ms"
     )
@@ -149,6 +166,9 @@ api_router.include_router(auth_electronic_volume_router)
 
 # 注册系统公告管理路由
 api_router.include_router(auth_system_announcement_router)
+
+# 注册系统管理路由
+api_router.include_router(auth_system_admin_router)
 
 # 最后将这个路由组挂载到 app 实例上
 app.include_router(api_router)
