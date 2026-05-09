@@ -245,6 +245,91 @@
           </div>
         </div>
       </el-tab-pane>
+
+      <el-tab-pane label="系统运维管理" name="ops_management">
+        <div class="tab-content">
+          <el-row :gutter="20">
+            <el-col :xs="24" :sm="24" :md="10" style="margin-bottom: 20px">
+              <el-card shadow="hover" class="ops-card">
+                <template #header>
+                  <div class="card-header">
+                    <span style="font-weight: bold; font-size: 16px">用户解析缓存池</span>
+                    <el-button type="primary" link @click="fetchCacheStats">刷新状态</el-button>
+                  </div>
+                </template>
+                <div v-loading="cacheLoading" class="cache-stats-body">
+                  <div class="stat-item">
+                    <span>总缓存条目:</span>
+                    <span class="stat-num">{{ cacheStats.total_entries || 0 }}</span>
+                  </div>
+                  <div class="stat-item">
+                    <span>活跃(未过期)条目:</span>
+                    <span class="stat-num" style="color: #13ce66">{{
+                      cacheStats.active_entries || 0
+                    }}</span>
+                  </div>
+                  <div class="stat-item">
+                    <span>缓存系统状态:</span>
+                    <el-tag
+                      :type="cacheStats.cache_hit_potential ? 'success' : 'info'"
+                      size="small"
+                    >
+                      {{ cacheStats.cache_hit_potential ? '运行中 / 有效命中' : '空闲 / 无数据' }}
+                    </el-tag>
+                  </div>
+
+                  <el-divider border-style="dashed" />
+                  <div class="cache-action">
+                    <p style="font-size: 12px; color: #909399; margin-bottom: 10px">
+                      如遇到用户修改姓名后日志记录未更新，可手动清空缓存强制回源。
+                    </p>
+                    <el-button type="danger" :icon="Delete" plain @click="clearCache"
+                      >一键清空用户缓存</el-button
+                    >
+                  </div>
+                </div>
+              </el-card>
+            </el-col>
+
+            <el-col :xs="24" :sm="24" :md="14">
+              <el-card shadow="hover" class="ops-card">
+                <template #header>
+                  <div class="card-header">
+                    <span style="font-weight: bold; font-size: 16px">系统运行日志下载</span>
+                  </div>
+                </template>
+                <div class="log-export-body">
+                  <el-alert
+                    title="系统日志按自然日生成和切分。包含了系统API访问记录、状态码、响应耗时等信息。超过30天的日志将被自动清理。"
+                    type="info"
+                    show-icon
+                    :closable="false"
+                    style="margin-bottom: 20px"
+                  />
+
+                  <div class="export-form">
+                    <span style="font-size: 14px; font-weight: 500; margin-right: 15px"
+                      >选择日志日期:</span
+                    >
+                    <el-date-picker
+                      v-model="logDate"
+                      type="date"
+                      placeholder="请选择日期"
+                      format="YYYY-MM-DD"
+                      value-format="YYYY-MM-DD"
+                      :disabled-date="(time) => time.getTime() > Date.now()"
+                      style="width: 200px; margin-right: 15px"
+                    />
+                    <el-button type="success" :loading="exportingLog" @click="exportLog">
+                      <el-icon style="margin-right: 5px"><Download /></el-icon> 导出该日日志
+                    </el-button>
+                  </div>
+                </div>
+              </el-card>
+            </el-col>
+          </el-row>
+        </div>
+      </el-tab-pane>
     </el-tabs>
 
     <SystemAnnouncementForm
@@ -317,10 +402,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { DataLine, Plus } from '@element-plus/icons-vue' // 引入所需的图标
+import { DataLine, Plus, Download, Delete } from '@element-plus/icons-vue'
 import SystemAnnouncementForm from '@/components/SystemAnnouncementForm.vue'
 
 const activeTab = ref('permissions')
@@ -329,12 +414,12 @@ const users = ref([])
 const searchKeyword = ref('')
 const currentUserRole = localStorage.getItem('role')
 
-// 新增：用户列表的分页状态
+// 用户列表的分页状态
 const userPage = ref(1)
 const userPageSize = ref(10)
 const userTotal = ref(0)
 
-// --- 公告管理状态 ---
+// 公告管理状态
 const announcementsList = ref([])
 const noticeLoading = ref(false)
 const noticeFormVisible = ref(false)
@@ -345,7 +430,9 @@ const noticePage = ref(1)
 const noticePageSize = ref(10)
 const noticeTotal = ref(0)
 
-// 获取用户及权限列表
+// =====================================
+// 权限与用户列表逻辑
+// =====================================
 const fetchUsers = async () => {
   loading.value = true
   try {
@@ -409,8 +496,7 @@ const updatePermission = async (user, permissionType) => {
   } catch (err) {
     console.error(err)
     user.permissions[permissionType] = !user.permissions[permissionType]
-    const errorMessage = err.response?.data?.detail || '权限更新失败，请稍后重试'
-    ElMessage.error(errorMessage)
+    ElMessage.error(err.response?.data?.detail || '权限更新失败，请稍后重试')
   }
 }
 
@@ -420,7 +506,9 @@ const getRoleTag = (role) => {
   return 'info'
 }
 
-// --- 公告管理方法 ---
+// =====================================
+// 公告管理逻辑
+// =====================================
 const fetchAnnouncements = async () => {
   noticeLoading.value = true
   try {
@@ -488,7 +576,7 @@ const deleteNotice = async (id) => {
 }
 
 // =====================================
-// 新增：公告预览相关逻辑
+// 公告预览相关逻辑
 // =====================================
 const previewVisible = ref(false)
 const previewLoading = ref(false)
@@ -511,7 +599,7 @@ const openPreviewDialog = async (row) => {
 }
 
 // =====================================
-// 新增：阅读情况相关逻辑
+// 阅读情况相关逻辑
 // =====================================
 const readStatusVisible = ref(false)
 const readStatusLoading = ref(false)
@@ -537,6 +625,104 @@ const openReadStatusDialog = async (row) => {
   }
 }
 
+// =====================================
+// 运维管理逻辑 (缓存与日志)
+// =====================================
+const cacheStats = ref({})
+const cacheLoading = ref(false)
+const logDate = ref('')
+const exportingLog = ref(false)
+
+// 1. 获取缓存统计
+const fetchCacheStats = async () => {
+  cacheLoading.value = true
+  try {
+    const res = await request.get('/system/cache-stats')
+    // 处理包装的数据结构，根据后端的封装这里一般是 res.data 或 res.data.data
+    cacheStats.value = res.data.data || res.data || {}
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('获取缓存统计失败')
+  } finally {
+    cacheLoading.value = false
+  }
+}
+
+// 2. 清空缓存
+const clearCache = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要清空全局用户信息缓存吗？这将导致短时间内 API 鉴权全部回源查询数据库。',
+      '风险操作警告',
+      { confirmButtonText: '确定清空', cancelButtonText: '取消', type: 'warning' },
+    )
+    await request.post('/system/clear-user-cache')
+    ElMessage.success('缓存已强制清空')
+    fetchCacheStats()
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error('清空缓存失败')
+  }
+}
+
+// 3. 导出日志
+const exportLog = async () => {
+  if (!logDate.value) {
+    ElMessage.warning('请先选择要导出的日志日期')
+    return
+  }
+  exportingLog.value = true
+  try {
+    // 调用后端的下载接口，并声明响应类型为 blob 格式文件流
+    const response = await request.get('/system/export-log', {
+      params: { date: logDate.value },
+      responseType: 'blob',
+    })
+
+    // 如果接口返回了 JSON，说明报错了 (比如404 日志不存在)
+    if (response.data.type === 'application/json') {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const errorMsg = JSON.parse(reader.result)
+        ElMessage.error(errorMsg.detail || '该日期暂无日志文件')
+      }
+      reader.readAsText(response.data)
+      return
+    }
+
+    // 下载文件处理
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `system_log_${logDate.value}.log`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+
+    ElMessage.success(`${logDate.value} 日志导出成功`)
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('该日期可能无日志文件，或导出请求失败')
+  } finally {
+    exportingLog.value = false
+  }
+}
+
+// 监听 Tab 切换，按需加载数据
+watch(activeTab, (newTab) => {
+  if (newTab === 'ops_management') {
+    // 自动设置为当天日期
+    if (!logDate.value) {
+      const today = new Date()
+      const yyyy = today.getFullYear()
+      const mm = String(today.getMonth() + 1).padStart(2, '0')
+      const dd = String(today.getDate()).padStart(2, '0')
+      logDate.value = `${yyyy}-${mm}-${dd}`
+    }
+    fetchCacheStats()
+  }
+})
+
 onMounted(() => {
   fetchUsers()
   fetchAnnouncements()
@@ -558,7 +744,7 @@ onMounted(() => {
   display: flex;
 }
 
-/* --- 新增概览卡片样式 --- */
+/* 概览卡片样式 */
 .overview-cards {
   margin-bottom: 24px;
 }
@@ -617,7 +803,51 @@ onMounted(() => {
   margin-top: 4px;
 }
 
-/* --- 富文本预览区域样式约束 --- */
+/* --- 运维管理面板样式 --- */
+.ops-card {
+  min-height: 300px; /* 将固定的 height 改为 min-height */
+  height: 100%; /* 配合 flex 布局，让左右两个卡片在电脑端保持等高 */
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+/* 确保 row 在大屏幕上开启 flex 并且允许拉伸，从而实现左右卡片等高 */
+.tab-content .el-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.cache-stats-body .stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  font-size: 14px;
+  color: #606266;
+}
+.cache-stats-body .stat-num {
+  font-size: 18px;
+  font-weight: bold;
+  color: #303133;
+}
+.cache-action {
+  text-align: center;
+  margin-top: 15px;
+}
+.export-form {
+  display: flex;
+  align-items: center;
+  background-color: #f5f7fa;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+/* 富文本预览约束 */
 .preview-container {
   padding: 10px 20px;
 }
