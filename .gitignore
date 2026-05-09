@@ -32,6 +32,7 @@ database/
 
 # claude文件
 .claude/
+CLAUDE.md
 
 # Meilisearch文件
 Meilisearch/

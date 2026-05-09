@@ -35,7 +35,7 @@
       <div class="toolbar-left">
         <el-input
           v-model="searchKeyword"
-          placeholder="请输入业务号或当事人"
+          placeholder="请输入业务号、法院案号或当事人"
           clearable
           @clear="handleSearch"
           @keyup.enter="handleSearch"
@@ -128,6 +128,11 @@
         <el-table-column type="selection" width="55" align="center" />
 
         <el-table-column prop="case_number" label="业务号" min-width="200" align="center" />
+        <el-table-column prop="case_code" label="法院案号" min-width="180" align="center">
+          <template #default="scope">
+            {{ scope.row.case_code || '-' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="client_name" label="委托银行" min-width="150" align="center" />
 
         <el-table-column label="案件状态" min-width="160" align="center">

@@ -249,11 +249,12 @@ def list_bank_cases_by_user_role(
             )
         )
 
-    # 关键词搜索：支持按案号或【任何当事人名称】进行全维度检索
+    # 关键词搜索：支持按案号、法院案号或【任何当事人名称】进行全维度检索
     if keyword:
         query = query.filter(
             or_(
                 Case.case_number.like(f"%{keyword}%"),
+                Case.case_code.like(f"%{keyword}%"),
                 Case.parties.any(CaseParty.name.like(f"%{keyword}%"))
             )
         )
@@ -331,11 +332,12 @@ def count_bank_cases_by_user_role(
             )
         )
 
-    # 关键词搜索：支持按案号或【任何当事人名称】进行全维度检索
+    # 关键词搜索：支持按案号、法院案号或【任何当事人名称】进行全维度检索
     if keyword:
         query = query.filter(
             or_(
                 Case.case_number.like(f"%{keyword}%"),
+                Case.case_code.like(f"%{keyword}%"),
                 Case.parties.any(CaseParty.name.like(f"%{keyword}%"))
             )
         )

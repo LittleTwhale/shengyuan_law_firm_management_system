@@ -437,6 +437,7 @@ class CaseSimpleOut(BaseModel):
     borrower_name: Optional[str] = Field(None, description="借款人 / Borrower name")
     case_category: str = Field(..., description="案件类别 / Case category")
     case_status: Optional[str] = Field(None, description="案件状态 / Case status")
+    case_code: Optional[str] = Field(None, description="法院案号 / Court case code")
     review_status: str = Field(..., description="案件审核状态 / Review status")
     main_lawyer: Optional[UserOut] = Field(None, description="主办律师 / Main lawyer")
     execution_lawyer: Optional[UserOut] = Field(None, description="执行主办律师 / Execution lawyer")
