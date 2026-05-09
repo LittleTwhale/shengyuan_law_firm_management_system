@@ -227,7 +227,11 @@
                       <el-icon><Search /></el-icon>
                       <span v-html="DOMPurify.sanitize(row.ocr_content)"></span>
                     </div>
-                    <div v-if="row.summary" class="row-summary">{{ row.summary }}</div>
+                    <div
+                      v-if="row.summary"
+                      class="row-summary"
+                      v-html="DOMPurify.sanitize(row.summary)"
+                    ></div>
                   </template>
                 </el-table-column>
 
@@ -240,9 +244,9 @@
                 <el-table-column label="标签" min-width="120">
                   <template #default="{ row }">
                     <div class="tags-cell">
-                      <el-tag v-for="t in row.tags || []" :key="t" size="small" type="info">{{
-                        t
-                      }}</el-tag>
+                      <el-tag v-for="t in row.tags || []" :key="t" size="small" type="info">
+                        <span v-html="DOMPurify.sanitize(t)"></span>
+                      </el-tag>
                     </div>
                   </template>
                 </el-table-column>
@@ -356,7 +360,11 @@
                             <el-icon><Search /></el-icon>
                             <span v-html="DOMPurify.sanitize(row.ocr_content)"></span>
                           </div>
-                          <div v-if="row.summary" class="row-summary">{{ row.summary }}</div>
+                          <div
+                            v-if="row.summary"
+                            class="row-summary"
+                            v-html="DOMPurify.sanitize(row.summary)"
+                          ></div>
                         </template>
                       </el-table-column>
                       <el-table-column label="标签" min-width="100">
@@ -366,8 +374,9 @@
                             :key="t"
                             size="small"
                             style="margin-right: 4px"
-                            >{{ t }}</el-tag
                           >
+                            <span v-html="DOMPurify.sanitize(t)"></span>
+                          </el-tag>
                         </template>
                       </el-table-column>
                       <el-table-column label="全卷页码" width="100" align="center">

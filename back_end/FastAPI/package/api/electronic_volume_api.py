@@ -496,7 +496,7 @@ def background_ocr_task(file_id: int, file_path: str, file_type: str):
 
     if not content or not content.strip():
         print(f"[OCR Task] 未提取到有效内容 file_id={file_id}")
-        return
+        content = "OCR失效"  # 确保 content 是安全的字符串，继续往下走
 
     # === 截断过长内容，避免数据库写入问题 ===
     max_len = 500000
@@ -623,6 +623,23 @@ async def upload_volume_file(
     # 内容变更，旧的合并文件失效
     crud.invalidate_volume_merge_status(db, volume_id)
 
+    # ================= 初始同步到 Meilisearch =================
+    try:
+        document = {
+            "id": new_file.id,
+            "volume_id": new_file.volume_id,
+            "case_id": volume.case_id,
+            "file_name": new_file.file_name,
+            "category": new_file.category,
+            "summary": new_file.summary or "",
+            "tags": new_file.tags or [],
+            "ocr_content": ""  # 初始为空，稍后由后台 OCR 任务覆盖
+        }
+        meili_client.index('volume_files').add_documents([document], primary_key='id')
+    except Exception as e:
+        print(f"Meilisearch 初始插入失败: {e}")
+    # =========================================================================
+
     # ================= 触发 OCR 任务 =================
     # 获取文件的绝对路径用于 OCR 读取
     full_disk_path = os.path.join(ELECTRONIC_VOLUME_ROOT, relative_path)
@@ -662,6 +679,19 @@ def update_volume_file(
     # 内容变更，旧的合并文件失效
     if updated_file:
         crud.invalidate_volume_merge_status(db, updated_file.volume_id)
+        # 同步更新 Meilisearch
+        try:
+            document = {
+                "id": updated_file.id,
+                "file_name": updated_file.file_name,
+                "category": updated_file.category,
+                "summary": updated_file.summary or "",
+                "tags": updated_file.tags or []
+            }
+            # 使用 update_documents 进行局部更新，保留原有的 ocr_content 不变
+            meili_client.index('volume_files').update_documents([document], primary_key='id')
+        except Exception as e:
+            print(f"Meilisearch 更新失败: {e}")
     return updated_file
 
 @router.post("/files/batch_sort", status_code=200)
@@ -846,7 +876,14 @@ def delete_volume_file(
     # 内容变更，旧的合并文件失效
     crud.invalidate_volume_merge_status(db, vol_id)
 
+    # 物理删除数据库记录
     crud.delete_volume_file(db, file_id)
+
+    # 从搜索引擎中移除
+    try:
+        meili_client.index('volume_files').delete_document(file_id)
+    except Exception as e:
+        print(f"Meilisearch 删除失败: {e}")
     return
 
 
