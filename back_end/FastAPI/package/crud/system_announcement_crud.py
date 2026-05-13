@@ -1,6 +1,6 @@
 # crud/system_announcement_crud.py
 from typing import Optional, Tuple, List
-from sqlalchemy import desc, and_
+from sqlalchemy import desc, and_, or_
 from sqlalchemy.orm import Session, joinedload
 
 from ..models.system_announcement_model import SystemAnnouncement, UserAnnouncementRead
@@ -49,14 +49,17 @@ def get_announcements(
     return total, items
 
 # 创建公告
-def create_announcement(db: Session, obj_in: SystemAnnouncementCreate, publisher_id: int) -> SystemAnnouncement:
+def create_announcement(db: Session, obj_in: SystemAnnouncementCreate, publisher_id: int,
+                        target_user_id: Optional[int] = None, related_case_id: Optional[int] = None) -> SystemAnnouncement:
     db_obj = SystemAnnouncement(
         type=obj_in.type,
         title=obj_in.title,
         version=obj_in.version,
         content=obj_in.content,
         is_active=obj_in.is_active,
-        publisher_id=publisher_id
+        publisher_id=publisher_id,
+        target_user_id=target_user_id,
+        related_case_id=related_case_id
     )
     db.add(db_obj)
     db.commit()
@@ -90,7 +93,7 @@ def delete_announcement(db: Session, announcement_id: int) -> bool:
 # ==========================================
 
 def get_unread_announcements(db: Session, user_id: int) -> List[SystemAnnouncement]:
-    """获取指定用户所有生效中且尚未阅读的公告"""
+    """获取指定用户所有生效中且尚未阅读的公告（含全员公告和定向推送）"""
     # 左连接 UserAnnouncementRead，过滤出没有匹配记录的数据（即未读）
     unread_announcements = db.query(SystemAnnouncement).outerjoin(
         UserAnnouncementRead,
@@ -100,10 +103,34 @@ def get_unread_announcements(db: Session, user_id: int) -> List[SystemAnnounceme
         )
     ).options(joinedload(SystemAnnouncement.publisher)).filter(
         SystemAnnouncement.is_active == True,
-        UserAnnouncementRead.id == None  # 核心：没有阅读记录
+        UserAnnouncementRead.id == None,  # 核心：没有阅读记录
+        # 定向过滤：target_user_id 为空（全员）或匹配当前用户
+        or_(
+            SystemAnnouncement.target_user_id.is_(None),
+            SystemAnnouncement.target_user_id == user_id
+        )
     ).order_by(desc(SystemAnnouncement.created_at)).all()
 
     return unread_announcements
+
+
+def count_unread_announcements(db: Session, user_id: int) -> int:
+    """统计指定用户的未读公告数量（含全员公告和定向推送）"""
+    count = db.query(SystemAnnouncement).outerjoin(
+        UserAnnouncementRead,
+        and_(
+            SystemAnnouncement.id == UserAnnouncementRead.announcement_id,
+            UserAnnouncementRead.user_id == user_id
+        )
+    ).filter(
+        SystemAnnouncement.is_active == True,
+        UserAnnouncementRead.id == None,
+        or_(
+            SystemAnnouncement.target_user_id.is_(None),
+            SystemAnnouncement.target_user_id == user_id
+        )
+    ).count()
+    return count
 
 
 def get_user_announcement_center_list(
@@ -117,7 +144,14 @@ def get_user_announcement_center_list(
             SystemAnnouncement.id == UserAnnouncementRead.announcement_id,
             UserAnnouncementRead.user_id == user_id
         )
-    ).filter(SystemAnnouncement.is_active == True)  # 普通用户只能看到处于发布状态的公告
+    ).filter(
+        SystemAnnouncement.is_active == True,  # 普通用户只能看到处于发布状态的公告
+        # 定向过滤：target_user_id 为空（全员）或匹配当前用户
+        or_(
+            SystemAnnouncement.target_user_id.is_(None),
+            SystemAnnouncement.target_user_id == user_id
+        )
+    )
 
     total = query.count()
     results = query.options(joinedload(SystemAnnouncement.publisher)) \

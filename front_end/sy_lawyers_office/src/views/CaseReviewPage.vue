@@ -250,9 +250,36 @@ const showConflictDialog = (conflicts, caseId, caseNumber) => {
 
 // 审核操作
 const review = async (row, status) => {
+  // 拒绝时弹出输入框，要求填写修改建议
+  let reviewComment = ''
+  if (status === '已拒绝') {
+    try {
+      const { value } = await ElMessageBox.prompt(
+        `请输入对案件「${row.case_number}」的修改建议或拒绝原因：`,
+        '填写审核意见',
+        {
+          confirmButtonText: '确认拒绝',
+          cancelButtonText: '取消',
+          inputType: 'textarea',
+          inputPlaceholder: '请详细说明需要修改的内容...',
+          inputValidator: (val) => {
+            if (!val || !val.trim()) {
+              return '请输入拒绝原因或修改建议'
+            }
+            return true
+          },
+        },
+      )
+      reviewComment = value.trim()
+    } catch {
+      // 用户取消输入，终止审核操作
+      return
+    }
+  }
+
   try {
     // 第一次尝试请求 (force = false)
-    await sendReviewRequest(row, status, false)
+    await sendReviewRequest(row, status, false, reviewComment)
 
     ElMessage.success(`案件已${status === '已审核' ? '通过' : '拒绝'}`)
     await fetchPendingCases()
@@ -271,7 +298,7 @@ const review = async (row, status) => {
       if (userConfirmed) {
         // 用户确认强制通过，再次请求 (force = true)
         try {
-          await sendReviewRequest(row, status, true)
+          await sendReviewRequest(row, status, true, reviewComment)
           ElMessage.warning(`已忽略冲突，强制通过案件 ${row.case_number}`)
           await fetchPendingCases()
         } catch (retryErr) {
@@ -289,19 +316,45 @@ const review = async (row, status) => {
   }
 }
 
-// 强制通过审核（忽略冲突）
-const sendReviewRequest = async (row, status, force) => {
+// 发送审核请求（支持传入审核意见）
+const sendReviewRequest = async (row, status, force, reviewComment = '') => {
+  const params = {
+    review_status: status,
+    force: force,
+  }
+  // 只有拒绝且有意见时才传 review_comment
+  if (reviewComment) {
+    params.review_comment = reviewComment
+  }
   await request.put(`/case_review/${row.case_id}/review`, null, {
-    params: {
-      review_status: status,
-      force: force, // 传递 force 参数
-    },
+    params,
   })
 }
 
 // 批量审核（分片高并发+断点续传机制）
 const batchReview = async (status) => {
   if (!selectedCases.value.length) return
+
+  // 拒绝时弹出输入框，要求填写统一修改建议
+  let batchComment = ''
+  if (status === '已拒绝') {
+    try {
+      const { value } = await ElMessageBox.prompt(
+        `请输入对选中的 ${selectedCases.value.length} 个案件的统一修改建议：`,
+        '填写批量审核意见',
+        {
+          confirmButtonText: '确认批量拒绝',
+          cancelButtonText: '取消',
+          inputType: 'textarea',
+          inputPlaceholder: '请说明需要修改的共性问题（可留空，留空则不附加意见）...',
+        },
+      )
+      batchComment = (value || '').trim()
+    } catch {
+      // 用户取消输入，终止批量审核
+      return
+    }
+  }
 
   try {
     await ElMessageBox.confirm(
@@ -325,11 +378,12 @@ const batchReview = async (status) => {
       const chunkIds = chunk.map((item) => item.case_id)
 
       try {
-        // 请求新的批量接口
+        // 请求新的批量接口，传入审核意见
         const res = await request.post('/case_review/batch_review', {
           case_ids: chunkIds,
           review_status: status,
           force_ids: [], // 首次跑批都不强制通过
+          review_comment: batchComment || null, // 传入统一审核意见
         })
 
         const { success_cases, conflict_cases, error_cases } = res.data
@@ -352,8 +406,8 @@ const batchReview = async (status) => {
             if (userConfirmed) {
               // 用户确认强制通过，发送单条强制请求补录 (force = true)
               try {
-                // 传入对象包装 case_id，兼容原有的 sendReviewRequest 结构
-                await sendReviewRequest({ case_id: conflictItem.case_id }, status, true)
+                // 传入对象包装 case_id，兼容原有的 sendReviewRequest 结构，同时传入统一意见
+                await sendReviewRequest({ case_id: conflictItem.case_id }, status, true, batchComment)
                 batchSuccessCount.value++
               } catch (retryErr) {
                 console.error(`案件 ${conflictItem.case_number} 强制审核失败:`, retryErr)

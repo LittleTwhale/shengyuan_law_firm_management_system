@@ -8,11 +8,13 @@ from pydantic import BaseModel
 # 系统公告/更新日志 Schema
 # ----------------------
 class SystemAnnouncementBase(BaseModel):
-    type: str  # update_log 或 general_notice
+    type: str  # update_log 或 general_notice 或 case_review
     title: str
     version: Optional[str] = None
     content: Optional[str] = None
     is_active: Optional[bool] = True
+    target_user_id: Optional[int] = None
+    related_case_id: Optional[int] = None
 
 # 创建
 class SystemAnnouncementCreate(SystemAnnouncementBase):

@@ -6,6 +6,8 @@ from sqlalchemy import or_, func
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from ..models.case import Case, CaseParty
+from ..models.system_announcement_model import SystemAnnouncement
+from ..schemas.system_announcement_schema import SystemAnnouncementCreate
 from ..utils.keywords_helper import determine_party_side, get_valid_keywords
 
 
@@ -36,8 +38,8 @@ def count_pending_cases(db: Session) -> int:
     return query.count()
 
 
-def update_review_status(db: Session, case_id: int, review_status: str, reviewer_id: int) -> Optional[Case]:
-    """更新案件审核状态（已审核/已拒绝）"""
+def update_review_status(db: Session, case_id: int, review_status: str, reviewer_id: int, review_comment: Optional[str] = None) -> Optional[Case]:
+    """更新案件审核状态（已审核/已拒绝），支持传入审核意见"""
     case = db.query(Case).filter(
         Case.case_id == case_id,
         Case.is_deleted == False
@@ -53,9 +55,62 @@ def update_review_status(db: Session, case_id: int, review_status: str, reviewer
     case.review_status = review_status
     case.reviewer_id = reviewer_id  # 记录审核人ID
     case.reviewed_at = datetime.now()  # 记录审核时间
+    if review_comment is not None:
+        case.review_comment = review_comment  # 保存审核意见
+
+    # 审核驳回时，为案件关联律师创建定向公告通知
+    if review_status == "已拒绝":
+        create_review_rejection_notifications(db, case, reviewer_id, review_comment)
+
     db.commit()
     db.refresh(case)
     return cast(Case, case)
+
+
+def create_review_rejection_notifications(db: Session, case: Case, reviewer_id: int, review_comment: Optional[str] = None):
+    """审核驳回后，为案件的关联律师创建定向公告通知（单条和批量通用）"""
+    # 收集所有关联律师ID（去重）
+    lawyer_ids = set()
+    for attr in ['main_lawyer_id', 'assistant_lawyer_id', 'assistant_lawyer_2_id',
+                 'execution_lawyer_id', 'execution_assistant_id']:
+        val = getattr(case, attr, None)
+        if val:
+            lawyer_ids.add(val)
+
+    if not lawyer_ids:
+        return
+
+    # 构建公告富文本内容
+    comment_html = f"<p style='color:#f56c6c;font-size:15px;'><strong>修改建议：</strong>{review_comment or '（无详细说明）'}</p>"
+    content_html = f"""
+    <div style="font-family: sans-serif; line-height: 1.8;">
+      <p><strong>案件编号：</strong>{case.case_number}</p>
+      <p><strong>案件类别：</strong>{case.case_category or '--'}</p>
+      <p><strong>委托人：</strong>{case.client_name or '--'}</p>
+      {comment_html}
+      <p style="margin-top: 15px; color: #909399; font-size: 13px;">
+        审核时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}
+      </p>
+      <p style="color: #909399; font-size: 13px;">
+        请根据修改建议完善案件信息后重新提交审核
+      </p>
+    </div>
+    """
+
+    now = datetime.now()
+    for lawyer_id in lawyer_ids:
+        announcement = SystemAnnouncement(
+            type="case_review",
+            title=f"案件「{case.case_number}」审核驳回",
+            content=content_html,
+            is_active=True,
+            publisher_id=reviewer_id,
+            target_user_id=lawyer_id,
+            related_case_id=case.case_id,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(announcement)
 
 
 def count_reviewed_cases(db: Session, lawyer_id: int, year: Optional[int] = None) -> int:
@@ -472,6 +527,7 @@ def get_case_approval_context(case: Case, db: Session) -> Dict[str, Any]:
         # 审核相关
         "review_status": case.review_status or "",
         "reviewer_name": case.reviewer.real_name if case.reviewer else "",
+        "review_comment": case.review_comment or "",
 
         # 导出时间
         "export_time": datetime.now().strftime("%Y-%m-%d"),

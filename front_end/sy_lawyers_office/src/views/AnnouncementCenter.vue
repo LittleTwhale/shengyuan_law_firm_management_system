@@ -22,6 +22,7 @@
               <div class="card-icon-area">
                 <div class="icon-circle" :class="item.type">
                   <el-icon v-if="item.type === 'update_log'"><Promotion /></el-icon>
+                  <el-icon v-else-if="item.type === 'case_review'"><Warning /></el-icon>
                   <el-icon v-else><Notification /></el-icon>
                 </div>
               </div>
@@ -89,7 +90,7 @@
         <h2 class="detail-title">{{ currentDetail.title }}</h2>
         <div class="detail-meta">
           <span class="meta-item"
-            >类型：{{ currentDetail.type === 'update_log' ? '更新日志' : '系统公告' }}</span
+            >类型：{{ currentDetail.type === 'update_log' ? '更新日志' : currentDetail.type === 'case_review' ? '审核驳回' : '系统公告' }}</span
           >
           <span class="meta-item" v-if="currentDetail.version"
             >版本：v{{ currentDetail.version }}</span
@@ -107,7 +108,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import request from '@/utils/request'
-import { ChatDotRound, Promotion, Notification, ArrowRight, User } from '@element-plus/icons-vue'
+import { ChatDotRound, Promotion, Notification, ArrowRight, User, Warning } from '@element-plus/icons-vue'
 
 const loading = ref(false)
 const announcements = ref([])
@@ -283,6 +284,11 @@ onMounted(() => {
 .icon-circle.general_notice {
   background: linear-gradient(135deg, #4080ff, #165dff);
   box-shadow: 0 6px 16px rgba(22, 93, 255, 0.3);
+}
+
+.icon-circle.case_review {
+  background: linear-gradient(135deg, #f6a742, #e6a23c);
+  box-shadow: 0 6px 16px rgba(230, 162, 60, 0.35);
 }
 
 .card-content-area {

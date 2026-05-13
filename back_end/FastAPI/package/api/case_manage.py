@@ -59,6 +59,7 @@ def get_cases(
     main_lawyer_id: Optional[int] = None,  # 新增主办律师参数
     execution_lawyer_id: Optional[int] = None, # 新增执行主办律师参数
     year: Optional[str] = None,  # 新增年份参数
+    review_status: Optional[str] = None,  # 新增审核状态参数
     sort_field: Optional[str] = "created_at",  # 排序参数
     sort_dir: Optional[str] = "desc",  # 排序方式
     db: Session = Depends(get_db),
@@ -82,6 +83,7 @@ def get_cases(
         main_lawyer_id=main_lawyer_id,
         execution_lawyer_id=execution_lawyer_id,
         year=year,
+        review_status=review_status,
         sort_field=sort_field,
         sort_dir=sort_dir,
         can_view_all_bank=can_view_all_bank,
@@ -95,6 +97,7 @@ def get_cases(
         main_lawyer_id=main_lawyer_id,
         execution_lawyer_id=execution_lawyer_id,
         year=year,
+        review_status=review_status,
         can_view_all_bank=can_view_all_bank,
     )
     # 拦截转换：用 CaseParty 覆盖 client_name

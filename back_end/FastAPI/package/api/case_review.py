@@ -3,6 +3,7 @@ import os
 import tempfile
 import time
 from datetime import datetime
+from typing import Optional
 
 from docxtpl import DocxTemplate
 from fastapi import APIRouter, Depends, Query, HTTPException, status
@@ -14,7 +15,7 @@ from .deps import get_current_active_user
 from ..core.config import TEMPLATE_DIR
 from ..core.logger import logger
 from ..crud.case_review import list_pending_cases, count_pending_cases, update_review_status, \
-    check_interest_conflict_for_case, get_case_approval_context
+    check_interest_conflict_for_case, get_case_approval_context, create_review_rejection_notifications
 from ..database.database import get_db
 from ..models.case import Case, CaseParty
 from ..models.user import User
@@ -272,16 +273,29 @@ def batch_review_cases(
     # ========================================================
     if cases_to_update:
         try:
+            # 构建批量更新字段
+            update_fields = {
+                "review_status": req.review_status,
+                "reviewer_id": current_user.id,
+                "reviewed_at": datetime.now()
+            }
+            # 如果传入了审核意见，一并更新
+            if req.review_comment is not None:
+                update_fields["review_comment"] = req.review_comment
+
             db.query(Case).filter(Case.case_id.in_(cases_to_update)).update(
-                {
-                    "review_status": req.review_status,
-                    "reviewer_id": current_user.id,
-                    "reviewed_at": datetime.now()
-                },
+                update_fields,
                 synchronize_session=False  # 禁用当前会话内存同步，极大提升性能
             )
             db.commit() # 批量数据只提交 1 次！
             success_cases.extend(cases_to_update)
+
+            # 审核驳回时，为每个案件的关联律师创建定向通知
+            if req.review_status == "已拒绝":
+                rejected_cases = db.query(Case).filter(Case.case_id.in_(cases_to_update)).all()
+                for rc in rejected_cases:
+                    create_review_rejection_notifications(db, rc, current_user.id, req.review_comment)
+                db.commit()
         except Exception as e:
             db.rollback()
             for cid in cases_to_update:
@@ -314,6 +328,7 @@ def batch_review_cases(
 def review_case(
         case_id: int,
         review_status: str,
+        review_comment: Optional[str] = Query(None, description="审核意见/修改建议"),
         force: bool = Query(False, description="是否强制通过（忽略利益冲突）"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_active_user)  # 注入当前用户
@@ -346,7 +361,8 @@ def review_case(
             db=db,
             case_id=case_id,
             review_status=review_status,
-            reviewer_id=current_user.id  # 安全地使用 Token 解析出的用户 ID
+            reviewer_id=current_user.id,  # 安全地使用 Token 解析出的用户 ID
+            review_comment=review_comment  # 传入审核意见
         )
         if not updated_case:
             raise HTTPException(status_code=404, detail="案件不存在")

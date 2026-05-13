@@ -56,6 +56,7 @@ def list_cases_by_user_role(
         main_lawyer_id: Optional[int] = None,  # 主办律师筛选
         execution_lawyer_id: Optional[int] = None, # 执行主办律师筛选
         year: Optional[str] = None,  # 年份筛选
+        review_status: Optional[str] = None,  # 审核状态筛选
         sort_field: str = "created_at",  # 排序字段，默认按创建时间
         sort_dir: str = "desc",  # 排序方向，默认降序（最新在前）
         can_view_all_bank: bool = False # 是否允许查看所有银行案件
@@ -114,6 +115,10 @@ def list_cases_by_user_role(
             )
         )
 
+    # 审核状态筛选
+    if review_status:
+        query = query.filter(Case.review_status == review_status)
+
     # 排序逻辑
     if sort_field == "created_at":
         order_column = Case.created_at
@@ -142,6 +147,7 @@ def count_cases_by_user_role(
         main_lawyer_id: Optional[int] = None,  # 主办律师筛选
         execution_lawyer_id: Optional[int] = None, # 执行主办律师筛选
         year: Optional[str] = None,  # 年份筛选
+        review_status: Optional[str] = None,  # 审核状态筛选
         can_view_all_bank: bool = False # 是否允许查看所有银行案件
 ) -> int:
     """
@@ -185,6 +191,10 @@ def count_cases_by_user_role(
                 Case.parties.any(CaseParty.name.like(f"%{keyword}%"))
             )
         )
+
+    # 审核状态筛选
+    if review_status:
+        query = query.filter(Case.review_status == review_status)
 
     return query.count()
 
@@ -691,9 +701,13 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
         case.case_category = new_category
         case.case_number = f"湘生律({year}){type_map[new_category]}第{next_number}号"
 
-        # 如果案件类型发生变更，统一设置为待审核,并将审核人设为空
+
+    # 如果案件是审核不通过或业务类型发生变更，统一设置为待审核,并将审核人设为空
+    if case.review_status == "已拒绝" or category_changed:
         case.review_status = "待审核"
         case.reviewer_id = None
+        case.reviewed_at = None
+        case.review_comment = None  # 清空旧的审核意见
 
     db.commit()
     db.refresh(case)
@@ -1158,7 +1172,7 @@ def export_cases_to_excel(
         "付款到期日", "案由", "介入阶段", "代理权限", "审理法院", "侦查机关", "检察院", "二审检察机关", "开庭时间",
         "立案日", "结案时间",
         "案件地点", "案件详情", "主办律师", "助理律师", "第二助理律师", "执行主办律师", "执行助理律师", "审核状态",
-        "审核人",
+        "审核人", "审核意见",
         "是否重大", "是否纸质卷宗", "是否解除", "是否笔录", "是否保全", "保全开始日", "保全终止日",
         "案号", "结案状态", "结案方式", "诉讼费缴费时间", "诉讼费缴费金额", "诉讼费退费时间", "诉讼费退费金额",
         "申请执行日", "调解到期日", "执行到期日", "顾问到期日", "创建时间", "更新时间"
@@ -1282,6 +1296,7 @@ def export_cases_to_excel(
             case.execution_lawyer.real_name if case.execution_lawyer else "",
             case.execution_assistant.real_name if case.execution_assistant else "",
             case.review_status, case.reviewer.real_name if case.reviewer else "",
+            case.review_comment or "",
             format_bool(case.is_major), format_bool(case.has_paper_file), format_bool(case.is_dismissed),
             format_bool(case.has_record), format_bool(case.has_preservation),
             format_date(case.preservation_start), format_date(case.preservation_end),

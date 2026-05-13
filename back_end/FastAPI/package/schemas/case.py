@@ -387,6 +387,7 @@ class CaseOut(BaseModel):
 
     # 状态与标记
     review_status: str = Field(..., description="案件审核状态 / Review status")
+    review_comment: Optional[str] = Field(None, description="审核意见/修改建议 / Review comment")
     is_major: bool = Field(False, description="是否重大 / Is major")
     has_paper_file: bool = Field(False, description="是否纸质卷宗 / Has paper file")
     is_dismissed: bool = Field(False, description="是否解除 / Is dismissed")
@@ -439,6 +440,7 @@ class CaseSimpleOut(BaseModel):
     case_status: Optional[str] = Field(None, description="案件状态 / Case status")
     case_code: Optional[str] = Field(None, description="法院案号 / Court case code")
     review_status: str = Field(..., description="案件审核状态 / Review status")
+    review_comment: Optional[str] = Field(None, description="审核意见/修改建议 / Review comment")
     main_lawyer: Optional[UserOut] = Field(None, description="主办律师 / Main lawyer")
     execution_lawyer: Optional[UserOut] = Field(None, description="执行主办律师 / Execution lawyer")
     litigation_fee_payment_amount: Optional[Decimal] =Field(0, description="诉讼费缴费金额 / Litigation fee payment amount")
@@ -513,3 +515,4 @@ class BatchReviewRequest(BaseModel):
     case_ids: List[int]
     review_status: str
     force_ids: List[int] = []  # 存放需要强制忽略冲突的案件ID
+    review_comment: Optional[str] = Field(None, description="审核意见/修改建议")

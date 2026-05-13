@@ -113,7 +113,10 @@
 
         <el-menu-item index="/main/announcements">
           <el-icon><ChatDotRound /></el-icon>
-          <template #title><span>公告中心</span></template>
+          <template #title>
+            <span>公告中心</span>
+            <el-badge :value="unreadCount" :hidden="unreadCount <= 0" class="menu-badge" />
+          </template>
         </el-menu-item>
 
         <el-menu-item index="/main/admin/settings" v-if="hasAdminAccess">
@@ -198,7 +201,10 @@
 
           <el-menu-item index="/main/announcements">
             <el-icon><ChatDotRound /></el-icon>
-            <template #title><span>公告中心</span></template>
+            <template #title>
+              <span>公告中心</span>
+              <el-badge :value="unreadCount" :hidden="unreadCount <= 0" class="menu-badge" />
+            </template>
           </el-menu-item>
 
           <el-menu-item index="/main/admin/settings" v-if="hasAdminAccess">
@@ -242,12 +248,22 @@
     >
       <template #header>
         <div class="notice-header">
+          <el-button
+            class="notice-close-btn"
+            type="default"
+            text
+            circle
+            @click="closeNoticeDialog"
+          >
+            <el-icon :size="20"><Close /></el-icon>
+          </el-button>
           <div class="notice-icon-wrapper" :class="currentNotice?.type">
             <el-icon v-if="currentNotice?.type === 'update_log'"><Promotion /></el-icon>
+            <el-icon v-else-if="currentNotice?.type === 'case_review'"><Warning /></el-icon>
             <el-icon v-else><Notification /></el-icon>
           </div>
           <h2 class="notice-title">
-            {{ currentNotice?.type === 'update_log' ? '🎉 系统更新说明' : '📢 系统公告' }}
+            {{ currentNotice?.type === 'update_log' ? '🎉 系统更新说明' : currentNotice?.type === 'case_review' ? '⚠ 审核驳回通知' : '📢 系统公告' }}
           </h2>
           <span class="notice-version" v-if="currentNotice?.version"
             >v{{ currentNotice.version }}</span
@@ -331,6 +347,8 @@ import {
   ChatDotRound,
   Notification,
   Promotion,
+  Close,
+  Warning,
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -509,12 +527,23 @@ const noticeDialogVisible = ref(false)
 const unreadNoticeQueue = ref([])
 const currentIndex = ref(0) // 当前浏览的公告索引
 const currentNotice = computed(() => unreadNoticeQueue.value[currentIndex.value] || null) // 动态计算当前展示内容
+const unreadCount = ref(0) // 菜单角标用
 let pollingTimer = null
 
 const formatDate = (dateStr) => {
   if (!dateStr) return ''
   const date = new Date(dateStr)
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+const fetchUnreadCount = async () => {
+  try {
+    const res = await request.get('/system/announcements/unread/count')
+    unreadCount.value = res.data?.count || 0
+  } catch (error) {
+    // 静默失败，角标不更新
+    console.error('获取未读公告数量失败', error)
+  }
 }
 
 const checkSystemAnnouncements = async () => {
@@ -524,6 +553,7 @@ const checkSystemAnnouncements = async () => {
   try {
     const res = await request.get('/system/announcements/unread')
     const unreadList = res.data || []
+    unreadCount.value = unreadList.length
     if (unreadList.length > 0) {
       unreadNoticeQueue.value = unreadList
       currentIndex.value = 0
@@ -548,6 +578,11 @@ const nextNotice = () => {
   }
 }
 
+// 直接关闭弹窗（不标记已读）
+const closeNoticeDialog = () => {
+  noticeDialogVisible.value = false
+}
+
 // 翻到底部时的操作：全部标记已读
 const handleConfirmAllRead = async () => {
   if (!unreadNoticeQueue.value.length) return
@@ -565,12 +600,14 @@ const handleConfirmAllRead = async () => {
   // 清空队列并关闭弹窗
   unreadNoticeQueue.value = []
   currentIndex.value = 0
+  unreadCount.value = 0
   noticeDialogVisible.value = false
 }
 
 onMounted(() => {
   checkUrgentReminders()
   checkSystemAnnouncements()
+  fetchUnreadCount()
 
   // 轮询时间为 5 分钟 (300000 毫秒)
   pollingTimer = setInterval(checkSystemAnnouncements, 300000)
@@ -579,6 +616,7 @@ onMounted(() => {
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
       checkSystemAnnouncements()
+      fetchUnreadCount()
     }
   })
 
@@ -741,6 +779,20 @@ onUnmounted(() => {
   border-bottom: 1px solid #ebeef5;
 }
 
+.notice-close-btn {
+  position: absolute !important;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  color: #909399 !important;
+  transition: all 0.25s ease;
+}
+.notice-close-btn:hover {
+  color: #303133 !important;
+  background-color: rgba(0, 0, 0, 0.06) !important;
+  transform: rotate(90deg);
+}
+
 .notice-icon-wrapper {
   width: 56px;
   height: 56px;
@@ -753,12 +805,16 @@ onUnmounted(() => {
   color: #fff;
 }
 .notice-icon-wrapper.update_log {
-  background: #67c23a;
+  background: linear-gradient(135deg, #85d655, #67c23a);
   box-shadow: 0 8px 16px rgba(103, 194, 58, 0.3);
 }
 .notice-icon-wrapper.general_notice {
-  background: #165dff;
+  background: linear-gradient(135deg, #4080ff, #165dff);
   box-shadow: 0 8px 16px rgba(22, 93, 255, 0.3);
+}
+.notice-icon-wrapper.case_review {
+  background: linear-gradient(135deg, #f6a742, #e6a23c);
+  box-shadow: 0 8px 16px rgba(230, 162, 60, 0.35);
 }
 
 .notice-title {
@@ -893,10 +949,14 @@ onUnmounted(() => {
     gap: 8px;
   }
   .notice-version {
-    top: 16px;
-    right: 16px;
+    top: 8px;
+    right: 40px;
     padding: 4px 8px;
     font-size: 12px;
+  }
+  .notice-close-btn {
+    top: 6px !important;
+    right: 6px !important;
   }
   .rich-text-notice-content {
     max-height: 55vh;
@@ -1100,6 +1160,17 @@ onUnmounted(() => {
 .sidebar::-webkit-scrollbar-track,
 .mobile-sidebar::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* 菜单角标样式 */
+.menu-badge {
+  margin-left: 8px;
+}
+.menu-badge :deep(.el-badge__content) {
+  font-size: 11px;
+  height: 18px;
+  line-height: 18px;
+  padding: 0 5px;
 }
 
 @media (max-width: 768px) {

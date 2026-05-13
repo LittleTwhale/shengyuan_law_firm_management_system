@@ -71,6 +71,19 @@ def mark_as_read(
     return {"detail": "已标记为已读"}
 
 
+@router.get("/unread/count")
+def get_unread_announcement_count(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """
+    获取当前用户的未读公告数量（含全员公告和定向推送）
+    供前端菜单角标使用
+    """
+    count = crud.count_unread_announcements(db, current_user.id)
+    return {"count": count}
+
+
 @router.get("/center/list", response_model=schemas.SystemAnnouncementUserPage)
 def get_announcement_center(
         skip: int = 0,

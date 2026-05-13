@@ -55,6 +55,7 @@ class Case(Base):
 
     # 状态与标记
     review_status = Column(Enum('待审核','已审核','已拒绝'), nullable=False, comment="案件审核状态")
+    review_comment = Column(Text, nullable=True, comment="审核意见/修改建议")
 
     is_major = Column(Boolean, default=False, nullable=False, comment="是否重大")
     has_paper_file = Column(Boolean, default=False, nullable=False, comment="是否纸质卷宗")

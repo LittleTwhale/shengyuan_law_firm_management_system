@@ -17,12 +17,16 @@ class SystemAnnouncement(Base):
 
     is_active = Column(Boolean, default=True, index=True, nullable=False, comment="是否发布")
     publisher_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, comment="发布人ID")
+    target_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, comment="定向推送目标用户，为空则全员可见")
+    related_case_id = Column(Integer, ForeignKey("cases.case_id", ondelete="SET NULL"), nullable=True, comment="关联案件ID")
 
     created_at = Column(DateTime, server_default=func.now(), comment="发布时间")
     updated_at = Column(DateTime, server_default=func.now(), server_onupdate=func.now(), comment="更新时间")
 
     # ORM关系
-    publisher = relationship("User",foreign_keys="SystemAnnouncement.publisher_id")  # 关联用户表，用于获取发布人姓名
+    publisher = relationship("User", foreign_keys="SystemAnnouncement.publisher_id")
+    target_user = relationship("User", foreign_keys="SystemAnnouncement.target_user_id")
+    related_case = relationship("Case", foreign_keys="SystemAnnouncement.related_case_id")
 
 # 用户阅读记录表
 class UserAnnouncementRead(Base):

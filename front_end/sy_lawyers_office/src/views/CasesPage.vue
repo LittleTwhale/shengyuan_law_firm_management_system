@@ -85,6 +85,18 @@
           />
         </el-select>
 
+        <el-select
+          v-model="selectedReviewStatus"
+          placeholder="审核状态筛选"
+          clearable
+          @change="handleSearch"
+          class="toolbar-item filter-select"
+        >
+          <el-option label="待审核" value="待审核" />
+          <el-option label="已审核" value="已审核" />
+          <el-option label="已拒绝" value="已拒绝" />
+        </el-select>
+
         <el-date-picker
           v-model="selectedYear"
           type="year"
@@ -119,9 +131,23 @@
           align="center"
         />
 
-        <el-table-column label="审核状态" min-width="120" align="center">
+        <el-table-column label="审核状态" min-width="140" align="center">
           <template #default="scope">
-            <el-tag :type="getReviewStatusType(scope.row.review_status)" effect="dark" size="small">
+            <el-tooltip
+              v-if="scope.row.review_status === '已拒绝' && scope.row.review_comment"
+              :content="scope.row.review_comment"
+              placement="top"
+              :show-after="300"
+              effect="light"
+            >
+              <div class="review-status-with-badge">
+                <el-tag :type="getReviewStatusType(scope.row.review_status)" effect="dark" size="small">
+                  {{ scope.row.review_status }}
+                </el-tag>
+                <el-icon class="comment-indicator" :size="14"><Warning /></el-icon>
+              </div>
+            </el-tooltip>
+            <el-tag v-else :type="getReviewStatusType(scope.row.review_status)" effect="dark" size="small">
               {{ scope.row.review_status || '未知' }}
             </el-tag>
           </template>
@@ -515,6 +541,7 @@ import {
   Download,
   ArrowDown,
   CopyDocument,
+  Warning,
 } from '@element-plus/icons-vue'
 
 // -------------------------- 响应式/移动端适配相关 --------------------------
@@ -587,6 +614,7 @@ const getReviewStatusType = (status) => {
 
 const selectedLawyerId = ref(null) // 选中的主办律师ID
 const selectedExecutionLawyerId = ref(null) // 选中的执行主办律师ID
+const selectedReviewStatus = ref('') // 选中的审核状态筛选
 // 年份变量，默认为当前年份字符串
 const selectedYear = ref(new Date().getFullYear().toString())
 // 排序相关的响应式变量
@@ -643,6 +671,7 @@ const loadCases = async () => {
         sort_dir: currentSortDir.value,
         main_lawyer_id: selectedLawyerId.value, // 主办律师筛选
         execution_lawyer_id: selectedExecutionLawyerId.value, // 执行主办律师筛选
+        review_status: selectedReviewStatus.value || '', // 审核状态筛选
       },
     })
     cases.value = res.data.items || []
@@ -1669,6 +1698,23 @@ const handleDownloadApproval = async (row) => {
 :deep(.upload-demo .el-upload-list__item) {
   border-radius: 12px;
   transition: background 0.2s ease;
+}
+
+.review-status-with-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.comment-indicator {
+  color: #f56c6c;
+  animation: pulse-warn 2s ease-in-out infinite;
+}
+
+@keyframes pulse-warn {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
 .el-upload__tip {
