@@ -18,3 +18,4 @@ reportlab
 rapidocr_onnxruntime
 pdfplumber
 meilisearch
+psutil

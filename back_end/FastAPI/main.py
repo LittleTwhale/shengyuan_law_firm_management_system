@@ -19,10 +19,13 @@ from .package.api.party_building_api import router as auth_party_building_router
 from .package.api.electronic_volume_api import router as auth_electronic_volume_router
 from .package.api.system_announcement_api import router as auth_system_announcement_router
 from .package.api.system_admin import router as auth_system_admin_router
-from .package.core.config import PARTY_IMAGE_ROOT
+from .package.api.monitor import router as auth_monitor_router
+from .package.core.config import PARTY_IMAGE_ROOT, SECRET_KEY, ALGORITHM
 from .package.core.logger import logger
 from .package.core.user_cache import user_cache
 from .package.utils.search_engine import init_meilisearch
+from .package.utils.request_tracker import request_tracker
+from jose import jwt as jose_jwt
 
 origins = [
     "http://localhost:5173",
@@ -82,6 +85,7 @@ async def log_requests(request: Request, call_next):
 
     # 获取用户信息
     username = "匿名用户"
+    user_accounts = None
     try:
         # 尝试从请求头获取 Authorization token
         auth_header = request.headers.get("authorization")
@@ -89,9 +93,18 @@ async def log_requests(request: Request, call_next):
             token = auth_header.split(" ")[1]
             # 使用缓存获取用户信息
             username = user_cache.get_user_display_name(token)
+            # 解码 token 获取 accounts 用于活跃用户追踪
+            try:
+                payload = jose_jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+                user_accounts = payload.get("sub")
+            except Exception:
+                pass
     except Exception:
         # 获取用户信息失败，保持默认用户名
         pass
+
+    # 记录请求用于 QPS 和活跃用户统计
+    request_tracker.record_request(user_accounts)
 
     # 执行后续的业务逻辑
     response = await call_next(request)
@@ -176,6 +189,9 @@ api_router.include_router(auth_system_announcement_router)
 
 # 注册系统管理路由
 api_router.include_router(auth_system_admin_router)
+
+# 注册服务器资源监控路由
+api_router.include_router(auth_monitor_router)
 
 # 最后将这个路由组挂载到 app 实例上
 app.include_router(api_router)
