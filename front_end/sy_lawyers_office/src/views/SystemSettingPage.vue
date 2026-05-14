@@ -1320,28 +1320,36 @@ function initNetChart() {
 function calcNetworkDelta(network) {
   if (!prevNetwork) {
     prevNetwork = {
-      bytes_recv_mb: network.bytes_recv_mb,
-      bytes_sent_mb: network.bytes_sent_mb,
+      bytes_recv: network.bytes_recv,
+      bytes_sent: network.bytes_sent,
       time: Date.now(),
     }
     return { sent: 0, recv: 0 }
   }
   const elapsed = (Date.now() - prevNetwork.time) / 1000
   if (elapsed <= 0) return { sent: 0, recv: 0 }
+
+  // (当前字节 - 历史字节) / 1024 = 增量KB， 再除以秒数得到 KB/s
   const recvDelta = Math.max(
     0,
-    ((network.bytes_recv_mb - prevNetwork.bytes_recv_mb) * 1024) / elapsed,
+    ((network.bytes_recv - prevNetwork.bytes_recv) / 1024) / elapsed,
   )
   const sentDelta = Math.max(
     0,
-    ((network.bytes_sent_mb - prevNetwork.bytes_sent_mb) * 1024) / elapsed,
+    ((network.bytes_sent - prevNetwork.bytes_sent) / 1024) / elapsed,
   )
+
   prevNetwork = {
-    bytes_recv_mb: network.bytes_recv_mb,
-    bytes_sent_mb: network.bytes_sent_mb,
+    bytes_recv: network.bytes_recv,
+    bytes_sent: network.bytes_sent,
     time: Date.now(),
   }
-  return { sent: Math.round(sentDelta), recv: Math.round(recvDelta) }
+
+  // 保留2位小数让视觉更平滑，如果不需要小数可以用 Math.round
+  return {
+    sent: sentDelta.toFixed(2),
+    recv: recvDelta.toFixed(2)
+  }
 }
 
 /** 拉取全站统计数据（仅首次打开 Tab 时请求） */

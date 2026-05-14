@@ -42,13 +42,13 @@ def _get_network_info():
     try:
         counters = psutil.net_io_counters()
         return {
-            "bytes_sent_mb": round(counters.bytes_sent / (1024 * 1024), 1),
-            "bytes_recv_mb": round(counters.bytes_recv / (1024 * 1024), 1),
+            "bytes_sent": counters.bytes_sent,  # 去掉了 _mb 后缀，不除以 1024
+            "bytes_recv": counters.bytes_recv,
             "packets_sent": counters.packets_sent,
             "packets_recv": counters.packets_recv,
         }
     except Exception:
-        return {"bytes_sent_mb": 0, "bytes_recv_mb": 0, "packets_sent": 0, "packets_recv": 0}
+        return {"bytes_sent": 0, "bytes_recv": 0, "packets_sent": 0, "packets_recv": 0}
 
 
 def _get_disk_io_rates():
