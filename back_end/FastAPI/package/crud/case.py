@@ -1273,14 +1273,37 @@ def export_cases_to_excel(
                     others_phone.append(p_phone)
                     others_id.append(p_id)
 
+        # 智能拼接函数：既能保证位置对齐，又能清理全空的无效符号
+        def smart_join(items):
+            # 如果列表是空的，直接返回空
+            if not items:
+                return ""
+
+            # 1. 检查是否所有人都没有这条信息（全为空、或者全是 "-"、"None"）
+            if all(not item or str(item).strip() in ("", "-", "None", "nan") for item in items):
+                return ""  # 如果全都没有，直接返回空字符串，单元格彻底空白
+
+            # 2. 如果有人有，有人没有，为了保证和姓名的顺序一一对应，必须保留占位符
+            # 这里把原本丑陋的 "-" 替换成 "无"，视觉上更清晰专业
+            processed_items = []
+            for item in items:
+                val = str(item).strip() if item else ""
+                if val in ("", "-", "None", "nan"):
+                    processed_items.append("-")
+                else:
+                    processed_items.append(val)
+
+            return "、".join(processed_items)
+
+        # 使用智能拼接函数生成当事人列数据
         party_columns_data = [
-            "\n".join(clients_name), "\n".join(clients_phone), "\n".join(clients_id),
-            "\n".join(plaintiffs_name), "\n".join(plaintiffs_phone), "\n".join(plaintiffs_id),
-            "\n".join(defendants_name), "\n".join(defendants_phone), "\n".join(defendants_id),
-            "\n".join(thirds_name), "\n".join(thirds_phone), "\n".join(thirds_id),
-            "\n".join(borrowers_name), "\n".join(borrowers_phone), "\n".join(borrowers_id),
-            "\n".join(guarantors_name), "\n".join(guarantors_phone), "\n".join(guarantors_id),
-            "\n".join(others_name), "\n".join(others_phone), "\n".join(others_id)
+            smart_join(clients_name), smart_join(clients_phone), smart_join(clients_id),
+            smart_join(plaintiffs_name), smart_join(plaintiffs_phone), smart_join(plaintiffs_id),
+            smart_join(defendants_name), smart_join(defendants_phone), smart_join(defendants_id),
+            smart_join(thirds_name), smart_join(thirds_phone), smart_join(thirds_id),
+            smart_join(borrowers_name), smart_join(borrowers_phone), smart_join(borrowers_id),
+            smart_join(guarantors_name), smart_join(guarantors_phone), smart_join(guarantors_id),
+            smart_join(others_name), smart_join(others_phone), smart_join(others_id)
         ]
 
         base_data_part1 = [case.case_id, case.case_number, format_date(case.commission_date), case.case_category]
@@ -1408,13 +1431,7 @@ def export_cases_to_excel(
 
         # 写入数据 (通过 WriteOnlyCell 注入当事人列的换行样式)
         for row in data_rows:
-            row_cells = []
-            for idx, val in enumerate(row):
-                cell = WriteOnlyCell(ws, value=val)
-                if wrap_start <= idx <= wrap_end:
-                    cell.alignment = wrap_alignment
-                row_cells.append(cell)
-            ws.append(row_cells)
+            ws.append(row)
 
     # 根据数据动态生成 Sheet
     need_bank = (query_params.case_category == "银行案件") or (not query_params.case_category)
