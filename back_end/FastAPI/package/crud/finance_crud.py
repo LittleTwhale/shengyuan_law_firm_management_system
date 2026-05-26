@@ -4,10 +4,10 @@ from typing import List, Dict, Any
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-from sqlalchemy import func, or_, extract
+from sqlalchemy import func, or_, and_, extract
 from sqlalchemy.orm import Session, joinedload
 
-from ..models.case import Case
+from ..models.case import Case, CaseParty
 from ..models.finance_model import CaseFinance, FinancialRecord, InvoiceRecord, LawyerWithdrawal
 from ..models.user import User
 from ..schemas.finance_schema import (
@@ -58,7 +58,9 @@ def _apply_filters(query, db: Session, params: FinanceStatsQuery, current_user: 
         query = query.filter(
             or_(
                 Case.case_number.ilike(search),
-                Case.client_name.ilike(search)
+                Case.parties.any(
+                    and_(CaseParty.party_type.like('%委托%'), CaseParty.name.ilike(search))
+                )
             )
         )
 
@@ -412,6 +414,7 @@ class CRUDFinance:
         # 关键：预加载流水、发票、领款及其对应的操作人/律师信息
         query = query.options(
             joinedload(CaseFinance.case).joinedload(Case.main_lawyer),
+            joinedload(CaseFinance.case).joinedload(Case.parties),
             joinedload(CaseFinance.records).joinedload(FinancialRecord.operator),
             joinedload(CaseFinance.invoices).joinedload(InvoiceRecord.operator),
             joinedload(CaseFinance.withdrawals).joinedload(LawyerWithdrawal.lawyer),
@@ -452,7 +455,7 @@ class CRUDFinance:
             balance = received - withdrawal - tax - risk_fund
 
             row = [
-                c.case_number, c.client_name, c.case_category, main_lawyer_name,
+                c.case_number, "、".join([p.name for p in c.parties if p.party_type and '委托' in p.party_type]), c.case_category, main_lawyer_name,
                 c.commission_date.strftime("%Y-%m-%d") if c.commission_date else "-",
                 float(f.contract_amount or 0),
                 f.risk_agency_content or "",
@@ -482,7 +485,7 @@ class CRUDFinance:
         data_2 = []
 
         for f in finance_list:
-            c_info = [f.case.case_number, f.case.client_name]  # 冗余案件信息以便辨识
+            c_info = [f.case.case_number, "、".join([p.name for p in f.case.parties if p.party_type and '委托' in p.party_type])]  # 冗余案件信息以便辨识
             for r in f.records:
                 op_name = r.operator.real_name if r.operator else ""
                 r_type = "收款" if r.record_type == 'income' else "退费"
@@ -510,7 +513,7 @@ class CRUDFinance:
         data_3 = []
 
         for f in finance_list:
-            c_info = [f.case.case_number, f.case.client_name]
+            c_info = [f.case.case_number, "、".join([p.name for p in f.case.parties if p.party_type and '委托' in p.party_type])]
             for inv in f.invoices:
                 op_name = inv.operator.real_name if inv.operator else ""
 
@@ -538,7 +541,7 @@ class CRUDFinance:
         data_4 = []
 
         for f in finance_list:
-            c_info = [f.case.case_number, f.case.client_name]
+            c_info = [f.case.case_number, "、".join([p.name for p in f.case.parties if p.party_type and '委托' in p.party_type])]
             for w in f.withdrawals:
                 lawyer_name = w.lawyer.real_name if w.lawyer else "未知"
                 op_name = w.operator.real_name if w.operator else ""

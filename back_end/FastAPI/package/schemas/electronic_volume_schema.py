@@ -13,7 +13,6 @@ from .user import UserOut
 class CaseSimpleInfo(BaseModel):
     """简化案件基础信息 (用于列表展示)"""
     case_number: Optional[str] = None
-    client_name: Optional[str] = None
     case_category: Optional[str] = None
     main_lawyer: Optional[UserOut] = None
 

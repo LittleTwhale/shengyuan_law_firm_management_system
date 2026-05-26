@@ -100,7 +100,6 @@ class LawyerWithdrawalResponse(LawyerWithdrawalBase):
 class CaseSimpleInfo(BaseModel):
     """简化案件基础信息"""
     case_number: Optional[str] = None
-    client_name: Optional[str] = None
     main_lawyer:UserOut
 
     class Config:

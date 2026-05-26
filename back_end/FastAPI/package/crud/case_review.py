@@ -80,13 +80,17 @@ def create_review_rejection_notifications(db: Session, case: Case, reviewer_id: 
     if not lawyer_ids:
         return
 
+    # 从 CaseParty 中提取委托人名称
+    clients = [p.name for p in case.parties if p.party_type and '委托' in p.party_type and p.name]
+    client_name_str = "、".join(clients) if clients else '--'
+
     # 构建公告富文本内容
     comment_html = f"<p style='color:#f56c6c;font-size:15px;'><strong>修改建议：</strong>{review_comment or '（无详细说明）'}</p>"
     content_html = f"""
     <div style="font-family: sans-serif; line-height: 1.8;">
       <p><strong>案件编号：</strong>{case.case_number}</p>
       <p><strong>案件类别：</strong>{case.case_category or '--'}</p>
-      <p><strong>委托人：</strong>{case.client_name or '--'}</p>
+      <p><strong>委托人：</strong>{client_name_str}</p>
       {comment_html}
       <p style="margin-top: 15px; color: #909399; font-size: 13px;">
         审核时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}
@@ -145,9 +149,6 @@ def check_interest_conflict_for_case(db: Session, case_id: int):
     for p in current_parties:
         if p.party_type and "委托" in p.party_type and p.name:
             new_client_names.add(p.name.strip())
-
-    if not new_client_names and current_case.client_name:
-        new_client_names.add(current_case.client_name.strip())
 
     if not new_client_names:
         return {"has_conflict": False, "details": []}
@@ -532,17 +533,5 @@ def get_case_approval_context(case: Case, db: Session) -> Dict[str, Any]:
         # 导出时间
         "export_time": datetime.now().strftime("%Y-%m-%d"),
     }
-
-    # 兜底：如果 CaseParty 没数据（旧数据），回退使用 Case 表字段
-    if not clients and case.client_name:
-        context["client_name"] = case.client_name
-        context["client_phone"] = case.client_phone
-        context["client_id_number"] = case.client_id_number
-
-    if not plaintiffs and case.plaintiff:
-        context["plaintiff"] = case.plaintiff
-
-    if not defendants and case.defendant:
-        context["defendant"] = case.defendant
 
     return context

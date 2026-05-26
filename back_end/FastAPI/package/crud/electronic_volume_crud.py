@@ -2,11 +2,11 @@
 import os
 from typing import List, Optional, Tuple
 
-from sqlalchemy import or_, func, Text
+from sqlalchemy import or_, and_, func, Text
 from sqlalchemy.orm import Session, joinedload
 
 from ..core.config import PDF_VOLUME_ROOT
-from ..models.case import Case
+from ..models.case import Case, CaseParty
 from ..models.electronic_volume_model import CaseVolume, VolumeFile
 from ..models.user import User
 from ..schemas.electronic_volume_schema import (
@@ -66,7 +66,9 @@ def _apply_volume_filters(query, db: Session, current_user: User, params: Option
                 or_(
                     CaseVolume.name.ilike(search),
                     Case.case_number.ilike(search),
-                    Case.client_name.ilike(search),
+                    Case.parties.any(
+                        and_(CaseParty.party_type.like('%委托%'), CaseParty.name.ilike(search))
+                    ),
                     # 同时搜索卷内文件：文件名、摘要、OCR全文、标签
                     CaseVolume.files.any(
                         or_(

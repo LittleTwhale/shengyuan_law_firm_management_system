@@ -56,7 +56,7 @@
         <PartyDetailList
           :parties="partyThirdParties"
           theme="purple"
-          :empty-text="caseData.third_party || '-'"
+          :empty-text="'-'"
         />
       </el-descriptions-item>
 
@@ -117,10 +117,10 @@
       border
     >
       <el-descriptions-item label="上诉人">{{
-        caseData.appellant_info || '-'
+        partyAppellants.length > 0 ? partyAppellants.map(p => p.name).join('、') : '-'
       }}</el-descriptions-item>
       <el-descriptions-item label="被上诉人">{{
-        caseData.extra_appellant_info || '-'
+        partyAppellees.length > 0 ? partyAppellees.map(p => p.name).join('、') : '-'
       }}</el-descriptions-item>
       <el-descriptions-item label="代理权限">{{
         caseData.agency_power || '-'
@@ -284,6 +284,16 @@ const partyDefendants = computed(() => {
   return props.caseData.parties.filter((p) =>
     ['被告', '被告人', '被申请人', '被上诉人'].includes(p.party_type),
   )
+})
+
+const partyAppellants = computed(() => {
+  if (!props.caseData.parties) return []
+  return props.caseData.parties.filter((p) => p.party_type === '上诉人')
+})
+
+const partyAppellees = computed(() => {
+  if (!props.caseData.parties) return []
+  return props.caseData.parties.filter((p) => p.party_type === '被上诉人')
 })
 
 const partyThirdParties = computed(() => {

@@ -200,9 +200,6 @@ class CaseCreate(BaseModel):
     # 基本信息
     case_number: Optional[str] = Field(None, description="案件号（批量导入时指定，留空则由系统自动生成）")
     commission_date: Optional[date] = Field(None, description="委托日期")
-    client_name: Optional[str] = Field(None, description="委托人")
-    client_id_number: Optional[str] = Field(None, description="委托人身份证号/单位税号")
-    client_phone: Optional[str] = Field(None, description="委托人电话")
     case_category: str = Field(..., description="案件类别")
     case_source: Optional[str] = Field(None, description="案件来源")
     fee_method: Optional[str] = Field(None, description="收费方式")
@@ -213,11 +210,6 @@ class CaseCreate(BaseModel):
     payment_due_date: Optional[date] = None
     cause: Optional[str] = None
     stage: Optional[str] = None
-    plaintiff: Optional[str] = None
-    appellant_info: Optional[str] = None
-    extra_appellant_info: Optional[str] = None
-    defendant: Optional[str] = None
-    third_party: Optional[str] = None
     investigative_agency: Optional[str] = Field(None, description="侦查机关")
     procuratorate: Optional[str] = Field(None, description="检察院")
     second_instance_procuratorate: Optional[str] = Field(None, description="二审检察机关")
@@ -276,9 +268,6 @@ class CaseCreate(BaseModel):
 class CaseUpdate(BaseModel):
     # 基本信息 / Basic info
     commission_date: Optional[date] = Field(None, description="委托日期 / Commission date")
-    client_name: Optional[str] = Field(None, description="委托人 / Client name")
-    client_id_number: Optional[str] = Field(None, description="委托人身份证号/单位税号 / Client ID / Tax number")
-    client_phone: Optional[str] = Field(None, description="委托人电话 / Client phone")
     case_category: Optional[str] = Field(None, description="案件类别 / Case category")
     case_source: Optional[str] = Field(None, description="案件来源 / Case source")
     fee_method: Optional[str] = Field(None, description="收费方式 / Fee method")
@@ -291,11 +280,6 @@ class CaseUpdate(BaseModel):
     # 案件主体 / Case parties & details
     cause: Optional[str] = Field(None, description="案由 / Cause")
     stage: Optional[str] = Field(None, description="介入阶段 / Case stage")
-    plaintiff: Optional[str] = Field(None, description="原告 / Plaintiff")
-    appellant_info: Optional[str] = Field(None, description="上诉人信息 / Appellant info")
-    extra_appellant_info: Optional[str] = Field(None, description="被上诉人信息 / Extra appellant info")
-    defendant: Optional[str] = Field(None, description="被告 / Defendant")
-    third_party: Optional[str] = Field(None, description="第三人 / Third party")
     investigative_agency: Optional[str] = Field(None, description="侦查机关 / Investigative Agency")
     procuratorate: Optional[str] = Field(None, description="检察院 / Procuratorate")
     second_instance_procuratorate: Optional[str] = Field(None,description="二审检察机关 / Second Instance Procuratorate")
@@ -355,10 +339,6 @@ class CaseOut(BaseModel):
     case_id: int = Field(..., description="案件ID / Case ID")
     case_number: str = Field(..., description="案件号 / Case number")
     commission_date: Optional[date] = Field(None, description="委托日期 / Commission date")
-    client_name: Optional[str] = Field(None, description="委托人 / Client name")
-    client_id_number: Optional[str] = Field(None, description="身份证号/税号 / ID or Tax number")
-    client_phone: Optional[str] = Field(None, description="电话 / Phone number")
-
     case_category: str = Field(..., description="案件类别 / Case category")
     case_source: Optional[str] = Field(None, description="案件来源 / Case source")
     fee_method: Optional[str] = Field(None, description="收费方式 / Fee method")
@@ -369,11 +349,6 @@ class CaseOut(BaseModel):
     payment_due_date: Optional[date] = Field(None, description="付款到期日 / Payment due date")
     cause: Optional[str] = Field(None, description="案由 / Cause")
     stage: Optional[str] = Field(None, description="介入阶段 / Case stage")
-    plaintiff: Optional[str] = Field(None, description="原告 / Plaintiff")
-    appellant_info: Optional[str] = Field(None, description="上诉人信息 / Appellant info")
-    extra_appellant_info: Optional[str] = Field(None, description="补上诉人信息 / Extra appellant info")
-    defendant: Optional[str] = Field(None, description="被告 / Defendant")
-    third_party: Optional[str] = Field(None, description="第三人 / Third party")
     investigative_agency: Optional[str] = Field(None, description="侦查机关 / Investigative Agency")
     procuratorate: Optional[str] = Field(None, description="检察院 / Procuratorate")
     second_instance_procuratorate: Optional[str] = Field(None,description="二审检察机关 / Second Instance Procuratorate")
@@ -434,7 +409,7 @@ class CaseOut(BaseModel):
 class CaseSimpleOut(BaseModel):
     case_id: int = Field(..., description="案件ID / Case ID")
     case_number: str = Field(..., description="案件号 / Case number")
-    client_name: Optional[str] = Field(None, description="委托人 / Client name")
+    client_name: Optional[str] = Field(None, description="委托人（从 CaseParty 聚合） / Client name")
     borrower_name: Optional[str] = Field(None, description="借款人 / Borrower name")
     case_category: str = Field(..., description="案件类别 / Case category")
     case_status: Optional[str] = Field(None, description="案件状态 / Case status")
@@ -503,7 +478,6 @@ class CaseExportQuery(BaseModel):
     case_category: Optional[str] = None
     main_lawyer_id: Optional[int] = None
     execution_lawyer_id: Optional[int] = None
-    client_name: Optional[str] = None
     year: Optional[str] = None
     case_status: Optional[str] = None
     start_date: Optional[date] = None

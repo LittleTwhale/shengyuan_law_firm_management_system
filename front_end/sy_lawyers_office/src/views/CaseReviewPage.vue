@@ -41,7 +41,11 @@
       <el-table-column type="selection" width="55" fixed="left" />
       <el-table-column prop="case_id" label="案件ID" min-width="80" />
       <el-table-column prop="case_number" label="案件编号" min-width="150" />
-      <el-table-column prop="client_name" label="委托人" min-width="100" />
+      <el-table-column label="委托人" min-width="100">
+        <template #default="{ row }">
+          {{ getClientNames(row.parties) || '-' }}
+        </template>
+      </el-table-column>
       <el-table-column prop="case_category" label="案件类别" min-width="120" />
       <el-table-column prop="main_lawyer.real_name" label="主办律师" min-width="100" />
       <el-table-column
@@ -137,6 +141,15 @@ import request from '@/utils/request'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+
+// 辅助函数：从 parties 中提取委托人名称
+const getClientNames = (parties) => {
+  if (!parties || !parties.length) return ''
+  return parties
+    .filter(p => p.party_type && p.party_type.includes('委托'))
+    .map(p => p.name)
+    .join('、')
+}
 
 // 表格数据
 const casesList = ref([])

@@ -148,9 +148,9 @@
             <span v-else class="text-gray">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="case.client_name" label="委托人" min-width="200">
+        <el-table-column label="委托人" min-width="200">
           <template #default="{ row }">
-            <span class="client-name">{{ row.case ? row.case.client_name : '-' }}</span>
+            <span class="client-name">{{ row.case ? getClientNames(row.case.parties) : '-' }}</span>
           </template>
         </el-table-column>
         <el-table-column label="主办律师" width="100" show-overflow-tooltip>
@@ -432,7 +432,7 @@
               currentFinance.case ? currentFinance.case.case_number : '-'
             }}</el-descriptions-item>
             <el-descriptions-item label="委托人">{{
-              currentFinance.case ? currentFinance.case.client_name : '-'
+              currentFinance.case ? getClientNames(currentFinance.case.parties) : '-'
             }}</el-descriptions-item>
             <el-descriptions-item label="主办律师">{{
               currentFinance.case ? currentFinance.case.main_lawyer.real_name : '-'
@@ -916,6 +916,15 @@ const caseCategories = [
   '法律援助(刑事)',
   '法律援助(行政)',
 ]
+
+// 辅助函数：从 parties 中提取委托人名称
+const getClientNames = (parties) => {
+  if (!parties || !parties.length) return ''
+  return parties
+    .filter(p => p.party_type && p.party_type.includes('委托'))
+    .map(p => p.name)
+    .join('、')
+}
 
 const stats = ref({
   total_income: 0,

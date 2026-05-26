@@ -124,8 +124,7 @@ def get_my_simple_cases(
         clients = [p.name for p in c.parties if p.party_type and '委托' in p.party_type and p.name]
 
         # 将多个委托人名字用顿号拼接。
-        # 为了平滑过渡兼容历史旧数据，如果没查到独立当事人，可以暂时 fallback 到 c.client_name
-        real_client_name = "、".join(clients) if clients else (c.client_name or "")
+        real_client_name = "、".join(clients) if clients else ""
 
         result.append({
             "case_id": c.case_id,

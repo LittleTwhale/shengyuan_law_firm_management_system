@@ -36,10 +36,9 @@ router = APIRouter(
 def aggregate_client_names(case_obj: Case) -> str:
     """从 CaseParty 中提取委托人名称并拼接"""
     if not case_obj.parties:
-        return case_obj.client_name or ""
+        return ""
     clients = [p.name for p in case_obj.parties if p.party_type and '委托' in p.party_type and p.name]
-    # 如果CaseParty中有委托人，优先用CaseParty的拼接结果；否则为了兼容性回落到旧字段
-    return "、".join(clients) if clients else (case_obj.client_name or "")
+    return "、".join(clients)
 
 # 辅助函数：统一提取并格式化借款人名称
 def aggregate_borrower_names(case_obj: Case) -> str:
@@ -288,9 +287,6 @@ def check_interest_conflict(
         if p.party_type and "委托" in p.party_type and p.name:
             new_client_names.add(p.name.strip())
 
-    if not new_client_names and case_data.client_name:
-        new_client_names.add(case_data.client_name.strip())
-
     if not new_client_names:
         return {"has_conflict": False, "details": []}
 
@@ -349,11 +345,6 @@ def check_interest_conflict(
             is_self = any((client_name in p_name or p_name in client_name) for client_name in new_client_names)
             if not is_self:
                 new_case_opponents.add(p_name)
-
-    # 兼容旧字段
-    if not new_case_opponents and case_data.defendant and client_side == "A":
-        separators = ["、", ",", "，", " ", "；", ";"]
-        new_case_opponents = set(d.strip() for d in split_with_separators(case_data.defendant, separators) if d.strip())
 
     precise_conflicts = []
     processed_conflicts = set()

@@ -63,9 +63,6 @@ def _pure_memory_conflict_check(case_id: int, global_case_cache: dict):
     for p in current_parties:
         if "委托" in p["party_type"]:
             new_client_names.add(p["name"])
-    if not new_client_names and current_case["client_name"]:
-        new_client_names.add(current_case["client_name"].strip())
-
     if not new_client_names:
         return {"has_conflict": False, "details": []}
 
@@ -215,7 +212,6 @@ def batch_review_cases(
     raw_cases = db.query(
         Case.case_id,
         Case.case_number,
-        Case.client_name,
         User.real_name.label("lawyer_name")
     ).outerjoin(User, Case.main_lawyer_id == User.id).filter(Case.is_deleted == False).all()
 
@@ -231,7 +227,6 @@ def batch_review_cases(
         global_case_cache[r.case_id] = {
             "case_id": r.case_id,
             "case_number": r.case_number,
-            "client_name": r.client_name or "",
             "lawyer_name": r.lawyer_name or "未知",
             "parties": []
         }

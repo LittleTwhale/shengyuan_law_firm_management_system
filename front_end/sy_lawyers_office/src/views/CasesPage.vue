@@ -122,7 +122,11 @@
         <el-table-column type="selection" width="55" align="center" />
 
         <el-table-column prop="case_number" label="业务号" min-width="200" align="center" />
-        <el-table-column prop="client_name" label="委托人" min-width="220" align="center" />
+        <el-table-column label="委托人" min-width="220" align="center">
+          <template #default="{ row }">
+            {{ getClientNames(row.parties) || '-' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="case_category" label="业务类别" min-width="150" align="center" />
         <el-table-column
           prop="main_lawyer.real_name"
@@ -543,6 +547,15 @@ import {
   CopyDocument,
   Warning,
 } from '@element-plus/icons-vue'
+
+// 辅助函数：从 parties 中提取委托人名称
+const getClientNames = (parties) => {
+  if (!parties || !parties.length) return ''
+  return parties
+    .filter(p => p.party_type && p.party_type.includes('委托'))
+    .map(p => p.name)
+    .join('、')
+}
 
 // -------------------------- 响应式/移动端适配相关 --------------------------
 const isMobile = ref(false)

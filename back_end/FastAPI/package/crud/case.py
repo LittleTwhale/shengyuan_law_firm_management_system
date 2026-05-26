@@ -248,14 +248,11 @@ def list_bank_cases_by_user_role(
     if execution_lawyer_id is not None:
         query = query.filter(Case.execution_lawyer_id == execution_lawyer_id)
 
-    # 委托银行筛选逻辑 (兼容新表 CaseParty 和老字段 client_name)
+    # 委托银行筛选逻辑 (通过 CaseParty 表查询)
     if client_name:
         query = query.filter(
-            or_(
-                Case.client_name.like(f"%{client_name}%"),
-                Case.parties.any(
-                    and_(CaseParty.party_type.like('%委托%'), CaseParty.name.like(f"%{client_name}%"))
-                )
+            Case.parties.any(
+                and_(CaseParty.party_type.like('%委托%'), CaseParty.name.like(f"%{client_name}%"))
             )
         )
 
@@ -331,14 +328,11 @@ def count_bank_cases_by_user_role(
     if execution_lawyer_id is not None:
         query = query.filter(Case.execution_lawyer_id == execution_lawyer_id)
 
-    # 委托银行筛选逻辑 (兼容新表 CaseParty 和老字段 client_name)
+    # 委托银行筛选逻辑 (通过 CaseParty 表查询)
     if client_name:
         query = query.filter(
-            or_(
-                Case.client_name.like(f"%{client_name}%"),
-                Case.parties.any(
-                    and_(CaseParty.party_type.like('%委托%'), CaseParty.name.like(f"%{client_name}%"))
-                )
+            Case.parties.any(
+                and_(CaseParty.party_type.like('%委托%'), CaseParty.name.like(f"%{client_name}%"))
             )
         )
 
@@ -361,42 +355,6 @@ def count_bank_cases_by_user_role(
         query = query.join(BankCase).filter(BankCase.case_status == case_status)
 
     return query.count()
-
-
-# 辅助函数：将当事人列表转换为逗号分隔字符串（用于兼容旧字段）
-def _sync_legacy_fields(parties_data: list) -> dict:
-    clients = []
-    plaintiffs = []
-    defendants = []
-    for p in parties_data:
-        # 这里需要判断 p 是对象还是字典，取决于传入来源
-        p_type = p.party_type if hasattr(p, 'party_type') else p.get('party_type')
-        p_name = p.name if hasattr(p, 'name') else p.get('name')
-
-        if p_type in ['原告', '申请人', '上诉人']:
-            plaintiffs.append(p_name)
-        elif p_type in ['被告', '被申请人', '被上诉人']:
-            defendants.append(p_name)
-        elif p_type == '委托人':
-            clients.append(p)
-
-    result = {
-        "plaintiff": "、".join(plaintiffs) if plaintiffs else None,
-        "defendant": "、".join(defendants) if defendants else None,
-        "client_name": "、".join([c.name if hasattr(c, 'name') else c.get('name') for c in clients]) if clients else None
-    }
-
-    # 额外逻辑：如果存在委托人，将第一个委托人的电话和身份证同步到主表
-    if clients:
-        first_client = clients[0]
-        # 兼容字典和对象
-        phone = first_client.phone if hasattr(first_client, 'phone') else first_client.get('phone')
-        id_number = first_client.id_number if hasattr(first_client, 'id_number') else first_client.get('id_number')
-
-        result["client_phone"] = phone
-        result["client_id_number"] = id_number
-
-    return result
 
 
 def create_case(db: Session, case_in: CaseCreate) -> Case:
@@ -453,20 +411,6 @@ def create_case(db: Session, case_in: CaseCreate) -> Case:
             # 去除首尾空格后，如果是这些无效值，就转为 None
             if value.strip() in ("None", "nan", "NaN", "", "null"):
                 case_data[key] = None
-
-    # 如果前端传了当事人列表，自动生成旧字段字符串
-    if case_in.parties:
-        legacy_update = _sync_legacy_fields(case_in.parties)
-        if legacy_update["plaintiff"]:
-            case_data["plaintiff"] = legacy_update["plaintiff"]
-        if legacy_update["defendant"]:
-            case_data["defendant"] = legacy_update["defendant"]
-        if legacy_update.get("client_name"):
-            case_data["client_name"] = legacy_update["client_name"]
-        if legacy_update.get("client_phone"):
-            case_data["client_phone"] = legacy_update["client_phone"]
-        if legacy_update.get("client_id_number"):
-            case_data["client_id_number"] = legacy_update["client_id_number"]
 
     # 创建主案件
     case_data["review_status"] = "待审核"
@@ -634,19 +578,6 @@ def update_case(db: Session, case_id: int, case_in: CaseUpdate) -> Optional[Case
                 **party.model_dump()
             )
             db.add(new_party)
-
-        # C. 同步更新旧字段
-        legacy_update = _sync_legacy_fields(case_in.parties)
-        if legacy_update["plaintiff"] is not None:
-            case.plaintiff = legacy_update["plaintiff"]
-        if legacy_update["defendant"] is not None:
-            case.defendant = legacy_update["defendant"]
-        if legacy_update.get("client_name"):
-            case.client_name = legacy_update["client_name"]
-        if legacy_update.get("client_phone"):
-            case.client_phone = legacy_update["client_phone"]
-        if legacy_update.get("client_id_number"):
-            case.client_id_number = legacy_update["client_id_number"]
 
     # 更新或创建银行案件详情
     if case_in.bank_case_details:
@@ -966,7 +897,7 @@ def get_upcoming_events(
 
         # 动态获取当事人列表中的委托人名称
         clients = [p.name for p in case.parties if p.party_type and '委托' in p.party_type and p.name]
-        real_client_name = "、".join(clients) if clients else (case.client_name or "")
+        real_client_name = "、".join(clients) if clients else ""
 
         is_mine = (
             case.main_lawyer_id == user_id or
@@ -1036,7 +967,7 @@ def get_upcoming_events(
             if sched.related_case:
                 clients = [p.name for p in sched.related_case.parties if
                            p.party_type and '委托' in p.party_type and p.name]
-                c_client = "、".join(clients) if clients else (sched.related_case.client_name or "")
+                c_client = "、".join(clients) if clients else ""
 
             # 判定“业务归属”：如果有关联案件，当前用户是不是这个案件的参与律师？
             is_involved = False
@@ -1136,11 +1067,8 @@ def export_cases_to_excel(
             query = query.filter(Case.execution_lawyer_id == query_params.execution_lawyer_id)
         if query_params.client_name:
             query = query.filter(
-                or_(
-                    Case.client_name.like(f"%{query_params.client_name}%"),
-                    Case.parties.any(
-                        and_(CaseParty.party_type.like('%委托%'), CaseParty.name.like(f"%{query_params.client_name}%"))
-                    )
+                Case.parties.any(
+                    and_(CaseParty.party_type.like('%委托%'), CaseParty.name.like(f"%{query_params.client_name}%"))
                 )
             )
         if query_params.case_status:

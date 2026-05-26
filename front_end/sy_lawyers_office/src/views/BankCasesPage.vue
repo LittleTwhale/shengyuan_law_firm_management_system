@@ -133,7 +133,11 @@
             {{ scope.row.case_code || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="client_name" label="委托银行" min-width="150" align="center" />
+        <el-table-column label="委托银行" min-width="150" align="center">
+          <template #default="{ row }">
+            {{ getClientNames(row.parties) || '-' }}
+          </template>
+        </el-table-column>
 
         <el-table-column label="案件状态" min-width="160" align="center">
           <template #default="scope">
@@ -546,6 +550,15 @@ import CaseForm from './CaseForm.vue'
 import { useRouter } from 'vue-router'
 // 导入需要的图标
 import { Document, Upload, UploadFilled, Download, Refresh } from '@element-plus/icons-vue'
+
+// 辅助函数：从 parties 中提取委托人名称
+const getClientNames = (parties) => {
+  if (!parties || !parties.length) return ''
+  return parties
+    .filter(p => p.party_type && p.party_type.includes('委托'))
+    .map(p => p.name)
+    .join('、')
+}
 
 // -------------------------- 响应式/移动端适配相关 --------------------------
 const isMobile = ref(false)

@@ -266,10 +266,7 @@ const getInitialFormData = () => ({
   party_bank_borrowers: [], // 借款人 (BankCaseForm中使用)
   party_bank_guarantors: [], // 担保人 (BankCaseForm中使用)
 
-  // 旧字段保留（用于兼容，提交时填充）
-  client_name: null,
-  client_id_number: null,
-  client_phone: null,
+  // 旧字段已废弃 — 当事人信息统一通过 case_parties 表管理
 
   case_source: null,
   stage: null,
@@ -468,37 +465,7 @@ const fetchCaseDetail = async (targetId) => {
         }
       })
     } else {
-      if (data.client_name) {
-        // 尝试拆分旧的逗号分隔字符串
-        const clients = data.client_name.split(/[,，、]/).filter((s) => s)
-        clients.forEach((c, idx) => {
-          formData.party_clients.push({
-            party_type: '委托人',
-            name: c,
-            phone: idx === 0 ? data.client_phone : '', // 仅第一个填充电话
-            id_number: idx === 0 ? data.client_id_number : '',
-            address: '',
-          })
-        })
-      }
-      if (data.plaintiff) {
-        const plaintiffs = data.plaintiff.split(/[,，、]/).filter((s) => s)
-        plaintiffs.forEach((p) => {
-          formData.party_plaintiffs.push({ party_type: '原告', name: p })
-        })
-      }
-      if (data.defendant) {
-        const defendants = data.defendant.split(/[,，、]/).filter((s) => s)
-        defendants.forEach((d) => {
-          formData.party_defendants.push({ party_type: '被告', name: d })
-        })
-      }
-      if (data.third_party) {
-        const thirdParties = data.third_party.split(/[,，、]/).filter((s) => s)
-        thirdParties.forEach((t) => {
-          formData.party_third_parties.push({ party_type: '第三人', name: t })
-        })
-      }
+      // 旧字段已废弃，数据已全部迁移至 case_parties 表，data.parties 始终存在
     }
 
     // 律师映射
@@ -693,16 +660,6 @@ const handleSubmit = async () => {
       loading.value = true
       try {
         const submitData = JSON.parse(JSON.stringify(formData))
-
-        // 兼容旧字段 logic
-        if (submitData.party_clients && submitData.party_clients.length > 0) {
-          const firstClient = submitData.party_clients[0]
-          submitData.client_name = firstClient.name || ''
-          submitData.client_phone = firstClient.phone || ''
-          submitData.client_id_number = firstClient.id_number || ''
-        } else {
-          submitData.client_name = ''
-        }
 
         // 清理非本业务类型的数据
         if (submitData.case_category !== '银行案件') {

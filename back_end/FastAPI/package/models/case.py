@@ -11,9 +11,6 @@ class Case(Base):
     case_id = Column(Integer, primary_key=True, index=True, comment="案件ID，自增主键")
     case_number = Column(String(50), unique=True, nullable=False, comment="案件号")
     commission_date = Column(Date, nullable=True, comment="委托日期")
-    client_name = Column(String(100), nullable=False, comment="委托人")
-    client_id_number = Column(String(18), nullable=True, comment="委托人身份证号/单位税号")
-    client_phone = Column(String(20), nullable=True, comment="委托人电话")
 
     case_category = Column(Enum('民事案件','银行案件','刑事案件','行政案件','非诉业务','劳动仲裁','商事仲裁', '执行案件','法律顾问业务','法律援助(民事)','法律援助(刑事)','法律援助(行政)'), nullable=False, comment="案件类别")
 
@@ -26,11 +23,6 @@ class Case(Base):
     cause = Column(Text, nullable=True, comment="案由")
     stage = Column(String(100), nullable=True, comment="介入阶段")
 
-    plaintiff = Column(String(100), nullable=False, comment="原告/申请人")
-    appellant_info = Column(Text, nullable=True, comment="上诉人信息补充")
-    extra_appellant_info = Column(Text, nullable=True, comment="补上诉人或补告信息补充")
-    defendant = Column(String(100), nullable=True, comment="被告")
-    third_party = Column(String(255), nullable=True, comment="第三人")
     investigative_agency = Column(String(255), nullable=True, comment="侦查机关")
     procuratorate = Column(String(255), nullable=True, comment="检察院")
     second_instance_procuratorate = Column(String(255), nullable=True, comment="二审检察机关")
