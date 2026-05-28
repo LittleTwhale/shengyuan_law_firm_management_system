@@ -170,7 +170,8 @@ class CRUDFinance:
         # 2. 构建基础查询
         query = db.query(CaseFinance).join(Case, CaseFinance.case_id == Case.case_id)
         query = query.options(
-            joinedload(CaseFinance.case).joinedload(Case.main_lawyer)
+            joinedload(CaseFinance.case).joinedload(Case.main_lawyer),
+            joinedload(CaseFinance.case).joinedload(Case.parties)
         )
 
         # 3. 应用筛选
@@ -217,7 +218,10 @@ class CRUDFinance:
 
     # --- 3. 获取单个案件财务详情 (自动初始化) ---
     def get_by_case_id(self, db: Session, case_id: int) -> CaseFinance:
-        finance = db.query(CaseFinance).filter(CaseFinance.case_id == case_id).first()
+        finance = db.query(CaseFinance).options(
+            joinedload(CaseFinance.case).joinedload(Case.main_lawyer),
+            joinedload(CaseFinance.case).joinedload(Case.parties)
+        ).filter(CaseFinance.case_id == case_id).first()
         if not finance:
             # 懒加载：如果还没有财务记录，则创建一个空的
             case = db.query(Case).filter(Case.case_id == case_id).first()

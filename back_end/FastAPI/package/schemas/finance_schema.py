@@ -3,6 +3,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List
 from .user import UserOut
+from .case import CasePartyOut
 
 from pydantic import BaseModel, Field
 
@@ -100,7 +101,8 @@ class LawyerWithdrawalResponse(LawyerWithdrawalBase):
 class CaseSimpleInfo(BaseModel):
     """简化案件基础信息"""
     case_number: Optional[str] = None
-    main_lawyer:UserOut
+    main_lawyer: UserOut
+    parties: List[CasePartyOut] = Field(default_factory=list, description="当事人列表 / Case parties")
 
     class Config:
         from_attributes = True

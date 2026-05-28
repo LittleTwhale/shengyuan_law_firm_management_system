@@ -421,6 +421,7 @@ class CaseSimpleOut(BaseModel):
     litigation_fee_payment_amount: Optional[Decimal] =Field(0, description="诉讼费缴费金额 / Litigation fee payment amount")
     litigation_fee_refund_amount: Optional[Decimal] = Field(0, description="诉讼费退费金额 / Litigation fee refund amount")
     created_at: datetime = Field(..., description="创建时间 / Created at")
+    parties: List[CasePartyOut] = Field(default_factory=list, description="当事人列表 / Case parties")
 
     class Config:
         from_attributes = True
@@ -478,6 +479,7 @@ class CaseExportQuery(BaseModel):
     case_category: Optional[str] = None
     main_lawyer_id: Optional[int] = None
     execution_lawyer_id: Optional[int] = None
+    client_name: Optional[str] = None
     year: Optional[str] = None
     case_status: Optional[str] = None
     start_date: Optional[date] = None
