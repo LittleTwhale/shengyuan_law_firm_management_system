@@ -77,6 +77,7 @@
                   label="统信代码"
                   :prop="'party_clients.' + index + '.id_number'"
                   label-width="90px"
+                  :rules="{ validator: validateIdNumber, trigger: 'blur' }"
                 >
                   <el-input
                     v-model="item.id_number"
@@ -178,7 +179,7 @@
                 </el-form-item>
               </el-col>
               <el-col :span="6">
-                <el-form-item label="证件号" label-width="70px">
+                <el-form-item label="证件号" label-width="70px" :prop="'party_plaintiffs.' + index + '.id_number'" :rules="{ validator: validateIdNumber, trigger: 'blur' }">
                   <el-input
                     v-model="item.id_number"
                     placeholder="选填"
@@ -279,7 +280,7 @@
                 </el-form-item>
               </el-col>
               <el-col :span="6">
-                <el-form-item label="证件号" label-width="70px">
+                <el-form-item label="证件号" label-width="70px" :prop="'party_defendants.' + index + '.id_number'" :rules="{ validator: validateIdNumber, trigger: 'blur' }">
                   <el-input
                     v-model="item.id_number"
                     placeholder="选填"
@@ -367,7 +368,10 @@
                   label="证件号"
                   label-width="70px"
                   :prop="'party_bank_borrowers.' + index + '.id_number'"
-                  :rules="{ required: true, message: '证件号必填', trigger: 'blur' }"
+                  :rules="[
+                    { required: true, message: '证件号必填', trigger: 'blur' },
+                    { validator: validateIdNumber, trigger: 'blur' },
+                  ]"
                 >
                   <el-input
                     v-model="item.id_number"
@@ -452,7 +456,7 @@
                 </el-form-item>
               </el-col>
               <el-col :span="8">
-                <el-form-item label="证件号" label-width="70px">
+                <el-form-item label="证件号" label-width="70px" :prop="'party_bank_guarantors.' + index + '.id_number'" :rules="{ validator: validateIdNumber, trigger: 'blur' }">
                   <el-input
                     v-model="item.id_number"
                     placeholder="身份证/统信代码"
@@ -536,7 +540,7 @@
                 </el-form-item>
               </el-col>
               <el-col :span="8">
-                <el-form-item label="证件号" label-width="70px">
+                <el-form-item label="证件号" label-width="70px" :prop="'party_third_parties.' + index + '.id_number'" :rules="{ validator: validateIdNumber, trigger: 'blur' }">
                   <el-input
                     v-model="item.id_number"
                     placeholder="选填"
@@ -634,7 +638,7 @@
                 </el-form-item>
               </el-col>
               <el-col :span="6">
-                <el-form-item label="证件号" label-width="70px">
+                <el-form-item label="证件号" label-width="70px" :prop="'party_others.' + index + '.id_number'" :rules="{ validator: validateIdNumber, trigger: 'blur' }">
                   <el-input
                     v-model="item.id_number"
                     placeholder="选填"
@@ -1805,6 +1809,17 @@
 <script setup>
 import { inject } from 'vue'
 import { Plus, Delete, OfficeBuilding, Warning, QuestionFilled } from '@element-plus/icons-vue'
+
+// 证件号验证器：选填时为空则通过，否则必须18位
+const validateIdNumber = (_rule, value, callback) => {
+  if (!value || value.trim() === '') {
+    callback()
+  } else if (value.trim().length !== 18) {
+    callback(new Error('证件号必须为18位'))
+  } else {
+    callback()
+  }
+}
 
 defineProps({
   lawyerOptions: {
