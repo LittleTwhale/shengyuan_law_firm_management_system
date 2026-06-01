@@ -9,7 +9,7 @@ class SystemAnnouncement(Base):
     __tablename__ = "system_announcements"
 
     id = Column(Integer, primary_key=True, index=True, comment="公告ID")
-    type = Column(String(50), nullable=False, index=True, comment="类型: update_log/general_notice")
+    type = Column(String(50), nullable=False, index=True, comment="类型: update_log(更新日志)/general_notice(系统公告)/case_review(审核驳回)")
     title = Column(String(255), nullable=False, comment="标题")
     version = Column(String(50), nullable=True, comment="关联版本号")
 

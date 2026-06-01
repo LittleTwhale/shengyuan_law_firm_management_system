@@ -98,6 +98,14 @@
           <span class="meta-item">时间：{{ formatDate(currentDetail.created_at) }}</span>
           <span class="meta-item">发布人：{{ currentDetail.publisher_name }}</span>
         </div>
+        <!-- 审核驳回公告 → 直接跳转到案件详情 -->
+        <div class="case-review-action" v-if="currentDetail.type === 'case_review' && currentDetail.related_case_id">
+          <el-button type="warning" round @click="goToCase(currentDetail.related_case_id)">
+            <el-icon style="margin-right: 6px"><Link /></el-icon>
+            查看对应案件详情
+          </el-button>
+        </div>
+
         <el-divider border-style="dashed" class="custom-divider" />
         <div class="rich-text-content" v-html="currentDetail.content"></div>
       </div>
@@ -107,8 +115,17 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import request from '@/utils/request'
-import { ChatDotRound, Promotion, Notification, ArrowRight, User, Warning } from '@element-plus/icons-vue'
+import { ChatDotRound, Promotion, Notification, ArrowRight, User, Warning, Link } from '@element-plus/icons-vue'
+
+const router = useRouter()
+
+const goToCase = (caseId) => {
+  if (caseId) {
+    router.push(`/main/cases/${caseId}`)
+  }
+}
 
 const loading = ref(false)
 const announcements = ref([])
@@ -481,6 +498,12 @@ onMounted(() => {
 .custom-divider {
   margin: 24px 0;
   border-color: #e5e6eb;
+}
+
+/* 审核驳回公告 → 跳转案件详情按钮区 */
+.case-review-action {
+  text-align: center;
+  margin: 20px 0 10px;
 }
 
 .rich-text-content {
