@@ -16,6 +16,7 @@ import PartyBuildingPage from '@/views/PartyBuildingPage.vue'
 import PartyMaterialDetail from '@/views/PartyMaterialDetail.vue'
 import VolumesPage from '@/views/VolumesPage.vue'
 import AnnouncementCenter from '@/views/AnnouncementCenter.vue'
+import AIAnalysisPage from '@/views/AIAnalysisPage.vue'
 import { ElMessage } from 'element-plus'
 
 const routes = [
@@ -52,6 +53,11 @@ const routes = [
         },
       },
       { path: 'announcements', component: AnnouncementCenter, meta: { title: '公告中心' } },
+      {
+        path: 'ai-analysis',
+        component: AIAnalysisPage,
+        meta: { title: '智能分析（试运行）' },
+      },
     ],
   },
 ]

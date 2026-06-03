@@ -71,6 +71,16 @@
           <template #title><span>电子卷宗</span></template>
         </el-menu-item>
 
+        <el-menu-item index="/main/ai-analysis">
+          <el-icon><MagicStick /></el-icon>
+          <template #title>
+            <span style="display: flex; align-items: center; gap: 6px;">
+              智能分析
+              <el-tag size="small" type="warning" effect="dark" style="height: 18px; line-height: 16px; font-size: 11px; padding: 0 5px; border: none;">试运行</el-tag>
+            </span>
+          </template>
+        </el-menu-item>
+
         <el-menu-item index="/main/lawyers" v-if="role === 'owner' || role === 'admin'">
           <el-icon><User /></el-icon>
           <template #title><span>人员管理</span></template>
@@ -157,6 +167,16 @@
           <el-menu-item index="/main/volumes">
             <el-icon><Collection /></el-icon>
             <template #title><span>电子卷宗</span></template>
+          </el-menu-item>
+
+          <el-menu-item index="/main/ai-analysis">
+            <el-icon><MagicStick /></el-icon>
+            <template #title>
+              <span style="display: flex; align-items: center; gap: 6px;">
+                智能分析
+                <el-tag size="small" type="warning" effect="dark" style="height: 18px; line-height: 16px; font-size: 11px; padding: 0 5px; border: none;">试运行</el-tag>
+              </span>
+            </template>
           </el-menu-item>
 
           <el-menu-item index="/main/lawyers" v-if="role === 'owner' || role === 'admin'">
@@ -349,6 +369,7 @@ import {
   Promotion,
   Close,
   Warning,
+  MagicStick,
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -365,6 +386,7 @@ const menuTitleMap = {
   '/main/cases': '业务管理',
   '/main/case_review': '业务审核',
   '/main/volumes': '电子卷宗',
+  '/main/ai-analysis': '智能分析',
   '/main/lawyers': '人员管理',
   '/main/cases/bank_cases': '银行案件',
   '/main/finance': '财务管理',

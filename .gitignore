@@ -33,6 +33,11 @@ database/
 # claude文件
 .claude/
 CLAUDE.md
+.deepseek/
+.reasonix/
 
 # Meilisearch文件
 Meilisearch/
+
+# 法律条文
+law/
