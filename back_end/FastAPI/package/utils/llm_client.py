@@ -231,7 +231,7 @@ async def search_relevant_provisions(
         # ========== 第一路：基础检索（保底）==========
         basic_result = index.search(query, {
             "limit": top_k,
-            "attributesToRetrieve": ["law_name", "article_number", "chapter", "content", "law_category"],
+            "attributesToRetrieve": ["id", "law_name", "article_number", "chapter", "content", "law_category"],
         })
         basic_hits = basic_result.get("hits", [])
 
@@ -240,16 +240,12 @@ async def search_relevant_provisions(
 
         extra_hits = []
         if llm_keywords:
-            # 用每个 LLM 关键词独立检索（多路并发）
-            search_tasks = [
-                index.search(kw, {
+            # 用每个 LLM 关键词独立检索（同步调用，Meilisearch SDK v0.41 的 search() 非异步）
+            for kw in llm_keywords:
+                r = index.search(kw, {
                     "limit": 3,
-                    "attributesToRetrieve": ["law_name", "article_number", "chapter", "content", "law_category"],
+                    "attributesToRetrieve": ["id", "law_name", "article_number", "chapter", "content", "law_category"],
                 })
-                for kw in llm_keywords
-            ]
-            extra_results = await asyncio.gather(*search_tasks)
-            for r in extra_results:
                 extra_hits.extend(r.get("hits", []))
 
         # ========== 合并去重：按文档 ID 去重，保留最早出现（基础优先）==========
@@ -257,12 +253,20 @@ async def search_relevant_provisions(
         merged = []
 
         for hit in basic_hits:
-            doc_id = hit["id"]
-            seen_ids.add(doc_id)
-            merged.append(hit)
+            raw_id = hit.get("id")
+            if raw_id is None:
+                continue
+            # 防御：某些 SDK 版本可能返回非字符串 ID
+            doc_id = str(raw_id) if not isinstance(raw_id, str) else raw_id
+            if doc_id not in seen_ids:
+                seen_ids.add(doc_id)
+                merged.append(hit)
 
         for hit in extra_hits:
-            doc_id = hit["id"]
+            raw_id = hit.get("id")
+            if raw_id is None:
+                continue
+            doc_id = str(raw_id) if not isinstance(raw_id, str) else raw_id
             if doc_id not in seen_ids:
                 seen_ids.add(doc_id)
                 merged.append(hit)
