@@ -21,6 +21,10 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 300  # token过期时间（分钟）
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")  # DeepSeek API 密钥
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")  # API 地址
 
+# Meilisearch 搜索引擎配置
+MEILI_URL = os.getenv("MEILI_URL", "http://localhost:7700")
+MEILI_MASTER_KEY = os.getenv("MEILI_MASTER_KEY")
+
 # 附件根目录
 CASE_ATTACHMENT_ROOT = os.path.join("D:\\", "syls", "database", "attachments")  # 自动处理路径分隔符（兼容Windows/Linux）
 

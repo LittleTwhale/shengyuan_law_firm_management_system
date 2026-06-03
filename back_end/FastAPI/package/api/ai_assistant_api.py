@@ -26,6 +26,7 @@ from ..utils.llm_client import (
     analyze_case as llm_analyze,
     analyze_case_stream as llm_analyze_stream,
     chat_about_case as llm_chat,
+    search_relevant_provisions as llm_rag_search,
 )
 from ..utils.ocr_helper import perform_smart_extraction
 from ..crud.case import list_cases_by_user_role, count_cases_by_user_role
@@ -362,12 +363,16 @@ async def analyze_case(
 
     logger.info("文件预处理完成，有效文本: %d 段，准备调用 DeepSeek...", len(extra_texts))
 
+    # RAG 检索：从法律知识库中检索相关法条
+    relevant_provisions = await llm_rag_search(case_data)
+
     # 调用 DeepSeek
     try:
         logger.info("开始调用 DeepSeek API 进行智能分析...")
         report_markdown = await llm_analyze(
             case_data=case_data,
             extra_texts=extra_texts if extra_texts else None,
+            relevant_provisions=relevant_provisions if relevant_provisions else None,
         )
         logger.info("DeepSeek API 分析完成")
     except ValueError as e:
@@ -394,6 +399,7 @@ async def analyze_case(
         "case_category": case.case_category,
         "report_markdown": report_markdown,
         "suggested_questions": suggested_questions,
+        "relevant_provisions": relevant_provisions,
         "generated_at": __import__("datetime").datetime.now().isoformat(),
         "disclaimer": "本报告由 AI 自动生成，仅供律师参考，不构成法律意见。"
                       "最终决策请结合专业判断。",
@@ -416,6 +422,9 @@ async def _stream_events(
         # 阶段2: OCR 完成
         yield f"data: {json.dumps({'type': 'progress', 'stage': 'ocr', 'message': f'文件文本提取完成（{len(extra_texts)} 段）', 'percent': 50})}\n\n"
 
+        # RAG 检索
+        relevant_provisions = await llm_rag_search(case_data)
+
         # 阶段3: AI 分析
         yield f"data: {json.dumps({'type': 'progress', 'stage': 'analyzing', 'message': 'DeepSeek 正在生成分析报告…', 'percent': 70})}\n\n"
 
@@ -424,6 +433,7 @@ async def _stream_events(
         async for delta in llm_analyze_stream(
             case_data=case_data,
             extra_texts=extra_texts if extra_texts else None,
+            relevant_provisions=relevant_provisions if relevant_provisions else None,
         ):
             full_text += delta
             yield f"data: {json.dumps({'type': 'content', 'delta': delta})}\n\n"
@@ -436,6 +446,7 @@ async def _stream_events(
             'type': 'done',
             'report_markdown': full_text,
             'suggested_questions': suggested_questions,
+            'relevant_provisions': relevant_provisions,
             'generated_at': __import__('datetime').datetime.now().isoformat(),
         })}\n\n"
 
@@ -530,13 +541,22 @@ async def analyze_case_stream(
                 await asyncio.sleep(0.1)
                 pass  # 原有附件识别逻辑
 
-            # --- 阶段 3: 开始 AI 分析 ---
+            # --- 阶段 3: RAG 检索 + AI 分析 ---
+            yield f"data: {json.dumps({'type': 'progress', 'stage': 'rag', 'message': '正在从法律知识库检索相关法条…'})}\n\n"
+            await asyncio.sleep(0.1)
+
+            relevant_provisions = await llm_rag_search(case_data)
+
             yield f"data: {json.dumps({'type': 'progress', 'stage': 'analyzing', 'message': '数据解析完成，DeepSeek 正在生成分析报告…'})}\n\n"
             await asyncio.sleep(0.1)
 
             # 流式调用大模型
             full_text = ""
-            async for delta in llm_analyze_stream(case_data, extra_texts):
+            async for delta in llm_analyze_stream(
+                case_data,
+                extra_texts,
+                relevant_provisions=relevant_provisions if relevant_provisions else None,
+            ):
                 full_text += delta
                 yield f"data: {json.dumps({'type': 'content', 'delta': delta})}\n\n"
 
@@ -544,7 +564,13 @@ async def analyze_case_stream(
             suggested_questions = await _generate_suggestions(case_data, full_text)
 
             # --- 阶段 4: 完成 ---
-            yield f"data: {json.dumps({'type': 'done', 'report_markdown': full_text, 'suggested_questions': suggested_questions, 'generated_at': __import__('datetime').datetime.now().isoformat()})}\n\n"
+            yield f"data: {json.dumps({
+                'type': 'done',
+                'report_markdown': full_text,
+                'suggested_questions': suggested_questions,
+                'relevant_provisions': relevant_provisions,
+                'generated_at': __import__('datetime').datetime.now().isoformat(),
+            })}\n\n"
 
         except Exception as e:
             logger.error(f"流式分析出错: {e}", exc_info=True)
@@ -678,6 +704,9 @@ async def chat_about_case(
     # 聚合案件数据
     case_data = _aggregate_case_data(db, case_id)
 
+    # RAG 检索相关法条
+    relevant_provisions = await llm_rag_search(case_data)
+
     # 调用 DeepSeek 对话
     try:
         logger.info("开始调用 DeepSeek 对话追问（历史 %d 条，问题: %s）",
@@ -687,6 +716,7 @@ async def chat_about_case(
             report_markdown=report_markdown,
             chat_history=chat_history,
             user_message=user_message,
+            relevant_provisions=relevant_provisions if relevant_provisions else None,
         )
         logger.info("DeepSeek 对话追问完成")
     except ValueError as e:

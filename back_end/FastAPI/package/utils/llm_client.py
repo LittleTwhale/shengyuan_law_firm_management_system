@@ -1,6 +1,7 @@
 """
 DeepSeek LLM 客户端
 封装对 DeepSeek Chat API 的异步调用，用于案件智能分析
+包含 RAG 法律知识库检索集成
 """
 import asyncio
 import logging
@@ -9,8 +10,14 @@ import re
 from typing import Optional, AsyncGenerator
 
 import httpx
+import meilisearch
 
-from ..core.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL
+from ..core.config import (
+    DEEPSEEK_API_KEY,
+    DEEPSEEK_BASE_URL,
+    MEILI_URL,
+    MEILI_MASTER_KEY,
+)
 from ..utils.llm_prompts import (
     SYSTEM_PROMPT,
     CHAT_SYSTEM_PROMPT,
@@ -85,8 +92,74 @@ async def _post_llm_request(url: str, headers: dict, payload: dict) -> httpx.Res
         return await client.post(url, headers=headers, json=payload)
 
 
-def _build_user_message(case_data: dict, extra_texts: Optional[list[str]] = None) -> str:
-    """将结构化的案件数据拼装为用户消息文本"""
+# =================================================================
+#  RAG 法律知识库检索
+# =================================================================
+
+LEGAL_INDEX = "legal_provisions"
+
+
+async def search_relevant_provisions(
+    case_data: dict,
+    top_k: int = 5,
+) -> list[dict]:
+    """
+    根据案件信息在 Meilisearch 法律知识库中检索相关条文（RAG 第一步）
+
+    检索策略：用案由 + 案件类别构造查询，返回 top-k 条最相关法条
+    """
+    info = case_data.get("case_info", {})
+    cause = info.get("cause", "")
+    category = info.get("case_category", "")
+
+    # 构造检索查询
+    query_parts = []
+    if cause:
+        query_parts.append(cause)
+    if category:
+        query_parts.append(category)
+
+    query = " ".join(query_parts).strip()
+    if not query:
+        logger.info("RAG 检索：案件信息不足，跳过")
+        return []
+
+    logger.info("RAG 检索：查询关键词 = '%s'，top_k = %d", query, top_k)
+
+    try:
+        client = meilisearch.Client(MEILI_URL, MEILI_MASTER_KEY)
+        index = client.index(LEGAL_INDEX)
+        result = index.search(query, {
+            "limit": top_k,
+            "attributesToRetrieve": ["law_name", "article_number", "chapter", "content", "law_category"],
+        })
+
+        provisions = []
+        for hit in result.get("hits", []):
+            provisions.append({
+                "law_name": hit.get("law_name"),
+                "article_number": hit.get("article_number"),
+                "chapter": hit.get("chapter"),
+                "content": hit.get("content"),
+                "law_category": hit.get("law_category"),
+            })
+
+        logger.info("RAG 检索完成：命中 %d 条相关法条", len(provisions))
+        for p in provisions:
+            logger.info("  - %s %s: %s...", p["law_name"], p["article_number"], p["content"][:60])
+
+        return provisions
+    except Exception as e:
+        logger.warning("RAG 检索失败（不阻塞主流程）: %s", e)
+        return []
+
+
+def _build_user_message(
+    case_data: dict,
+    extra_texts: Optional[list[str]] = None,
+    relevant_provisions: Optional[list[dict]] = None,
+) -> str:
+    """将结构化的案件数据拼装为用户消息文本，可选注入 RAG 检索到的法条"""
     parts = []
 
     # ====== 注入当前时间，避免模型"瞎猜"时间 ======
@@ -168,6 +241,16 @@ def _build_user_message(case_data: dict, extra_texts: Optional[list[str]] = None
                 truncated = text.strip()[:8000]
                 parts.append(f"\n### 额外文件 {i+1} 内容（前 8000 字）：\n```\n{truncated}\n```")
 
+    # ====== RAG 知识库检索到的相关法律条文 ======
+    if relevant_provisions:
+        parts.append("\n## 知识库检索到的相关法律条文（以下法条来自法律知识库，请结合案件实际情况选择性引用）")
+        for i, p in enumerate(relevant_provisions):
+            parts.append(
+                f"\n### 参考法条 {i+1}：《{p['law_name']}》{p['article_number']}"
+                f"\n- 所属章节：{p.get('chapter', '未分类')}"
+                f"\n- 条文原文：\n> {p['content']}"
+            )
+
     return "\n".join(parts)
 
 
@@ -213,9 +296,24 @@ def _build_brief_context(case_data: dict) -> str:
     return "\n".join(brief_parts)
 
 
+def _build_rag_provisions_text(provisions: list[dict]) -> str:
+    """将 RAG 检索到的法律条文格式化为可注入对话的文本"""
+    if not provisions:
+        return ""
+    lines = ["\n## 知识库检索到的相关法律条文（以下法条来自法律知识库，请结合案件实际情况选择性引用）"]
+    for i, p in enumerate(provisions):
+        lines.append(
+            f"\n### 参考法条 {i+1}：《{p['law_name']}》{p['article_number']}"
+            f"\n- 所属章节：{p.get('chapter', '未分类')}"
+            f"\n- 条文原文：\n> {p['content']}"
+        )
+    return "\n".join(lines)
+
+
 async def analyze_case(
     case_data: dict,
     extra_texts: Optional[list[str]] = None,
+    relevant_provisions: Optional[list[dict]] = None,
     model: str = MODEL_NAME,
     max_tokens: int = MAX_TOKENS,
     temperature: float = 0.5,
@@ -226,17 +324,13 @@ async def analyze_case(
     Args:
         case_data: 聚合后的案件数据字典
         extra_texts: 用户额外上传文件的 OCR 文本列表
+        relevant_provisions: RAG 检索到的相关法律条文（可选）
         model: 模型名称
         max_tokens: 最大输出 token 数
         temperature: 生成温度（越低越确定，0.5 适中）
 
     Returns:
         Markdown 格式的分析报告
-
-    Raises:
-        ConnectionError: API 连接失败
-        ValueError: API Key 未配置
-        RuntimeError: API 返回错误
     """
     if not DEEPSEEK_API_KEY:
         raise ValueError(
@@ -244,7 +338,7 @@ async def analyze_case(
         )
 
     # 构建消息
-    user_message = _build_user_message(case_data, extra_texts)
+    user_message = _build_user_message(case_data, extra_texts, relevant_provisions)
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_message},
@@ -325,6 +419,7 @@ async def analyze_case(
 async def analyze_case_stream(
     case_data: dict,
     extra_texts: Optional[list[str]] = None,
+    relevant_provisions: Optional[list[dict]] = None,
     model: str = MODEL_NAME,
     max_tokens: int = MAX_TOKENS,
     temperature: float = 0.5,
@@ -336,6 +431,7 @@ async def analyze_case_stream(
     Args:
         case_data: 聚合后的案件数据字典
         extra_texts: 用户额外上传文件的 OCR 文本列表
+        relevant_provisions: RAG 检索到的相关法律条文（可选）
         model: 模型名称
         max_tokens: 最大输出 token 数
         temperature: 生成温度
@@ -350,7 +446,7 @@ async def analyze_case_stream(
         raise ValueError("DeepSeek API Key 未配置，请在 .env 文件中设置 DEEPSEEK_API_KEY")
 
     # 构建消息（与 analyze_case 完全一致）
-    user_message = _build_user_message(case_data, extra_texts)
+    user_message = _build_user_message(case_data, extra_texts, relevant_provisions)
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_message},
@@ -454,6 +550,7 @@ async def chat_about_case(
     report_markdown: str,
     chat_history: list[dict],
     user_message: str,
+    relevant_provisions: Optional[list[dict]] = None,
     model: str = MODEL_NAME,
     max_tokens: int = CHAT_MAX_TOKENS,
     temperature: float = 0.7,
@@ -466,6 +563,7 @@ async def chat_about_case(
         report_markdown: 之前生成的分析报告全文
         chat_history: 对话历史 [{"role": "user"|"assistant", "content": "..."}]
         user_message: 用户当前追问内容
+        relevant_provisions: RAG 检索到的相关法律条文（可选）
         model: 模型名称
         max_tokens: 最大输出 token 数（对话回复较短）
         temperature: 生成温度（对话可稍高，更自然）
@@ -480,6 +578,9 @@ async def chat_about_case(
     case_brief = _build_brief_context(case_data)
     report_brief = report_markdown[:3000] if len(report_markdown) > 3000 else report_markdown
 
+    # RAG 法条文本
+    rag_text = _build_rag_provisions_text(relevant_provisions) if relevant_provisions else ""
+
     # 组装消息列表
     messages = [
         {"role": "system", "content": CHAT_SYSTEM_PROMPT},
@@ -487,7 +588,8 @@ async def chat_about_case(
             "role": "user",
             "content": f"以下是一起案件的摘要和已生成的分析报告（开头部分），请仔细阅读：\n\n"
                        f"=== 案件摘要 ===\n{case_brief}\n\n"
-                       f"=== 报告摘要 ===\n{report_brief}",
+                       f"=== 报告摘要 ===\n{report_brief}"
+                       f"{rag_text}",
         },
         {
             "role": "assistant",

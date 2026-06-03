@@ -217,6 +217,39 @@
       </el-card>
     </div>
 
+    <!-- ==================== 相关法条面板（RAG 知识库检索结果） ==================== -->
+    <div v-if="relevantProvisions.length > 0" class="provisions-section">
+      <el-card shadow="never" class="provisions-card">
+        <template #header>
+          <div class="provisions-header">
+            <span class="provisions-title">
+              <el-icon :size="18"><Collection /></el-icon>
+              相关法律条文（来自知识库）
+            </span>
+            <el-button size="small" type="primary" @click="window.open('/main/legal-search', '_blank')" plain>
+              打开法律知识库
+            </el-button>
+          </div>
+        </template>
+
+        <div class="provisions-list">
+          <div
+            v-for="(p, idx) in relevantProvisions"
+            :key="idx"
+            class="provision-item"
+          >
+            <div class="provision-tags">
+              <el-tag type="success" effect="plain" size="small">{{ p.law_name }}</el-tag>
+              <el-tag effect="plain" size="small" type="primary">{{ p.article_number }}</el-tag>
+              <span class="provision-chapter" v-if="p.chapter">{{ p.chapter }}</span>
+            </div>
+            <div class="provision-content" v-html="renderedProvisionContent(p.content)"></div>
+            <el-divider v-if="idx < relevantProvisions.length - 1" />
+          </div>
+        </div>
+      </el-card>
+    </div>
+
     <!-- ==================== 追问对话区域 ==================== -->
     <div v-if="reportMarkdown" class="chat-section">
       <el-card shadow="never" class="chat-card">
@@ -338,6 +371,7 @@ import {
   ChatDotRound,
   ChatLineSquare,
   Promotion,
+  Collection,
 } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -372,6 +406,7 @@ const generatedAt = ref('')
 const copied = ref(false)
 const exportingDocx = ref(false)
 const uploadRef = ref(null)
+const relevantProvisions = ref([])  // RAG 检索到的相关法条
 
 // ========== 步骤进度状态 ==========
 const currentStep = ref(0) // 0-3
@@ -504,6 +539,10 @@ function handleSSEEvent(event) {
       generatedAt.value = event.generated_at
       currentStep.value = 4
       generating.value = false
+      // 保存 RAG 检索到的相关法条
+      if (event.relevant_provisions && event.relevant_provisions.length > 0) {
+        relevantProvisions.value = event.relevant_provisions
+      }
       // 使用动态追问建议（若有）
       if (event.suggested_questions && event.suggested_questions.length > 0) {
         suggestedQuestions.value.splice(
@@ -608,6 +647,10 @@ async function startNonStreamAnalysis(formData) {
     generatedAt.value = res.data.generated_at
     currentStep.value = 4
     generating.value = false
+    // 保存 RAG 检索到的相关法条
+    if (res.data.relevant_provisions && res.data.relevant_provisions.length > 0) {
+      relevantProvisions.value = res.data.relevant_provisions
+    }
     // 使用动态追问建议（若有）
     if (res.data.suggested_questions && res.data.suggested_questions.length > 0) {
       suggestedQuestions.value.splice(
@@ -908,6 +951,13 @@ function clearChat() {
 
 // 渲染聊天消息中的 Markdown（精简版，不含大标题）
 function renderChatMarkdown(text) {
+  if (!text) return ''
+  const rawHtml = marked.parse(text)
+  return DOMPurify.sanitize(rawHtml)
+}
+
+// 渲染法律条文内容
+function renderedProvisionContent(text) {
   if (!text) return ''
   const rawHtml = marked.parse(text)
   return DOMPurify.sanitize(rawHtml)
@@ -1458,6 +1508,62 @@ onMounted(() => {
 .chat-input-hint {
   font-size: 12px;
   color: #c0c4cc;
+}
+
+/* ==================== 相关法条面板 ==================== */
+.provisions-section {
+  margin-top: 24px;
+}
+
+.provisions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.provisions-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.provisions-list {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.provision-item {
+  margin-bottom: 4px;
+}
+
+.provision-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.provision-chapter {
+  font-size: 12px;
+  color: #909399;
+}
+
+.provision-content {
+  font-size: 14px;
+  line-height: 1.9;
+  color: #303133;
+}
+
+.provision-content :deep(blockquote) {
+  border-left: 4px solid #67c23a;
+  background: #f0f9eb;
+  padding: 10px 16px;
+  margin: 8px 0;
+  border-radius: 4px;
 }
 
 /* ==================== 移动端适配 ==================== */

@@ -17,6 +17,7 @@ import PartyMaterialDetail from '@/views/PartyMaterialDetail.vue'
 import VolumesPage from '@/views/VolumesPage.vue'
 import AnnouncementCenter from '@/views/AnnouncementCenter.vue'
 import AIAnalysisPage from '@/views/AIAnalysisPage.vue'
+import LegalSearchPage from '@/views/LegalSearchPage.vue'
 import { ElMessage } from 'element-plus'
 
 const routes = [
@@ -57,6 +58,11 @@ const routes = [
         path: 'ai-analysis',
         component: AIAnalysisPage,
         meta: { title: '智能分析（试运行）' },
+      },
+      {
+        path: 'legal-search',
+        component: LegalSearchPage,
+        meta: { title: '法律知识库' },
       },
     ],
   },

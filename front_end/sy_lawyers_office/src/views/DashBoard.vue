@@ -71,6 +71,11 @@
           <template #title><span>电子卷宗</span></template>
         </el-menu-item>
 
+        <el-menu-item index="/main/legal-search">
+          <el-icon><Notebook /></el-icon>
+          <template #title><span>法律知识库</span></template>
+        </el-menu-item>
+
         <el-menu-item index="/main/ai-analysis">
           <el-icon><MagicStick /></el-icon>
           <template #title>
@@ -167,6 +172,11 @@
           <el-menu-item index="/main/volumes">
             <el-icon><Collection /></el-icon>
             <template #title><span>电子卷宗</span></template>
+          </el-menu-item>
+
+          <el-menu-item index="/main/legal-search">
+            <el-icon><Notebook /></el-icon>
+            <template #title><span>法律知识库</span></template>
           </el-menu-item>
 
           <el-menu-item index="/main/ai-analysis">
@@ -370,6 +380,7 @@ import {
   Close,
   Warning,
   MagicStick,
+  Notebook,
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -386,6 +397,7 @@ const menuTitleMap = {
   '/main/cases': '业务管理',
   '/main/case_review': '业务审核',
   '/main/volumes': '电子卷宗',
+  '/main/legal-search': '法律知识库',
   '/main/ai-analysis': '智能分析',
   '/main/lawyers': '人员管理',
   '/main/cases/bank_cases': '银行案件',

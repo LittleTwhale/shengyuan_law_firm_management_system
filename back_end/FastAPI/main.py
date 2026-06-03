@@ -21,6 +21,7 @@ from .package.api.system_announcement_api import router as auth_system_announcem
 from .package.api.system_admin import router as auth_system_admin_router
 from .package.api.monitor import router as auth_monitor_router
 from .package.api.ai_assistant_api import router as auth_ai_router
+from .package.api.legal_kb_api import router as auth_legal_kb_router
 from .package.core.config import PARTY_IMAGE_ROOT, SECRET_KEY, ALGORITHM
 from .package.core.logger import logger
 from .package.core.user_cache import user_cache
@@ -196,6 +197,9 @@ api_router.include_router(auth_monitor_router)
 
 # 注册案件智能分析路由
 api_router.include_router(auth_ai_router)
+
+# 注册法律知识库路由
+api_router.include_router(auth_legal_kb_router)
 
 # 最后将这个路由组挂载到 app 实例上
 app.include_router(api_router)
