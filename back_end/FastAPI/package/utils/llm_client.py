@@ -98,21 +98,119 @@ async def _post_llm_request(url: str, headers: dict, payload: dict) -> httpx.Res
 
 LEGAL_INDEX = "legal_provisions"
 
+# LLM 关键词生成超时（短任务，不需要和主分析一样长）
+_KEYWORD_TIMEOUT = 20
+
+
+async def _generate_search_keywords(case_data: dict) -> list[str]:
+    """
+    让 DeepSeek 根据案件数据生成检索法律知识库的关键词短语
+
+    返回关键词列表（JSON 字符串数组），用于多路并行检索。
+    失败时返回空列表，调用方自动降级到基础检索（不阻塞主流程）。
+    """
+    info = case_data.get("case_info", {})
+    bank = case_data.get("bank_case", {})
+
+    # 构造精简案件摘要（控制在 400 字以内，快速 + 省 token）
+    summary_parts = [
+        f"案由：{info.get('cause', '未记录')}",
+        f"案件类别：{info.get('case_category', '未记录')}",
+    ]
+    details = info.get('details', '')
+    if details and len(details) > 5:
+        summary_parts.append(f"案件详情：{details[:300]}")
+    if bank:
+        if bank.get('loan_type'):
+            summary_parts.append(f"贷款类型：{bank['loan_type']}")
+        if bank.get('litigation_target_amount'):
+            summary_parts.append(f"标的金额：{bank['litigation_target_amount']}")
+
+    summary = "\n".join(summary_parts)
+
+    prompt = (
+        "你是一位法律检索专家。请根据以下案件信息，生成 3-6 个检索关键词短语，"
+        "用于在法律条文知识库中检索最相关的法条。\n\n"
+        "要求：\n"
+        "1. 每个关键词短语应覆盖一个独立的法律检索维度\n"
+        "2. 覆盖实体法、程序法、司法解释等多个角度\n"
+        "3. 考虑可能的时效、担保、违约责任等子问题\n"
+        "4. 每个关键词短语 2-8 个汉字，不要过长也不要过短\n"
+        "5. 直接输出 JSON 字符串数组，不要其他内容\n\n"
+        f"案件信息：\n{summary}"
+    )
+
+    messages = [
+        {
+            "role": "system",
+            "content": "你是一个法律检索关键词生成专家。只输出 JSON 数组，不要其他任何内容。",
+        },
+        {"role": "user", "content": prompt},
+    ]
+
+    url = f"{DEEPSEEK_BASE_URL.rstrip('/')}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": MODEL_NAME,
+        "messages": messages,
+        "temperature": 0.1,  # 低温度确保确定性输出
+        "max_tokens": 300,   # 关键词很短，不需要很多 token
+        "stream": False,
+    }
+
+    try:
+        async with _LLM_SEMAPHORE:
+            # 关键词生成用较短超时，失败不阻塞
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(_KEYWORD_TIMEOUT, connect=10.0)
+            ) as client:
+                response = await _retry_with_backoff(
+                    lambda: client.post(url, headers=headers, json=payload),
+                    max_retries=1,  # 只重试 1 次，快速失败
+                )
+
+        content = response.json()["choices"][0]["message"]["content"]
+
+        # 用正则提取 JSON 数组（防御 LLM 输出多余文字）
+        json_match = re.search(r'\[.*?\]', content, re.DOTALL)
+        if json_match:
+            keywords = json.loads(json_match.group())
+            if isinstance(keywords, list) and len(keywords) > 0:
+                # 过滤：只保留 2-20 字的有效关键词
+                keywords = [
+                    kw.strip() for kw in keywords
+                    if kw.strip() and 2 <= len(kw.strip()) <= 20
+                ]
+                if keywords:
+                    logger.info("LLM 生成检索关键词: %s", keywords)
+                    return keywords[:8]  # 最多 8 个
+
+        logger.warning("LLM 关键词格式异常，原始输出: %s", content[:200])
+    except Exception as e:
+        logger.warning("LLM 关键词生成失败（降级到基础检索）: %s", e)
+
+    return []  # 失败返回空列表
+
 
 async def search_relevant_provisions(
     case_data: dict,
-    top_k: int = 5,
+    top_k: int = 10,
 ) -> list[dict]:
     """
     根据案件信息在 Meilisearch 法律知识库中检索相关条文（RAG 第一步）
 
-    检索策略：用案由 + 案件类别构造查询，返回 top-k 条最相关法条
+    采用两路并行检索策略：
+    1. 基础检索：用案由 + 案件类别直搜（快速保底，数十毫秒完成）
+    2. LLM 关键词扩展：让 DeepSeek 根据案件详情生成多维度检索词
+    两路结果合并去重后返回 top-k，任一环节失败自动降级。
     """
     info = case_data.get("case_info", {})
     cause = info.get("cause", "")
     category = info.get("case_category", "")
 
-    # 构造检索查询
     query_parts = []
     if cause:
         query_parts.append(cause)
@@ -124,18 +222,57 @@ async def search_relevant_provisions(
         logger.info("RAG 检索：案件信息不足，跳过")
         return []
 
-    logger.info("RAG 检索：查询关键词 = '%s'，top_k = %d", query, top_k)
+    logger.info("RAG 检索：案由=%s, 类别=%s", cause, category)
 
     try:
         client = meilisearch.Client(MEILI_URL, MEILI_MASTER_KEY)
         index = client.index(LEGAL_INDEX)
-        result = index.search(query, {
+
+        # ========== 第一路：基础检索（保底）==========
+        basic_result = index.search(query, {
             "limit": top_k,
             "attributesToRetrieve": ["law_name", "article_number", "chapter", "content", "law_category"],
         })
+        basic_hits = basic_result.get("hits", [])
 
+        # ========== 第二路：LLM 关键词扩展（与基础检索并行）==========
+        llm_keywords = await _generate_search_keywords(case_data)
+
+        extra_hits = []
+        if llm_keywords:
+            # 用每个 LLM 关键词独立检索（多路并发）
+            search_tasks = [
+                index.search(kw, {
+                    "limit": 3,
+                    "attributesToRetrieve": ["law_name", "article_number", "chapter", "content", "law_category"],
+                })
+                for kw in llm_keywords
+            ]
+            extra_results = await asyncio.gather(*search_tasks)
+            for r in extra_results:
+                extra_hits.extend(r.get("hits", []))
+
+        # ========== 合并去重：按文档 ID 去重，保留最早出现（基础优先）==========
+        seen_ids = set()
+        merged = []
+
+        for hit in basic_hits:
+            doc_id = hit["id"]
+            seen_ids.add(doc_id)
+            merged.append(hit)
+
+        for hit in extra_hits:
+            doc_id = hit["id"]
+            if doc_id not in seen_ids:
+                seen_ids.add(doc_id)
+                merged.append(hit)
+
+        # 按相关性分数降序排列
+        merged.sort(key=lambda x: -x.get("_score", 0))
+
+        # 取 top_k
         provisions = []
-        for hit in result.get("hits", []):
+        for hit in merged[:top_k]:
             provisions.append({
                 "law_name": hit.get("law_name"),
                 "article_number": hit.get("article_number"),
@@ -144,11 +281,13 @@ async def search_relevant_provisions(
                 "law_category": hit.get("law_category"),
             })
 
-        logger.info("RAG 检索完成：命中 %d 条相关法条", len(provisions))
+        logger.info("RAG 检索完成：基础命中 %d 条，LLM 扩展命中 %d 条，合并去重后 %d 条，最终返回 top-%d",
+                    len(basic_hits), len(extra_hits), len(merged), top_k)
         for p in provisions:
             logger.info("  - %s %s: %s...", p["law_name"], p["article_number"], p["content"][:60])
 
         return provisions
+
     except Exception as e:
         logger.warning("RAG 检索失败（不阻塞主流程）: %s", e)
         return []
