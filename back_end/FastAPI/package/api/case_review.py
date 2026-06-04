@@ -2,7 +2,7 @@
 import os
 import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from docxtpl import DocxTemplate
@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 from .deps import get_current_active_user
 from ..core.config import TEMPLATE_DIR
 from ..core.logger import logger
-from ..crud.case_review import list_pending_cases, count_pending_cases, update_review_status, \
+from ..crud.case_review import list_cases_by_status, count_cases_by_status, update_review_status, \
     check_interest_conflict_for_case, get_case_approval_context, create_review_rejection_notifications
 from ..database.database import get_db
 from ..models.case import Case, CaseParty
@@ -166,17 +166,27 @@ def _pure_memory_conflict_check(case_id: int, global_case_cache: dict):
 def get_pending_cases(
         skip: int = Query(0, ge=0),
         limit: int = Query(10, ge=1, le=1000),
+        review_status: Optional[str] = Query(None, description="按审核状态筛选：待审核/已审核/已拒绝，不传则默认待审核"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_active_user)  # 注入当前用户
 ):
     """
-    获取待审核案件列表
+    获取审核案件列表（支持按状态筛选）
+    - 不传 review_status 或传 "待审核"：返回所有待审核案件
+    - 传 "已审核" 或 "已拒绝"：仅返回当前用户近7天的审核记录
     """
     # 验证审核权限
     check_review_permission(current_user)
 
-    cases = list_pending_cases(db, skip=skip, limit=limit)
-    total = count_pending_cases(db)
+    # 已审核/已拒绝 → 仅看当前用户近7天的记录
+    reviewer_id = None
+    date_from = None
+    if review_status in ("已审核", "已拒绝"):
+        reviewer_id = current_user.id
+        date_from = datetime.now() - timedelta(days=7)
+
+    cases = list_cases_by_status(db, skip=skip, limit=limit, review_status=review_status, reviewer_id=reviewer_id, date_from=date_from)
+    total = count_cases_by_status(db, review_status=review_status, reviewer_id=reviewer_id, date_from=date_from)
     # 拦截转换：用 CaseParty 中的委托人覆盖旧的 client_name
     cases_simple = []
     for case in cases:
@@ -329,12 +339,31 @@ def review_case(
         current_user: User = Depends(get_current_active_user)  # 注入当前用户
 ):
     """
-    审核案件（通过/拒绝）
+    审核案件（通过/拒绝/撤回审核）
+    - review_status="已审核": 通过（触发冲突检测）
+    - review_status="已拒绝": 驳回（触发通知）
+    - review_status="待审核": 撤回审核（将已审核/已拒绝回退为待审核，跳过冲突检测）
     """
     # 鉴权
     check_review_permission(current_user)
 
-    # 1. 审核通过逻辑
+    # 1. 撤回审核逻辑（待审核）
+    if review_status == "待审核":
+        try:
+            updated_case = update_review_status(
+                db=db,
+                case_id=case_id,
+                review_status="待审核",
+                reviewer_id=current_user.id,
+                review_comment=review_comment
+            )
+            if not updated_case:
+                raise HTTPException(status_code=404, detail="案件不存在")
+            return updated_case
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    # 2. 审核通过逻辑（已审核）
     if review_status == "已审核":
         # 如果不是强制通过，则进行冲突检测
         if not force:
@@ -350,7 +379,7 @@ def review_case(
                     }
                 )
 
-    # 2. 执行更新
+    # 3. 执行正常审核更新（已审核/已拒绝）
     try:
         updated_case = update_review_status(
             db=db,

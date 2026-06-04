@@ -11,8 +11,23 @@ from ..schemas.system_announcement_schema import SystemAnnouncementCreate
 from ..utils.keywords_helper import determine_party_side, get_valid_keywords
 
 
-def list_pending_cases(db: Session, skip: int = 0, limit: int = 100) -> List[Case]:
-    """获取待审核案件列表"""
+def list_cases_by_status(
+        db: Session,
+        skip: int = 0,
+        limit: int = 100,
+        review_status: Optional[str] = None,
+        reviewer_id: Optional[int] = None,
+        date_from: Optional[datetime] = None
+) -> List[Case]:
+    """
+    按审核状态查询案件列表
+    - review_status: 不传则默认 "待审核"（向后兼容）
+    - reviewer_id: 按审核人筛选（用于查看"我的审核记录"）
+    - date_from: 起始日期筛选（用于"近7天"）
+    """
+    # 默认只查待审核
+    status_filter = review_status if review_status else "待审核"
+
     query = db.query(Case).options(
         joinedload(Case.main_lawyer),
         joinedload(Case.assistant_lawyer),
@@ -21,25 +36,50 @@ def list_pending_cases(db: Session, skip: int = 0, limit: int = 100) -> List[Cas
         joinedload(Case.execution_assistant),
         joinedload(Case.parties),
     ).filter(
-        Case.review_status == "待审核",  # 只筛选待审核案件
+        Case.review_status == status_filter,
         Case.is_deleted == False
     )
 
-    return cast(List[Case], query.offset(skip).limit(limit).all())
+    # 按审核人筛选
+    if reviewer_id is not None:
+        query = query.filter(Case.reviewer_id == reviewer_id)
+
+    # 按起始日期筛选
+    if date_from is not None:
+        query = query.filter(Case.reviewed_at >= date_from)
+
+    # MySQL 不支持 NULLS LAST，用 CASE 表达式实现：NULL 值排最后
+    return cast(List[Case], query.order_by(
+        Case.reviewed_at.is_(None).asc(),
+        Case.reviewed_at.desc()
+    ).offset(skip).limit(limit).all())
 
 
-def count_pending_cases(db: Session) -> int:
-    """统计待审核案件总数"""
+def count_cases_by_status(
+        db: Session,
+        review_status: Optional[str] = None,
+        reviewer_id: Optional[int] = None,
+        date_from: Optional[datetime] = None
+) -> int:
+    """按审核状态统计案件总数"""
+    status_filter = review_status if review_status else "待审核"
+
     query = db.query(Case).filter(
-        Case.review_status == "待审核",
+        Case.review_status == status_filter,
         Case.is_deleted == False
     )
+
+    if reviewer_id is not None:
+        query = query.filter(Case.reviewer_id == reviewer_id)
+
+    if date_from is not None:
+        query = query.filter(Case.reviewed_at >= date_from)
 
     return query.count()
 
 
 def update_review_status(db: Session, case_id: int, review_status: str, reviewer_id: int, review_comment: Optional[str] = None) -> Optional[Case]:
-    """更新案件审核状态（已审核/已拒绝），支持传入审核意见"""
+    """更新案件审核状态（已审核/已拒绝/待审核），支持传入审核意见"""
     case = db.query(Case).filter(
         Case.case_id == case_id,
         Case.is_deleted == False
@@ -49,9 +89,22 @@ def update_review_status(db: Session, case_id: int, review_status: str, reviewer
         return None
 
     # 验证状态值合法性
-    if review_status not in ["已审核", "已拒绝"]:
-        raise ValueError("审核状态必须是'已审核'或'已拒绝'")
+    if review_status not in ["已审核", "已拒绝", "待审核"]:
+        raise ValueError("审核状态必须是'已审核'、'已拒绝'或'待审核'")
 
+    # === 撤回审核（已审核/已拒绝 → 待审核） ===
+    if review_status == "待审核":
+        case.review_status = "待审核"
+        case.reviewer_id = None          # 清空审核人
+        case.reviewed_at = None           # 清空审核时间
+        # review_comment 保留作为历史记录（不主动清除）
+        if review_comment is not None:
+            case.review_comment = review_comment
+        db.commit()
+        db.refresh(case)
+        return cast(Case, case)
+
+    # === 正常审核流程（已审核/已拒绝） ===
     case.review_status = review_status
     case.reviewer_id = reviewer_id  # 记录审核人ID
     case.reviewed_at = datetime.now()  # 记录审核时间

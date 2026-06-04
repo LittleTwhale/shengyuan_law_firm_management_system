@@ -416,6 +416,7 @@ class CaseSimpleOut(BaseModel):
     case_code: Optional[str] = Field(None, description="法院案号 / Court case code")
     review_status: str = Field(..., description="案件审核状态 / Review status")
     review_comment: Optional[str] = Field(None, description="审核意见/修改建议 / Review comment")
+    reviewed_at: Optional[datetime] = Field(None, description="审核时间 / Reviewed at")
     main_lawyer: Optional[UserOut] = Field(None, description="主办律师 / Main lawyer")
     execution_lawyer: Optional[UserOut] = Field(None, description="执行主办律师 / Execution lawyer")
     litigation_fee_payment_amount: Optional[Decimal] =Field(0, description="诉讼费缴费金额 / Litigation fee payment amount")
