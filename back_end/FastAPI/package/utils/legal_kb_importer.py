@@ -204,14 +204,17 @@ def parse_single_file(filepath: str, category: str) -> list[dict]:
         if part_match:
             flush_article()
             current_chapter = part_match.group(1).strip()
+            current_section = ""  # 进入新编时重置节
             continue
         if ch_h2_match:
             flush_article()
             current_chapter = ch_h2_match.group(1).strip()
+            current_section = ""  # 进入新章时重置节
             continue
         if ch_h3_match:
             flush_article()
             current_chapter = ch_h3_match.group(1).strip()
+            current_section = ""  # 进入新章时重置节
             continue
 
         # 检测节标题（### 第X节）
