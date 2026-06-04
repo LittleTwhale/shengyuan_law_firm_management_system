@@ -62,6 +62,20 @@
       </el-tab-pane>
 
       <el-tab-pane label="我的申请" name="my_applications">
+        <div class="table-toolbar">
+          <el-input
+            v-model="searchKeyword.myApplications"
+            placeholder="搜索文件名"
+            clearable
+            style="width: 240px"
+            @keyup.enter="onSearch('my_applications')"
+            @clear="onSearch('my_applications')"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+        </div>
         <el-table :data="myApplications" border v-loading="loading.applications">
           <el-table-column prop="id" label="ID" width="60" />
           <el-table-column prop="original_file_name" label="文件名" show-overflow-tooltip />
@@ -101,9 +115,34 @@
             </template>
           </el-table-column>
         </el-table>
+        <el-pagination
+          v-if="pagination.myApplications.total > 0"
+          class="table-pagination"
+          v-model:current-page="pagination.myApplications.page"
+          v-model:page-size="pagination.myApplications.pageSize"
+          :total="pagination.myApplications.total"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          @current-change="onPageChange('my_applications')"
+          @size-change="onPageChange('my_applications')"
+        />
       </el-tab-pane>
 
       <el-tab-pane label="待审核申请" name="pending" v-if="canReview">
+        <div class="table-toolbar">
+          <el-input
+            v-model="searchKeyword.pending"
+            placeholder="搜索文件名或申请人"
+            clearable
+            style="width: 280px"
+            @keyup.enter="onSearch('pending')"
+            @clear="onSearch('pending')"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+        </div>
         <el-table :data="pendingApplications" border v-loading="loading.pending">
           <el-table-column prop="id" label="ID" width="60" />
           <el-table-column prop="applicant.real_name" label="申请人" width="100" />
@@ -121,6 +160,124 @@
             </template>
           </el-table-column>
         </el-table>
+        <el-pagination
+          v-if="pagination.pending.total > 0"
+          class="table-pagination"
+          v-model:current-page="pagination.pending.page"
+          v-model:page-size="pagination.pending.pageSize"
+          :total="pagination.pending.total"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          @current-change="onPageChange('pending')"
+          @size-change="onPageChange('pending')"
+        />
+      </el-tab-pane>
+
+      <el-tab-pane label="已通过申请" name="approved" v-if="canReview">
+        <div class="table-toolbar">
+          <el-input
+            v-model="searchKeyword.approved"
+            placeholder="搜索文件名或申请人"
+            clearable
+            style="width: 280px"
+            @keyup.enter="onSearch('approved')"
+            @clear="onSearch('approved')"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+        </div>
+        <el-table :data="approvedApplications" border v-loading="loading.approved">
+          <el-table-column prop="id" label="ID" width="60" />
+          <el-table-column prop="applicant.real_name" label="申请人" width="100" />
+          <el-table-column prop="original_file_name" label="文件名" show-overflow-tooltip />
+          <el-table-column prop="seal.name" label="申请印章" />
+          <el-table-column prop="apply_reason" label="用印原因" show-overflow-tooltip />
+          <el-table-column
+            prop="created_at"
+            label="申请时间"
+            :formatter="(row, column, cellValue) => formatDate(cellValue)"
+            width="160"
+          />
+          <el-table-column label="操作" width="180" fixed="right">
+            <template #default="{ row }">
+              <el-button
+                v-if="row.stamped_file_path"
+                size="small"
+                type="success"
+                @click="downloadStampedFile(row.id, row.original_file_name)"
+              >
+                下载盖章件
+              </el-button>
+              <el-text v-else type="info" size="small">暂无文件</el-text>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-pagination
+          v-if="pagination.approved.total > 0"
+          class="table-pagination"
+          v-model:current-page="pagination.approved.page"
+          v-model:page-size="pagination.approved.pageSize"
+          :total="pagination.approved.total"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          @current-change="onPageChange('approved')"
+          @size-change="onPageChange('approved')"
+        />
+      </el-tab-pane>
+
+      <el-tab-pane label="已拒绝申请" name="rejected" v-if="canReview">
+        <div class="table-toolbar">
+          <el-input
+            v-model="searchKeyword.rejected"
+            placeholder="搜索文件名或申请人"
+            clearable
+            style="width: 280px"
+            @keyup.enter="onSearch('rejected')"
+            @clear="onSearch('rejected')"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+        </div>
+        <el-table :data="rejectedApplications" border v-loading="loading.rejected">
+          <el-table-column prop="id" label="ID" width="60" />
+          <el-table-column prop="applicant.real_name" label="申请人" width="100" />
+          <el-table-column prop="original_file_name" label="文件名" show-overflow-tooltip />
+          <el-table-column prop="seal.name" label="申请印章" />
+          <el-table-column prop="apply_reason" label="用印原因" show-overflow-tooltip />
+          <el-table-column prop="review_remark" label="拒绝原因" show-overflow-tooltip />
+          <el-table-column
+            prop="created_at"
+            label="申请时间"
+            :formatter="(row, column, cellValue) => formatDate(cellValue)"
+            width="160"
+          />
+          <el-table-column label="操作" width="120" fixed="right">
+            <template #default="{ row }">
+              <el-button
+                size="small"
+                type="danger"
+                @click="deleteApplication(row)"
+              >
+                删除
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-pagination
+          v-if="pagination.rejected.total > 0"
+          class="table-pagination"
+          v-model:current-page="pagination.rejected.page"
+          v-model:page-size="pagination.rejected.pageSize"
+          :total="pagination.rejected.total"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          @current-change="onPageChange('rejected')"
+          @size-change="onPageChange('rejected')"
+        />
       </el-tab-pane>
     </el-tabs>
 
@@ -290,7 +447,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Plus, EditPen, Edit, CircleClose } from '@element-plus/icons-vue' // 引入所需图标
+import { Plus, EditPen, Edit, CircleClose, Search } from '@element-plus/icons-vue' // 引入所需图标
 import request from '@/utils/request' // 修改为引入封装好的 request
 
 // 引入 PDF 相关库
@@ -322,6 +479,8 @@ const loading = reactive({
   seals: false,
   applications: false,
   pending: false,
+  approved: false,
+  rejected: false,
   submitting: false,
   pdfProcessing: false,
   stamping: false,
@@ -331,6 +490,25 @@ const sealList = ref([])
 const activeSeals = ref([])
 const myApplications = ref([])
 const pendingApplications = ref([])
+const approvedApplications = ref([])
+const rejectedApplications = ref([])
+
+// 分页状态
+const pagination = reactive({
+  seals: { page: 1, pageSize: 10, total: 0 },
+  myApplications: { page: 1, pageSize: 10, total: 0 },
+  pending: { page: 1, pageSize: 10, total: 0 },
+  approved: { page: 1, pageSize: 10, total: 0 },
+  rejected: { page: 1, pageSize: 10, total: 0 },
+})
+
+// 搜索关键词（按 tab 分别维护）
+const searchKeyword = reactive({
+  myApplications: '',
+  pending: '',
+  approved: '',
+  rejected: '',
+})
 
 // --- 表单状态 ---
 const applyUploadRef = ref(null)
@@ -375,6 +553,10 @@ onMounted(() => {
   fetchSeals()
   fetchMyApplications()
   if (isAdmin.value) fetchPendingApplications()
+  if (canReview.value) {
+    fetchApprovedApplications()
+    fetchRejectedApplications()
+  }
 })
 const fetchUserProfile = async () => {
   try {
@@ -403,6 +585,8 @@ const handleTabChange = (tab) => {
   if (tab === 'seals') fetchSeals()
   if (tab === 'my_applications') fetchMyApplications()
   if (tab === 'pending') fetchPendingApplications()
+  if (tab === 'approved') fetchApprovedApplications()
+  if (tab === 'rejected') fetchRejectedApplications()
 }
 
 const fetchSeals = async () => {
@@ -440,11 +624,17 @@ const fetchSeals = async () => {
 const fetchMyApplications = async () => {
   loading.applications = true
   try {
-    // 后端会根据 Token 自动过滤当前用户的申请（管理员传 applicant_id 会查询特定用户）
+    const p = pagination.myApplications
     const res = await request.get(`/electronic_seal/applications`, {
-      params: { applicant_id: currentUserId },
+      params: {
+        applicant_id: currentUserId,
+        page: p.page,
+        page_size: p.pageSize,
+        search: searchKeyword.myApplications || undefined,
+      },
     })
-    myApplications.value = res.data
+    myApplications.value = res.data.items
+    p.total = res.data.total
   } catch (err) {
     console.error(err)
   }
@@ -454,12 +644,79 @@ const fetchMyApplications = async () => {
 const fetchPendingApplications = async () => {
   loading.pending = true
   try {
-    const res = await request.get(`/electronic_seal/applications`, { params: { status: '待审核' } })
-    pendingApplications.value = res.data
+    const p = pagination.pending
+    const res = await request.get(`/electronic_seal/applications`, {
+      params: {
+        status: '待审核',
+        page: p.page,
+        page_size: p.pageSize,
+        search: searchKeyword.pending || undefined,
+      },
+    })
+    pendingApplications.value = res.data.items
+    p.total = res.data.total
   } catch (err) {
     console.error(err)
   }
   loading.pending = false
+}
+
+const fetchApprovedApplications = async () => {
+  loading.approved = true
+  try {
+    const p = pagination.approved
+    const res = await request.get(`/electronic_seal/applications`, {
+      params: {
+        status: '已通过',
+        page: p.page,
+        page_size: p.pageSize,
+        search: searchKeyword.approved || undefined,
+      },
+    })
+    approvedApplications.value = res.data.items
+    p.total = res.data.total
+  } catch (err) {
+    console.error(err)
+  }
+  loading.approved = false
+}
+
+const fetchRejectedApplications = async () => {
+  loading.rejected = true
+  try {
+    const p = pagination.rejected
+    const res = await request.get(`/electronic_seal/applications`, {
+      params: {
+        status: '已拒绝',
+        page: p.page,
+        page_size: p.pageSize,
+        search: searchKeyword.rejected || undefined,
+      },
+    })
+    rejectedApplications.value = res.data.items
+    p.total = res.data.total
+  } catch (err) {
+    console.error(err)
+  }
+  loading.rejected = false
+}
+
+// 分页切换与搜索的通用触发
+const tabFetchers = {
+  seals: fetchSeals,
+  my_applications: fetchMyApplications,
+  pending: fetchPendingApplications,
+  approved: fetchApprovedApplications,
+  rejected: fetchRejectedApplications,
+}
+
+const onPageChange = (tab) => {
+  tabFetchers[tab]?.()
+}
+
+const onSearch = (tab) => {
+  pagination[tab].page = 1
+  tabFetchers[tab]?.()
 }
 
 // ... 其他印章和申请操作 ...
@@ -598,6 +855,26 @@ const handleReject = async () => {
   }
 }
 
+// 轮询等待 Word → PDF 后台转换完成
+const waitForPreviewPdf = async (applicationId) => {
+  if (currentAuditRow.value?.preview_pdf_path) return
+  // 最多等待 60 秒，每 2 秒检查一次
+  for (let i = 0; i < 30; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+    try {
+      const res = await request.get(`/electronic_seal/applications/${applicationId}`)
+      if (res.data.preview_pdf_path) {
+        currentAuditRow.value.preview_pdf_path = res.data.preview_pdf_path
+        return
+      }
+    } catch (e) {
+      // 继续轮询
+      console.error(e)
+    }
+  }
+  throw new Error('文件转换超时，请稍后重试')
+}
+
 // 处理盖章操作
 const handleApproveAndStamp = async (row) => {
   currentAuditRow.value = row
@@ -620,6 +897,9 @@ const handleApproveAndStamp = async (row) => {
       },
     )
     currentSealUrl.value = URL.createObjectURL(sealImgRes.data)
+
+    // 等待 Word 文档后台转换完成（如适用）
+    await waitForPreviewPdf(row.id)
 
     // 1. 获取底图 PDF (ArrayBuffer)
     const response = await request.get(`/electronic_seal/applications/${row.id}/preview_pdf`, {
@@ -935,5 +1215,17 @@ const getStatusType = (status) => {
   justify-content: space-between;
   align-items: center;
   margin-top: 10px;
+}
+
+.table-toolbar {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+}
+
+.table-pagination {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

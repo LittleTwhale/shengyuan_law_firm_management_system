@@ -1,8 +1,18 @@
 # schemas/electronic_seal.py
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Generic, TypeVar
 from datetime import datetime
 from .user import UserOut
+
+T = TypeVar('T')
+
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    """通用分页响应"""
+    items: List[T]
+    total: int
+    page: int
+    page_size: int
 
 
 # ----------------------
@@ -116,8 +126,10 @@ class SealApplicationSimpleOut(BaseModel):
     seal: Optional[ElectronicSealOut]
     status: str
     stamped_file_path: Optional[str]
+    preview_pdf_path: Optional[str] = None  # 用于前端判断 Word 转换是否完成
 
     apply_reason: Optional[str]
+    review_remark: Optional[str] = None
     created_at: datetime
 
     class Config:

@@ -4,7 +4,7 @@ import os
 from typing import List, Optional
 from urllib.parse import unquote
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -15,7 +15,7 @@ from ..models.user import User
 from ..schemas.electronic_seal import (
     ElectronicSealCreate, ElectronicSealOut, ElectronicSealUpdate,
     SealApplicationCreate, SealApplicationOut, SealApplicationSimpleOut,
-    SealApplicationReview, SealLocationLog,
+    SealApplicationReview, SealLocationLog, PaginatedResponse,
 )
 
 # 引入获取当前用户的依赖
@@ -162,17 +162,26 @@ def delete_electronic_seal(
 # =================================================================
 @router.post("/applications", response_model=SealApplicationOut, status_code=status.HTTP_201_CREATED)
 async def create_seal_application(
+        background_tasks: BackgroundTasks,
         seal_id: int = Form(..., description="申请使用的印章ID"),
         apply_reason: Optional[str] = Form(None, description="用印原因"),
         file: UploadFile = File(..., description="待盖章文件（Word/PDF）"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_active_user)  # 替换了 applicant_id
 ):
-    """【用户】创建用印申请，上传原始文件"""
+    """【用户】创建用印申请，上传原始文件（Word 文档转为后台异步转换）"""
     application_in = SealApplicationCreate(seal_id=seal_id, apply_reason=apply_reason)
     try:
-        # 直接使用 current_user.id
-        return await seal_crud.create_seal_application(db, application_in, file, current_user.id)
+        application = await seal_crud.create_seal_application(db, application_in, file, current_user.id)
+
+        # 如果是 Word 文档，触发后台异步转换
+        if application.file_type in [
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ]:
+            background_tasks.add_task(seal_crud.convert_application_word_to_pdf, application.id)
+
+        return application
     except (ValueError, RuntimeError) as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -180,28 +189,30 @@ async def create_seal_application(
         )
 
 
-@router.get("/applications", response_model=List[SealApplicationSimpleOut])
+@router.get("/applications", response_model=PaginatedResponse[SealApplicationSimpleOut])
 def list_seal_applications(
-        skip: int = 0,
-        limit: int = 100,
-        applicant_id: Optional[int] = Query(None, description="按申请人筛选"),  # 保留给管理员筛选用
+        page: int = Query(1, ge=1, description="页码"),
+        page_size: int = Query(10, ge=1, le=100, description="每页数量"),
+        applicant_id: Optional[int] = Query(None, description="按申请人筛选"),
         status: Optional[str] = None,
+        search: Optional[str] = Query(None, description="搜索文件名或申请人"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_active_user)
 ):
-    """获取用印申请列表（用户查自己的，管理员查所有或待审核）"""
-    # URL 解码
+    """获取用印申请列表（分页+搜索），用户查自己的，管理员查所有"""
     if status:
         status = unquote(status)
 
-    # 如果不是管理员或审批人，强制只能查自己的申请
+    # 非管理员/审批人，强制只能查自己的
     if current_user.role not in ["admin", "owner"] and not (
             current_user.permissions and current_user.permissions.get('can_approve_seal')):
         applicant_id = current_user.id
 
-    return seal_crud.get_seal_applications(
-        db, skip=skip, limit=limit, applicant_id=applicant_id, status=status
+    skip = (page - 1) * page_size
+    items, total = seal_crud.get_seal_applications(
+        db, skip=skip, limit=page_size, applicant_id=applicant_id, status=status, search=search
     )
+    return PaginatedResponse(items=items, total=total, page=page, page_size=page_size)
 
 
 @router.get("/applications/{application_id}", response_model=SealApplicationOut)
@@ -305,8 +316,7 @@ def review_seal_application(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_active_user)  # 替换了 reviewer_id 和 role
 ):
-    """【管理员】审核用印申请（通过/拒绝）"""
-    check_admin_permission(current_user)
+    """【管理员/审批人】审核用印申请（通过/拒绝）"""
     check_seal_approval_permission(current_user)
     try:
         # 直接传入 current_user.id
@@ -328,8 +338,7 @@ async def confirm_stamping_and_log(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_active_user)  # 替换了 reviewer_id 和 role
 ):
-    """【管理员】确认盖章完成，保存最终文件并记录坐标"""
-    check_admin_permission(current_user)
+    """【管理员/审批人】确认盖章完成，保存最终文件并记录坐标"""
     check_seal_approval_permission(current_user)
     try:
         # 1. 解析 JSON 字符串为 Pydantic 模型列表
@@ -348,8 +357,6 @@ async def confirm_stamping_and_log(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="盖章日志数据格式错误，应为 JSON 字符串")
     except (ValueError, RuntimeError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"确认操作失败: {e}")
 
 
 @router.get("/applications/{application_id}/download_stamped")

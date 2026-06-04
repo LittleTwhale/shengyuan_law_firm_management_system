@@ -1,7 +1,7 @@
 # back_end/FastAPI/package/crud/electronic_seal.py
 import os
 from datetime import datetime
-from typing import List, Optional, cast
+from typing import List, Optional, Tuple, cast
 
 from fastapi import UploadFile
 from sqlalchemy.exc import SQLAlchemyError
@@ -168,23 +168,18 @@ async def create_seal_application(db: Session, application_in: SealApplicationCr
         original_file_name = file.filename
         file_type = file.content_type or "application/octet-stream"
 
-        # 2. 预处理：Word转PDF（用于预览和盖章底图）
+        # 2. 预处理：判断文件类型，PDF 直接可用，Word 需后台转换
         full_original_path = os.path.join(SEAL_APPLICATION_ROOT, original_file_path)
         preview_pdf_path = None
 
-        # 检查是否为 Word 文档，是则进行转换
-        if file_type in ["application/msword",
-                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]:
-            pdf_path = convert_word_to_pdf(full_original_path)
-            if pdf_path:
-                preview_pdf_path = os.path.relpath(pdf_path, SEAL_APPLICATION_ROOT)
-
-        elif file_type == "application/pdf":
-            # 如果本身就是PDF，预览路径就是原始路径
+        if file_type == "application/pdf":
             preview_pdf_path = original_file_path
-
-        if not preview_pdf_path:
-            raise RuntimeError("文件转换失败或不支持的文件类型")
+        elif file_type in ["application/msword",
+                           "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]:
+            # Word 文档转为异步后台处理，此处暂不设置 preview_pdf_path
+            pass
+        else:
+            raise RuntimeError("不支持的文件类型，仅支持 PDF/Word 文档")
 
         # 3. 创建数据库记录
         db_application = SealApplication(
@@ -220,20 +215,32 @@ async def create_seal_application(db: Session, application_in: SealApplicationCr
         raise RuntimeError(f"申请创建数据库操作失败: {str(e)}")
 
 
-def get_seal_applications(db: Session, skip: int = 0, limit: int = 100, applicant_id: Optional[int] = None,
-                          status: Optional[str] = None) -> List[SealApplication]:
-    """获取用印申请列表"""
+def get_seal_applications(db: Session, skip: int = 0, limit: int = 10, applicant_id: Optional[int] = None,
+                          status: Optional[str] = None,
+                          search: Optional[str] = None) -> Tuple[List[SealApplication], int]:
+    """获取用印申请列表（分页 + 搜索），返回 (items, total)"""
+    from ..models.user import User
+
     query = db.query(SealApplication).options(
         joinedload(SealApplication.applicant),
         joinedload(SealApplication.seal)
-    ).order_by(SealApplication.created_at.desc())
+    )
 
     if applicant_id:
         query = query.filter(SealApplication.applicant_id == applicant_id)
     if status:
         query = query.filter(SealApplication.status == status)
 
-    return cast(List[SealApplication], query.offset(skip).limit(limit).all())
+    # 搜索：匹配文件名或申请人姓名
+    if search:
+        query = query.join(SealApplication.applicant).filter(
+            (SealApplication.original_file_name.ilike(f'%{search}%')) |
+            (User.real_name.ilike(f'%{search}%'))
+        )
+
+    total = query.count()
+    items = cast(List[SealApplication], query.order_by(SealApplication.created_at.desc()).offset(skip).limit(limit).all())
+    return items, total
 
 
 def get_seal_application_by_id(db: Session, application_id: int) -> Optional[SealApplication]:
@@ -320,6 +327,36 @@ async def confirm_stamping(db: Session, application_id: int, stamped_file: Uploa
             if os.path.exists(full_path):
                 os.remove(full_path)
         raise RuntimeError(f"确认盖章操作失败: {str(e)}")
+
+
+def convert_application_word_to_pdf(application_id: int) -> bool:
+    """
+    后台任务：对 Word 文档申请执行 Word → PDF 转换并更新记录。
+    该函数自己管理数据库会话，适合作为 BackgroundTasks 的回调。
+    返回 True 表示转换成功，False 表示失败。
+    """
+    from ..database.database import SessionLocal
+    db = SessionLocal()
+    try:
+        application = db.query(SealApplication).filter(SealApplication.id == application_id).first()
+        if not application:
+            return False
+
+        full_path = os.path.join(SEAL_APPLICATION_ROOT, application.original_file_path)
+        if not os.path.exists(full_path):
+            return False
+
+        pdf_path = convert_word_to_pdf(full_path)
+        if pdf_path:
+            application.preview_pdf_path = os.path.relpath(pdf_path, SEAL_APPLICATION_ROOT)
+            db.commit()
+            return True
+        return False
+    except Exception:
+        db.rollback()
+        return False
+    finally:
+        db.close()
 
 
 def delete_seal_application(db: Session, application_id: int) -> bool:
