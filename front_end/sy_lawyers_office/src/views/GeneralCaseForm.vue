@@ -640,7 +640,14 @@
       <el-divider content-position="left">费用与标记</el-divider>
       <el-col :span="8">
         <el-form-item label="收费方式" prop="fee_method">
-          <el-input v-model="formData.fee_method" />
+          <el-select v-model="formData.fee_method" placeholder="请选择收费方式" style="width: 100%">
+            <el-option label="固定收费" value="固定收费" />
+            <el-option label="风险收费" value="风险收费" />
+            <el-option label="免费（顾问单位）" value="免费（顾问单位）" />
+            <el-option label="免费（法律援助）" value="免费（法律援助）" />
+            <el-option label="免费（亲戚）" value="免费（亲戚）" />
+            <el-option label="免费（原阶段已包含）" value="免费（原阶段已包含）" />
+          </el-select>
         </el-form-item>
       </el-col>
       <el-col :span="8">

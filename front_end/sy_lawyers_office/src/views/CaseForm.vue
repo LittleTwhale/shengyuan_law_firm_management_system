@@ -343,7 +343,8 @@ const formRules = computed(() => {
     main_lawyer_id: [{ required: true, message: '请选择主办律师', trigger: 'change' }],
     //  银行案件是非必填，其他案件必填
     cause: [{ required: !isBankCase, message: '请填写案由', trigger: 'blur' }],
-    fee_method: [{ required: !isBankCase, message: '请填写收费方式', trigger: 'blur' }],
+    fee_method: [{ required: !isBankCase, message: '请选择收费方式', trigger: 'change' }],
+    stage: [{ required: true, message: '请填写介入阶段', trigger: 'blur' }],
 
     // 银行案件专属必填校验
     'bank_case_details.branch_name': [{ required: isBankCase, message: '必填', trigger: 'change' }],
