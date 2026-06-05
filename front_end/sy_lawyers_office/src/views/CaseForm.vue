@@ -92,6 +92,10 @@
 
     <template #footer>
       <span class="dialog-footer">
+        <span v-if="validationErrorCount > 0" class="error-badge" @click="scrollToFirstError">
+          <el-icon><WarningFilled /></el-icon>
+          还有 {{ validationErrorCount }} 项必填未完成，点击定位
+        </span>
         <el-button @click="handleCancel">取消</el-button>
         <el-button type="primary" :loading="loading" @click="handleSubmit"> 确定 </el-button>
       </span>
@@ -100,10 +104,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, computed, provide, onUnmounted, onMounted } from 'vue'
+import { ref, reactive, watch, computed, provide, onUnmounted, onMounted, nextTick } from 'vue'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { UploadFilled } from '@element-plus/icons-vue'
+import { UploadFilled, WarningFilled } from '@element-plus/icons-vue'
 
 // 引入拆分后的子组件
 import GeneralCaseForm from '@/views/GeneralCaseForm.vue'
@@ -173,6 +177,17 @@ const loading = ref(false)
 const formRef = ref(null)
 const rawFiles = ref([])
 const lawyerOptions = ref([])
+const validationErrorCount = ref(0)
+
+/** 滚动到第一个校验失败的字段 */
+const scrollToFirstError = () => {
+  nextTick(() => {
+    const firstError = formRef.value?.$el?.querySelector('.is-error')
+    if (firstError) {
+      firstError.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  })
+}
 
 // 定义银行案件初始详情数据
 const initialBankDetails = {
@@ -593,6 +608,7 @@ watch(
   () => props.visible,
   (val) => {
     if (val) {
+      validationErrorCount.value = 0
       fetchLawyers()
       if (props.caseId) {
         // 编辑模式
@@ -624,13 +640,15 @@ watch(
 
 const handleCancel = () => {
   emit('update:visible', false)
-  // 此处也可以换成 clearValidate，因为核心数据已被 getInitialFormData 重置
   formRef.value?.clearValidate()
   rawFiles.value = []
+  validationErrorCount.value = 0
 }
 
 const handleSubmit = async () => {
   if (!formRef.value) return
+  // 点击提交时先清空上次的错误计数，等待新一次校验结果
+  validationErrorCount.value = 0
   await formRef.value.validate(async (valid) => {
     if (valid) {
       if (formData.party_clients.length === 0) {
@@ -813,6 +831,15 @@ const handleSubmit = async () => {
       } finally {
         loading.value = false
       }
+    } else {
+      // 校验失败：统计错误项并滚动到第一个错误字段
+      nextTick(() => {
+        const errorEls = formRef.value?.$el?.querySelectorAll('.is-error')
+        validationErrorCount.value = errorEls.length
+        if (errorEls.length > 0) {
+          errorEls[0].scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      })
     }
   })
 }
@@ -826,10 +853,32 @@ const handleSubmit = async () => {
   color: #303133;
 }
 
+/* 校验错误提示徽章 */
+.error-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #f56c6c;
+  font-size: 13px;
+  font-weight: 500;
+  margin-right: 16px;
+  cursor: pointer;
+  user-select: none;
+}
+.error-badge .el-icon {
+  font-size: 15px;
+}
+
 /* 添加针对移动端弹窗的兜底样式 */
 @media screen and (max-width: 768px) {
   .custom-dialog {
     margin: 0 auto !important;
+  }
+  .error-badge {
+    margin-right: 0;
+    margin-bottom: 8px;
+    width: 100%;
+    justify-content: center;
   }
 }
 </style>

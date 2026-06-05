@@ -544,6 +544,90 @@ def check_interest_conflict(
     return {"has_conflict": False, "details": []}
 
 
+# ========== 导入必填字段校验（对照前端 CaseForm.vue 的 formRules） ==========
+def validate_import_row(row_data: dict, parties: list, case_number: str) -> list:
+    """
+    校验 Excel 导入行的必填字段，返回中文错误信息列表。
+    空列表表示校验通过。
+    """
+    errors = []
+    case_category = str(row_data.get("业务类别", "")).strip()
+
+    def is_blank(val) -> bool:
+        """判断 Excel 单元格值是否为空"""
+        if val is None:
+            return True
+        s = str(val).strip()
+        return s.lower() in ["none", "nan", "null", ""]
+
+    # ---- 通用必填字段 (所有案件类型) ----
+    if not case_category:
+        errors.append("「业务类别」未填写")
+
+    if is_blank(row_data.get("委托日期")):
+        errors.append("「委托日期」未填写")
+
+    lawyer_name = str(row_data.get("主办律师", "")).strip()
+    if not lawyer_name or lawyer_name.lower() in ["none", "nan", "null", ""]:
+        errors.append("「主办律师」未填写")
+
+    if is_blank(row_data.get("介入阶段")):
+        errors.append("「介入阶段」未填写")
+
+    # ---- 非银行案件专属必填 ----
+    if case_category and case_category != "银行案件":
+        if is_blank(row_data.get("案由")):
+            errors.append("「案由」未填写（非银行案件必填）")
+        if is_blank(row_data.get("收费方式")):
+            errors.append("「收费方式」未填写（非银行案件必填）")
+
+    # ---- 银行案件专属必填 (对照 CaseForm.vue bank_case_details 的 rules) ----
+    if case_category == "银行案件":
+        bank_required = [
+            ("支行名称", "支行名称"),
+            ("贷款类型", "贷款类型"),
+            ("贷款本金", "贷款本金"),
+            ("抵/质押物信息", "抵/质押物信息"),
+            ("收案日期", "收案日期"),
+            ("诉讼标的金额(含利息)", "诉讼标的金额(含利息)"),
+            ("案件状态", "案件状态"),
+            ("借款日", "借款日"),
+            ("到期日", "到期日"),
+        ]
+        for excel_col, label in bank_required:
+            if is_blank(row_data.get(excel_col)):
+                errors.append(f"「{label}」未填写（银行案件必填）")
+
+    # ---- 当事人校验 (对照 CaseForm.vue handleSubmit 中的 party 检查) ----
+    if not parties:
+        errors.append("当事人信息缺失：请在「当事人列表」工作表中为本业务号添加当事人记录")
+    else:
+        has_client = any(
+            p.get("party_type") and "委托" in str(p.get("party_type", ""))
+            for p in parties
+        )
+        if not has_client:
+            errors.append("当事人信息缺失：缺少「委托人」")
+
+        if case_category == "银行案件":
+            plaintiff_types = {"原告", "申请人", "上诉人"}
+            defendant_types = {"被告", "被告人", "被申请人", "被上诉人"}
+
+            has_plaintiff = any(str(p.get("party_type", "")) in plaintiff_types for p in parties)
+            if not has_plaintiff:
+                errors.append("当事人信息缺失：缺少「原告/申请人」（银行案件必填）")
+
+            has_defendant = any(str(p.get("party_type", "")) in defendant_types for p in parties)
+            if not has_defendant:
+                errors.append("当事人信息缺失：缺少「被告/被申请人」（银行案件必填）")
+
+            has_borrower = any(str(p.get("party_type", "")) == "借款人" for p in parties)
+            if not has_borrower:
+                errors.append("当事人信息缺失：缺少「借款人」（银行案件必填）")
+
+    return errors
+
+
 @router.post("/import", status_code=200)
 def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(get_db),
                             current_user: User = Depends(get_current_active_user)):
@@ -807,6 +891,15 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
 
             # 生成最终无重复的当事人List
             final_parties = list(merged_parties_map.values())
+
+            # ---------------- 4.5 导入前必填字段校验 ----------------
+            validation_errors = validate_import_row(row_data, final_parties, case_number)
+            if validation_errors:
+                failed_cases.append({
+                    "case_number": case_number,
+                    "reason": "；".join(validation_errors),
+                })
+                continue
 
             # ---------------- 5. 组装 CaseCreate ----------------
             new_case = CaseCreate(
