@@ -298,6 +298,10 @@ def delete_seal_application(
     if current_user.role not in ["admin", "owner"] and application.applicant_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限删除此申请")
 
+    # 禁止申请人删除已通过的记录（管理员/owner 不受此限制）
+    if current_user.role not in ["admin", "owner"] and application.status == "已通过":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="已盖章的申请记录不能被申请人删除")
+
     try:
         success = seal_crud.delete_seal_application(db, application_id)
         if not success:

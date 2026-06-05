@@ -105,6 +105,7 @@
               <el-text v-else type="info" size="small">暂无文件</el-text>
 
               <el-button
+                v-if="row.status !== '已通过'"
                 size="small"
                 type="danger"
                 style="margin-left: 10px"
@@ -544,6 +545,7 @@ let isDragging = false
 let isResizing = false
 let startX = 0,
   startY = 0
+const cachedPdfBytes = ref(null) // 缓存预览PDF，避免确认盖章时重复请求
 
 // ==========================================
 // 1. 数据加载与管理
@@ -905,6 +907,8 @@ const handleApproveAndStamp = async (row) => {
     const response = await request.get(`/electronic_seal/applications/${row.id}/preview_pdf`, {
       responseType: 'arraybuffer',
     })
+    // 缓存PDF，供确认盖章时使用，避免重复请求
+    cachedPdfBytes.value = response.data
 
     // 2. 加载 PDF.js
     const loadingTask = pdfjsLib.getDocument({ data: response.data })
@@ -1038,85 +1042,98 @@ const startResize = (e) => {
 const confirmStamping = async () => {
   loading.stamping = true
   try {
-    // 1. 获取原 PDF ArrayBuffer
-    const pdfBytes = await request
-      .get(`/electronic_seal/applications/${currentAuditRow.value.id}/preview_pdf`, {
-        responseType: 'arraybuffer',
-      })
-      .then((res) => res.data)
-
-    // 2. 获取印章图片 ArrayBuffer (由于带权限需要通过 request 请求)
-    const sealBytes = await request
-      .get(
-        `/electronic_seal/seals/${currentAuditRow.value.seal.id}/image?t=${new Date().getTime()}`,
-        {
-          responseType: 'arraybuffer',
-        },
-      )
-      .then((res) => res.data)
-
-    // 3. 使用 pdf-lib 加载 PDF
-    const pdfDocLib = await PDFDocument.load(pdfBytes)
-    const sealImage = await pdfDocLib.embedPng(sealBytes)
-
-    // 4. 获取当前页并计算坐标
-    const pages = pdfDocLib.getPages()
-    const page = pages[currentPage.value - 1]
-    const { width, height } = page.getSize()
-
-    const pdfX = (sealX.value / canvasWidth.value) * width
-    // PDF Y 是从下往上，需要转换
-    const pdfY = height - ((sealY.value + sealHeight.value) / canvasHeight.value) * height
-
-    const pdfSealWidth = (sealWidth.value / canvasWidth.value) * width
-    const pdfSealHeight = (sealHeight.value / canvasHeight.value) * height
-
-    // 5. 绘制印章
-    page.drawImage(sealImage, {
-      x: pdfX,
-      y: pdfY,
-      width: pdfSealWidth,
-      height: pdfSealHeight,
-    })
-
-    // 6. 保存生成新的 PDF
-    const pdfDataUri = await pdfDocLib.save()
-    const blob = new Blob([pdfDataUri], { type: 'application/pdf' })
-    const file = new File([blob], `stamped_${currentAuditRow.value.original_file_name}.pdf`, {
-      type: 'application/pdf',
-    })
-
-    // 7. 准备上传数据
-    const fd = new FormData()
-    fd.append('stamped_file', file)
-
-    // 构造日志数据
-    const logData = [
-      {
-        page_number: currentPage.value,
-        x: pdfX,
-        y: pdfY,
-        width: pdfSealWidth,
-        height: pdfSealHeight,
-      },
-    ]
-    fd.append('log_data_json', JSON.stringify(logData))
-
-    // 移除 reviewer_id 和 role，后端已通过 Token 解析
-
-    // 8. ⚠调用 POST /applications/{application_id}/confirm 接口
-    //    该接口在后端应负责保存文件并更新状态为“已通过”
-    await request.post(`/electronic_seal/applications/${currentAuditRow.value.id}/confirm`, fd)
-
-    ElMessage.success('盖章完成，申请状态已更新为“已通过”')
+    await executeStamping()
+    ElMessage.success('盖章完成，申请状态已更新为”已通过”')
     showAuditDialog.value = false
     await fetchPendingApplications()
+    await fetchApprovedApplications()
   } catch (err) {
     console.error(err)
     ElMessage.error('盖章合成或上传失败: ' + (err.response?.data?.detail || err.message))
   } finally {
     loading.stamping = false
   }
+}
+
+/** 执行盖章合成与上传（提取为独立函数，避免 throw 在同一函数内被 catch 引发 linter 告警） */
+const executeStamping = async () => {
+  // 1. 使用缓存的 PDF 字节（handleApproveAndStamp 中已加载），避免重复请求
+  const pdfBytes = cachedPdfBytes.value
+  if (!pdfBytes) {
+    throw new Error('PDF 数据未加载，请重新打开盖章弹窗')
+  }
+
+  // 2. 获取印章图片 ArrayBuffer (由于带权限需要通过 request 请求)
+  const sealBytes = await request
+    .get(
+      `/electronic_seal/seals/${currentAuditRow.value.seal.id}/image?t=${new Date().getTime()}`,
+      {
+        responseType: 'arraybuffer',
+      },
+    )
+    .then((res) => res.data)
+
+  // 3. 使用 pdf-lib 加载 PDF
+  const pdfDocLib = await PDFDocument.load(pdfBytes)
+
+  // 4. 检测印章图片格式，支持 PNG 和 JPG
+  const uint8 = new Uint8Array(sealBytes.slice(0, 4))
+  const isPng = uint8[0] === 0x89 && uint8[1] === 0x50 && uint8[2] === 0x4E && uint8[3] === 0x47
+  const isJpg = uint8[0] === 0xFF && uint8[1] === 0xD8 && uint8[2] === 0xFF
+  let sealImage
+  if (isPng) {
+    sealImage = await pdfDocLib.embedPng(sealBytes)
+  } else if (isJpg) {
+    sealImage = await pdfDocLib.embedJpg(sealBytes)
+  } else {
+    throw new Error('不支持的印章图片格式，仅支持 PNG/JPG')
+  }
+
+  // 5. 获取当前页并计算坐标
+  const pages = pdfDocLib.getPages()
+  const page = pages[currentPage.value - 1]
+  const { width, height } = page.getSize()
+
+  const pdfX = (sealX.value / canvasWidth.value) * width
+  // PDF Y 是从下往上，需要转换
+  const pdfY = height - ((sealY.value + sealHeight.value) / canvasHeight.value) * height
+
+  const pdfSealWidth = (sealWidth.value / canvasWidth.value) * width
+  const pdfSealHeight = (sealHeight.value / canvasHeight.value) * height
+
+  // 6. 绘制印章
+  page.drawImage(sealImage, {
+    x: pdfX,
+    y: pdfY,
+    width: pdfSealWidth,
+    height: pdfSealHeight,
+  })
+
+  // 7. 保存生成新的 PDF
+  const pdfDataUri = await pdfDocLib.save()
+  const blob = new Blob([pdfDataUri], { type: 'application/pdf' })
+  const file = new File([blob], `stamped_${currentAuditRow.value.original_file_name}.pdf`, {
+    type: 'application/pdf',
+  })
+
+  // 8. 准备上传数据
+  const fd = new FormData()
+  fd.append('stamped_file', file)
+
+  // 构造日志数据
+  const logData = [
+    {
+      page_number: currentPage.value,
+      x: pdfX,
+      y: pdfY,
+      width: pdfSealWidth,
+      height: pdfSealHeight,
+    },
+  ]
+  fd.append('log_data_json', JSON.stringify(logData))
+
+  // 9. 调用 POST /applications/{application_id}/confirm 接口
+  await request.post(`/electronic_seal/applications/${currentAuditRow.value.id}/confirm`, fd)
 }
 
 // --- 工具函数 (保持不变) ---

@@ -376,9 +376,13 @@ def delete_seal_application(db: Session, application_id: int) -> bool:
         for rel_path in file_paths:
             if rel_path:
                 full_path = os.path.join(SEAL_APPLICATION_ROOT, rel_path)
-                # 确保路径不为空且文件存在，避免删除错误的路径
-                if full_path and os.path.exists(full_path):
-                    os.remove(full_path)
+                if os.path.exists(full_path):
+                    try:
+                        os.remove(full_path)
+                    except OSError as e:
+                        # 单个文件删除失败不应阻塞数据库记录删除，记录警告后继续
+                        import logging
+                        logging.warning(f"删除文件失败: {full_path}, 错误: {e}")
 
         # 删除数据库记录 (日志会通过 cascade 自动删除)
         db.delete(db_application)
