@@ -571,11 +571,10 @@ def validate_import_row(row_data: dict, parties: list, case_number: str) -> list
     if not lawyer_name or lawyer_name.lower() in ["none", "nan", "null", ""]:
         errors.append("「主办律师」未填写")
 
-    if is_blank(row_data.get("介入阶段")):
-        errors.append("「介入阶段」未填写")
-
     # ---- 非银行案件专属必填 ----
     if case_category and case_category != "银行案件":
+        if is_blank(row_data.get("介入阶段")):
+            errors.append("「介入阶段」未填写（非银行案件必填）")
         if is_blank(row_data.get("案由")):
             errors.append("「案由」未填写（非银行案件必填）")
         if is_blank(row_data.get("收费方式")):
