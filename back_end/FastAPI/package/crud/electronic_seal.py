@@ -223,6 +223,7 @@ def get_seal_applications(db: Session, skip: int = 0, limit: int = 10, applicant
 
     query = db.query(SealApplication).options(
         joinedload(SealApplication.applicant),
+        joinedload(SealApplication.reviewer),
         joinedload(SealApplication.seal)
     )
 

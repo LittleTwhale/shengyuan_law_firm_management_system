@@ -129,6 +129,8 @@ class SealApplicationSimpleOut(BaseModel):
     preview_pdf_path: Optional[str] = None  # 用于前端判断 Word 转换是否完成
 
     apply_reason: Optional[str]
+    reviewer: Optional[UserOut] = None
+    review_time: Optional[datetime] = None
     review_remark: Optional[str] = None
     created_at: datetime
 

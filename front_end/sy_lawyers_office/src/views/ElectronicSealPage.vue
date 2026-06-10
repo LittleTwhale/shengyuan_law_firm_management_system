@@ -86,12 +86,22 @@
             </template>
           </el-table-column>
           <el-table-column prop="apply_reason" label="用印原因" show-overflow-tooltip />
+          <el-table-column label="审核人" width="100">
+            <template #default="{ row }">
+              {{ ['已通过','已拒绝'].includes(row.status) ? (row.reviewer?.real_name || '—') : '—' }}
+            </template>
+          </el-table-column>
           <el-table-column
             prop="created_at"
             label="申请时间"
             :formatter="(row, column, cellValue) => formatDate(cellValue)"
             width="160"
           />
+          <el-table-column label="审核时间" width="160">
+            <template #default="{ row }">
+              {{ ['已通过','已拒绝'].includes(row.status) && row.review_time ? formatDate(row.review_time) : '—' }}
+            </template>
+          </el-table-column>
           <el-table-column label="操作" width="300" fixed="right">
             <template #default="{ row }">
               <el-button
@@ -109,7 +119,7 @@
                 size="small"
                 type="danger"
                 style="margin-left: 10px"
-                @click="deleteApplication(row)"
+                @click="deleteApplication(row, 'my_applications')"
               >
                 删除
               </el-button>
@@ -195,13 +205,26 @@
           <el-table-column prop="original_file_name" label="文件名" show-overflow-tooltip />
           <el-table-column prop="seal.name" label="申请印章" />
           <el-table-column prop="apply_reason" label="用印原因" show-overflow-tooltip />
+          <el-table-column label="审核人" width="100">
+            <template #default="{ row }">
+              {{ row.reviewer?.real_name || '—' }}
+            </template>
+          </el-table-column>
           <el-table-column
             prop="created_at"
             label="申请时间"
             :formatter="(row, column, cellValue) => formatDate(cellValue)"
             width="160"
           />
-          <el-table-column label="操作" width="180" fixed="right">
+          <el-table-column
+            label="审核时间"
+            width="160"
+          >
+            <template #default="{ row }">
+              {{ row.review_time ? formatDate(row.review_time) : '—' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="280" fixed="right">
             <template #default="{ row }">
               <el-button
                 v-if="row.stamped_file_path"
@@ -212,6 +235,15 @@
                 下载盖章件
               </el-button>
               <el-text v-else type="info" size="small">暂无文件</el-text>
+              <el-button
+                v-if="canReview"
+                size="small"
+                type="danger"
+                style="margin-left: 10px"
+                @click="deleteApplication(row, 'approved')"
+              >
+                删除
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -249,6 +281,11 @@
           <el-table-column prop="original_file_name" label="文件名" show-overflow-tooltip />
           <el-table-column prop="seal.name" label="申请印章" />
           <el-table-column prop="apply_reason" label="用印原因" show-overflow-tooltip />
+          <el-table-column label="审核人" width="100">
+            <template #default="{ row }">
+              {{ row.reviewer?.real_name || '—' }}
+            </template>
+          </el-table-column>
           <el-table-column prop="review_remark" label="拒绝原因" show-overflow-tooltip />
           <el-table-column
             prop="created_at"
@@ -256,12 +293,20 @@
             :formatter="(row, column, cellValue) => formatDate(cellValue)"
             width="160"
           />
+          <el-table-column
+            label="审核时间"
+            width="160"
+          >
+            <template #default="{ row }">
+              {{ row.review_time ? formatDate(row.review_time) : '—' }}
+            </template>
+          </el-table-column>
           <el-table-column label="操作" width="120" fixed="right">
             <template #default="{ row }">
               <el-button
                 size="small"
                 type="danger"
-                @click="deleteApplication(row)"
+                @click="deleteApplication(row, 'rejected')"
               >
                 删除
               </el-button>
@@ -806,7 +851,7 @@ const downloadStampedFile = async (id, fileName) => {
   }
 }
 
-const deleteApplication = async (row) => {
+const deleteApplication = async (row, sourceTab = 'my_applications') => {
   const fileType = row.stamped_file_path ? '已盖章文件' : '原始文件'
   const confirmMsg = `确定要删除申请ID ${row.id} 及其所有附件（包含${fileType}）吗？此操作不可逆。`
 
@@ -817,7 +862,19 @@ const deleteApplication = async (row) => {
     await request.delete(`/electronic_seal/applications/${row.id}`)
 
     ElMessage.success('用印申请及所有附件已删除')
-    await fetchMyApplications() // 重新加载我的申请列表
+
+    // 根据来源标签页刷新对应列表
+    if (sourceTab === 'my_applications') {
+      await fetchMyApplications()
+    } else if (sourceTab === 'approved' && canReview.value) {
+      await fetchApprovedApplications()
+    } else if (sourceTab === 'rejected' && canReview.value) {
+      await fetchRejectedApplications()
+    }
+    // 如果当前在"我的申请"标签页，也刷新它
+    if (sourceTab !== 'my_applications') {
+      await fetchMyApplications()
+    }
   } catch (err) {
     console.error(err)
     ElMessage.error(err.response?.data?.detail || '删除失败')
