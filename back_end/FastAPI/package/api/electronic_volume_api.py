@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import threading
 import time
 import uuid
@@ -126,6 +127,92 @@ def extract_multiple_snippets(highlighted_text: str, max_snippets: int = 5, cont
 # ==========================================
 # 辅助函数：权限与业务逻辑检查
 # ==========================================
+
+# 重试删除目录（Windows 文件锁兼容）
+def _force_remove_dir(dir_path: str, max_retries: int = 5, retry_delay: float = 0.5) -> bool:
+    """
+    尝试递归删除目录，针对 Windows 文件锁做重试和逐文件 fallback。
+    返回 True 表示目录已完全删除（或根本不存在），False 表示仍有残留。
+    """
+    if not os.path.exists(dir_path):
+        return True
+
+    # ---- 策略 1：直接 rmtree，带重试 ----
+    for attempt in range(max_retries):
+        try:
+            shutil.rmtree(dir_path, onerror=None)
+            # 确认目录已删除
+            if not os.path.exists(dir_path):
+                return True
+        except Exception as e:
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+            else:
+                print(f"[Delete] rmtree 重试耗尽 ({dir_path}): {e}")
+
+    # ---- 策略 2：逐文件强制删除（应对 rmtree 因单文件锁而整体失败）----
+    print(f"[Delete] 回退到逐文件删除: {dir_path}")
+    failed_any = False
+    for root, dirs, files in os.walk(dir_path, topdown=False):
+        for name in files:
+            file_path = os.path.join(root, name)
+            _force_delete_file_with_retry(file_path, max_retries, retry_delay)
+            if os.path.exists(file_path):
+                failed_any = True  # 仍有残留
+
+        for name in dirs:
+            dir_sub = os.path.join(root, name)
+            try:
+                os.rmdir(dir_sub)
+            except OSError:
+                pass
+
+    # 最后尝试删除顶层目录本身
+    try:
+        os.rmdir(dir_path)
+    except OSError:
+        failed_any = True
+
+    if failed_any:
+        print(f"[Delete] 目录删除不完全，仍有残留: {dir_path}")
+        return False
+    return True
+
+
+def _force_delete_file_with_retry(file_path: str, max_retries: int = 5, retry_delay: float = 0.5):
+    """对单个文件做重试删除，尝试解除只读属性和文件锁。"""
+    for attempt in range(max_retries):
+        try:
+            # 解除只读属性（Windows 常见问题）
+            os.chmod(file_path, stat.S_IWRITE)
+            os.remove(file_path)
+            return  # 成功
+        except PermissionError:
+            # Windows 文件锁，等待后重试
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+        except Exception as e:
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+            else:
+                print(f"[Delete] 无法删除文件 {file_path}: {e}")
+
+
+def _try_remove_empty_parent(dir_path: str):
+    """如果目录为空（或只包含空子目录），则安全删除。"""
+    try:
+        if os.path.exists(dir_path):
+            # 尝试删除空子目录
+            for root, dirs, _ in os.walk(dir_path, topdown=False):
+                for d in dirs:
+                    try:
+                        os.rmdir(os.path.join(root, d))
+                    except OSError:
+                        pass
+            # 最后删除自身
+            os.rmdir(dir_path)
+    except OSError:
+        pass  # 非空或不存则静默忽略
 
 def check_volume_write_permission(db: Session, user: User, case_id: Optional[int], volume_id: Optional[int] = None):
     """
@@ -456,25 +543,33 @@ def delete_volume(
 
     check_volume_write_permission(db, current_user, volume.case_id, volume.id)
 
-    # 1. 物理删除文件夹
+    # 1. 物理删除文件夹（带重试，处理 Windows 文件锁和只读属性）
     storage_prefix = get_volume_storage_prefix(volume.case_id, volume_id)
     volume_dir = os.path.join(ELECTRONIC_VOLUME_ROOT, storage_prefix)
+    _force_remove_dir(volume_dir)
 
-    if os.path.exists(volume_dir):
-        try:
-            shutil.rmtree(volume_dir)
-        except Exception as e:
-            print(f"Error deleting directory {volume_dir}: {e}")
-
-    # 同时删除可能存在的已合并PDF
+    # 同时删除可能存在的已合并PDF目录
     merged_dir_pdf = os.path.join(PDF_VOLUME_ROOT, storage_prefix)
-    if os.path.exists(merged_dir_pdf):
-        try:
-            shutil.rmtree(merged_dir_pdf)
-        except Exception as e:
-            print(f"Error deleting pdf directory {merged_dir_pdf}: {e}")
+    _force_remove_dir(merged_dir_pdf)
 
-    # 2. 数据库删除（级联删除文件记录）
+    # 额外清理：如果 case 目录下已无卷宗目录，删除 case 空目录
+    if volume.case_id:
+        case_vol_dir = os.path.join(ELECTRONIC_VOLUME_ROOT, f"case_{volume.case_id}")
+        _try_remove_empty_parent(case_vol_dir)
+        # 同时清理 PDF 卷宗对应的 case 目录
+        pdf_case_dir = os.path.join(PDF_VOLUME_ROOT, f"case_{volume.case_id}")
+        _try_remove_empty_parent(pdf_case_dir)
+
+    # 2. 从 Meilisearch 中移除卷内所有文件索引（在数据库删除前拿到文件 ID）
+    try:
+        file_ids = [f.id for f in (volume.files or [])]
+        if file_ids:
+            meili_client.index('volume_files').delete_documents(file_ids)
+            print(f"[Delete] 已从 Meilisearch 移除 {len(file_ids)} 条文件索引")
+    except Exception as e:
+        print(f"[Delete] Meilisearch 批量删除失败: {e}")
+
+    # 3. 数据库删除（级联删除文件记录）
     crud.delete_volume(db, volume_id)
     return
 
@@ -885,21 +980,15 @@ def delete_volume_file(
     volume = crud.get_volume_by_id(db, file_obj.volume_id)
     check_volume_write_permission(db, current_user, volume.case_id, volume.id)
 
-    # 物理删除文件
+    # 物理删除文件（带重试，处理 Windows 文件锁）
     full_path = os.path.join(ELECTRONIC_VOLUME_ROOT, file_obj.file_path)
     if os.path.exists(full_path):
-        try:
-            os.remove(full_path)
-        except:
-            pass
+        _force_delete_file_with_retry(full_path)
 
     # 同时尝试删除可能存在的预览PDF副本
     pdf_path_temp = os.path.splitext(full_path)[0] + ".pdf"
     if os.path.exists(pdf_path_temp):
-        try:
-            os.remove(pdf_path_temp)
-        except:
-            pass
+        _force_delete_file_with_retry(pdf_path_temp)
 
     # 获取 volume_id (在删除 DB 记录前)
     vol_id = file_obj.volume_id
