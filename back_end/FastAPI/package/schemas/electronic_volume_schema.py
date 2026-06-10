@@ -106,7 +106,13 @@ class CaseVolumeBase(BaseModel):
 
 
 class CaseVolumeCreate(CaseVolumeBase):
-    case_id: int = Field(..., description="关联案件ID")
+    case_id: Optional[int] = Field(None, description="关联案件ID（独立卷宗时不传）")
+    # 独立卷宗扩展字段
+    client_name: Optional[str] = Field(None, description="委托人姓名")
+    client_phone: Optional[str] = Field(None, description="委托人电话")
+    main_lawyer_name: Optional[str] = Field(None, description="主办律师")
+    case_description: Optional[str] = Field(None, description="案件简要描述")
+    category: Optional[str] = Field(None, description="案件类别")
 
 
 class CaseVolumeUpdate(BaseModel):
@@ -114,19 +120,34 @@ class CaseVolumeUpdate(BaseModel):
     sort_order: Optional[int] = None
     physical_location: Optional[str] = None
     merged_file_path: Optional[str] = None  # 允许单独更新合并后的文件路径
+    # 独立卷宗扩展字段
+    client_name: Optional[str] = None
+    client_phone: Optional[str] = None
+    main_lawyer_name: Optional[str] = None
+    case_description: Optional[str] = None
+    category: Optional[str] = None
 
 
 class CaseVolumeOut(CaseVolumeBase):
     id: int
-    case_id: int
+    case_id: Optional[int] = None
     merged_file_path: Optional[str]
     created_at: datetime
     updated_at: datetime
 
+    # 独立卷宗扩展字段
+    is_standalone: Optional[int] = 0
+    client_name: Optional[str] = None
+    client_phone: Optional[str] = None
+    main_lawyer_name: Optional[str] = None
+    case_description: Optional[str] = None
+    category: Optional[str] = None
+    created_by: Optional[int] = None
+
     # 包含卷内文件列表
     files: List[VolumeFileOut] = []
 
-    # 包含案件简要信息 (用于列表显示)
+    # 包含案件简要信息 (用于列表显示，独立卷宗时为 None)
     case: Optional[CaseSimpleInfo] = None
 
     class Config:

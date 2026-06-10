@@ -12,8 +12,8 @@ class CaseVolume(Base):
     __tablename__ = "case_volumes"
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="主键ID")
-    case_id = Column(Integer, ForeignKey("cases.case_id", ondelete="CASCADE"), nullable=False, index=True,
-                     comment="关联案件ID")
+    case_id = Column(Integer, ForeignKey("cases.case_id", ondelete="CASCADE"), nullable=True, index=True,
+                     comment="关联案件ID（独立卷宗时为空）")
 
     # 核心显示字段
     name = Column(String(100), nullable=False, comment="案卷名称")
@@ -24,6 +24,15 @@ class CaseVolume(Base):
     # 排序与位置
     sort_order = Column(Integer, default=0, comment="显示排序")
     physical_location = Column(String(255), nullable=True, comment="纸质原件存放位置")
+
+    # 独立卷宗扩展字段
+    is_standalone = Column(Integer, default=0, comment="是否独立卷宗（不绑定系统案件）")
+    client_name = Column(String(100), nullable=True, comment="委托人姓名")
+    client_phone = Column(String(20), nullable=True, comment="委托人电话")
+    main_lawyer_name = Column(String(50), nullable=True, comment="主办律师")
+    case_description = Column(String(500), nullable=True, comment="案件简要描述")
+    category = Column(String(50), nullable=True, comment="案件类别")
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, comment="创建人ID")
 
     # 基础元数据
     created_at = Column(TIMESTAMP, server_default=func.now(), nullable=False, comment="创建时间")
@@ -40,6 +49,9 @@ class CaseVolume(Base):
     # cascade="all, delete-orphan" 表示删除卷册时，自动删除下面的所有文件记录
     files = relationship("VolumeFile", back_populates="volume", cascade="all, delete-orphan",
                          order_by="VolumeFile.sort_order")
+
+    # 3. 关联到创建人
+    creator = relationship("User", back_populates="created_standalone_volumes")
 
 
 class VolumeFile(Base):

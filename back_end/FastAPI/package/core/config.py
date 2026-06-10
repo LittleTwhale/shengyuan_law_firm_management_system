@@ -54,3 +54,13 @@ ELECTRONIC_VOLUME_ROOT = os.path.join("D:\\", "syls", "database", "electronic_vo
 
 # 合并后的电子卷宗 PDF 存储路径
 PDF_VOLUME_ROOT = os.path.join("D:\\", "syls", "database", "pdf_volumes")
+
+
+def get_volume_storage_prefix(case_id, volume_id):
+    """
+    获取卷宗文件存储的相对目录前缀
+    - 绑定案件：case_{case_id}/vol_{volume_id}
+    - 独立卷宗：standalone/vol_{volume_id}
+    """
+    prefix = f"case_{case_id}" if case_id else "standalone"
+    return os.path.join(prefix, f"vol_{volume_id}")

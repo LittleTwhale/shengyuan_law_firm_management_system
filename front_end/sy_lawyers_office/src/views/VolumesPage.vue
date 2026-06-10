@@ -35,8 +35,8 @@
         <div class="filter-left">
           <el-input
             v-model="filters.keyword"
-            placeholder="搜索业务号、当事人或关键词"
-            prefix-icon="Search"
+            placeholder="搜索业务号、当事人、卷宗名或关键词"
+            :prefix-icon="Search"
             class="filter-item-input"
             clearable
             @clear="handleSearch"
@@ -80,6 +80,7 @@
         </div>
 
         <div class="filter-right">
+          <el-button type="success" :icon="Plus" @click="openStandaloneDialog">创建独立卷宗</el-button>
           <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
           <el-button :icon="Refresh" @click="resetFilters">重置</el-button>
           <el-button type="warning" plain icon="Search" @click="globalSearchVisible = true">全文穿透搜索</el-button>
@@ -112,6 +113,7 @@
             >
               {{ row.case.case_number }}
             </el-link>
+            <el-tag v-else-if="row.is_standalone" type="warning" size="small" effect="plain">独立卷宗</el-tag>
             <span v-else class="text-gray">-</span>
           </template>
         </el-table-column>
@@ -156,18 +158,17 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="case.case_category" label="业务类别" min-width="130" align="center">
+        <el-table-column label="业务类别" min-width="130" align="center">
           <template #default="{ row }">
-            <el-tag size="small" effect="plain">{{ row.case?.case_category || '-' }}</el-tag>
+            <el-tag size="small" effect="plain">{{ row.case?.case_category || row.category || '-' }}</el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column
-          prop="case.main_lawyer.real_name"
-          label="主办律师"
-          min-width="120"
-          align="center"
-        />
+        <el-table-column label="主办律师" min-width="120" align="center">
+          <template #default="{ row }">
+            {{ row.case?.main_lawyer?.real_name || row.main_lawyer_name || '-' }}
+          </template>
+        </el-table-column>
 
         <el-table-column label="文件数" min-width="100" align="center">
           <template #default="{ row }">
@@ -212,13 +213,87 @@
     </div>
 
     <GlobalFileSearchDialog v-model:visible="globalSearchVisible" />
+
+    <!-- 创建独立卷宗对话框 -->
+    <el-dialog
+      v-model="standaloneDialogVisible"
+      title="创建独立卷宗"
+      :width="isMobile ? '95%' : '550px'"
+      destroy-on-close
+      append-to-body
+    >
+      <el-form
+        :model="standaloneForm"
+        :label-width="isMobile ? 'auto' : '100px'"
+        :label-position="isMobile ? 'top' : 'right'"
+        @submit.prevent
+      >
+        <el-form-item label="卷宗名称" required>
+          <el-input v-model="standaloneForm.name" placeholder="如：XX案一审卷宗" />
+        </el-form-item>
+        <el-row :gutter="16" v-if="!isMobile">
+          <el-col :span="12">
+            <el-form-item label="委托人姓名">
+              <el-input v-model="standaloneForm.client_name" placeholder="委托人" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="委托人电话">
+              <el-input v-model="standaloneForm.client_phone" placeholder="联系电话" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <template v-else>
+          <el-form-item label="委托人姓名">
+            <el-input v-model="standaloneForm.client_name" placeholder="委托人" />
+          </el-form-item>
+          <el-form-item label="委托人电话">
+            <el-input v-model="standaloneForm.client_phone" placeholder="联系电话" />
+          </el-form-item>
+        </template>
+        <el-row :gutter="16" v-if="!isMobile">
+          <el-col :span="12">
+            <el-form-item label="主办律师">
+              <el-input v-model="standaloneForm.main_lawyer_name" placeholder="主办律师姓名" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="案件类别">
+              <el-select v-model="standaloneForm.category" placeholder="选择类别" style="width: 100%" clearable>
+                <el-option v-for="c in caseCategories" :key="c" :label="c" :value="c" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <template v-else>
+          <el-form-item label="主办律师">
+            <el-input v-model="standaloneForm.main_lawyer_name" placeholder="主办律师姓名" />
+          </el-form-item>
+          <el-form-item label="案件类别">
+            <el-select v-model="standaloneForm.category" placeholder="选择类别" style="width: 100%" clearable>
+              <el-option v-for="c in caseCategories" :key="c" :label="c" :value="c" />
+            </el-select>
+          </el-form-item>
+        </template>
+        <el-form-item label="简要描述">
+          <el-input v-model="standaloneForm.case_description" type="textarea" :rows="2" placeholder="案件简要描述" />
+        </el-form-item>
+        <el-form-item label="存放位置">
+          <el-input v-model="standaloneForm.physical_location" placeholder="纸质原件存放位置" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="standaloneDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitStandaloneVolume" :loading="standaloneSubmitting">确认创建</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Folder, Search, Files, Box, Refresh, Location } from '@element-plus/icons-vue'
+import { Folder, Search, Files, Box, Refresh, Location, Plus } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import GlobalFileSearchDialog from '@/components/GlobalFileSearchDialog.vue'
@@ -231,6 +306,19 @@ const lawyers = ref([])
 const totalVolumes = ref(0)
 const mergedCount = ref(0)
 const globalSearchVisible = ref(false)
+
+// 独立卷宗创建相关
+const standaloneDialogVisible = ref(false)
+const standaloneSubmitting = ref(false)
+const standaloneForm = ref({
+  name: '',
+  client_name: '',
+  client_phone: '',
+  main_lawyer_name: '',
+  category: '',
+  case_description: '',
+  physical_location: '',
+})
 
 // 响应式屏幕判断
 const screenWidth = ref(window.innerWidth)
@@ -400,11 +488,59 @@ const goToCaseDetail = (caseId) => {
 }
 
 const goToManage = (row) => {
-  const routeUrl = router.resolve({
-    path: `/main/cases/${row.case_id}`,
-    query: { tab: 'volume' },
-  })
-  window.open(routeUrl.href, '_blank')
+  if (row.is_standalone) {
+    // 独立卷宗跳转到独立管理页
+    const routeUrl = router.resolve({
+      path: `/main/standalone-volume/${row.id}`,
+    })
+    window.open(routeUrl.href, '_blank')
+  } else {
+    const routeUrl = router.resolve({
+      path: `/main/cases/${row.case_id}`,
+      query: { tab: 'volume' },
+    })
+    window.open(routeUrl.href, '_blank')
+  }
+}
+
+const openStandaloneDialog = () => {
+  standaloneForm.value = {
+    name: '',
+    client_name: '',
+    client_phone: '',
+    main_lawyer_name: '',
+    category: '',
+    case_description: '',
+    physical_location: '',
+  }
+  standaloneDialogVisible.value = true
+}
+
+const submitStandaloneVolume = async () => {
+  if (!standaloneForm.value.name.trim()) {
+    ElMessage.warning('请输入卷宗名称')
+    return
+  }
+  standaloneSubmitting.value = true
+  try {
+    await request.post('/electronic_volumes/', {
+      name: standaloneForm.value.name,
+      client_name: standaloneForm.value.client_name || undefined,
+      client_phone: standaloneForm.value.client_phone || undefined,
+      main_lawyer_name: standaloneForm.value.main_lawyer_name || undefined,
+      category: standaloneForm.value.category || undefined,
+      case_description: standaloneForm.value.case_description || undefined,
+      physical_location: standaloneForm.value.physical_location || undefined,
+    })
+    ElMessage.success('独立卷宗创建成功')
+    standaloneDialogVisible.value = false
+    await loadData()
+  } catch (err) {
+    console.error(err)
+    ElMessage.error(err.response?.data?.detail || '创建失败')
+  } finally {
+    standaloneSubmitting.value = false
+  }
 }
 
 const formatTime = (val) => {
@@ -474,7 +610,7 @@ const formatTime = (val) => {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08); /* 悬浮时阴影加深 */
 }
 
-/* 核心修复：外层容器控制背景和形状，避免挤压图标 */
+/* 外层容器控制背景和形状，避免挤压图标 */
 .icon-wrapper {
   width: 52px;
   height: 52px;
@@ -552,10 +688,10 @@ const formatTime = (val) => {
 }
 
 .filter-item-input {
-  width: 240px;
+  width: 300px;
 }
 .filter-item-date {
-  width: 260px !important;
+  width: 240px !important;
   flex-grow: 0;
 }
 .filter-item-select {

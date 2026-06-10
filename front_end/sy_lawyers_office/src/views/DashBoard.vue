@@ -421,6 +421,9 @@ const currentBreadcrumbs = computed(() => {
     if (path === '/main/cases/bank_cases') {
       crumbs.push({ title: '业务管理', path: '/main/cases' })
     }
+    if (path.startsWith('/main/standalone-volume/')) {
+      crumbs.push({ title: '电子卷宗', path: '/main/volumes' })
+    }
     crumbs.push({ title, path })
   }
 

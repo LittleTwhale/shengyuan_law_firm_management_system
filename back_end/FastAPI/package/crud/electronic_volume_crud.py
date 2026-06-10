@@ -24,9 +24,10 @@ from ..schemas.electronic_volume_schema import (
 
 def _apply_volume_filters(query, db: Session, current_user: User, params: Optional[VolumeFilterQuery] = None):
     """
-    通用筛选器：同时应用于“卷宗列表查询”和“全局文件搜索”
+    通用筛选器：同时应用于”卷宗列表查询”和”全局文件搜索”
     1. 处理权限 (User vs Admin/Permission)
     2. 处理筛选 (关键词、日期、律师、案由)
+    兼容绑定案件卷宗 + 独立卷宗两种模式
     """
 
     # ---------------- 1. 权限控制 (Row-Level Security) ----------------
@@ -42,23 +43,23 @@ def _apply_volume_filters(query, db: Session, current_user: User, params: Option
         can_view_all = True
 
     if not can_view_all:
-        # 关联 Case 表进行权限过滤 (如果 Query 还没 join Case，需要调用方保证已 join 或在此处处理)
-        # 注意：这里假设调用方已经 join(Case) 或 query 是基于 Case 相关模型的
-        # 为保险起见，这里显式添加 filter 条件，SQLAlchemy 会自动处理 join 如果已经 join 过
-
+        # 普通用户：案件卷宗需为关联律师，独立卷宗需为创建者
         query = query.filter(
             or_(
+                # 绑定案件的卷宗：用户是关联律师
                 Case.main_lawyer_id == current_user.id,
                 Case.assistant_lawyer_id == current_user.id,
                 Case.assistant_lawyer_2_id == current_user.id,
                 Case.execution_lawyer_id == current_user.id,
                 Case.execution_assistant_id == current_user.id,
+                # 独立卷宗：用户是创建者
+                CaseVolume.created_by == current_user.id,
             )
         )
 
     # ---------------- 2. 业务筛选条件 ----------------
     if params:
-        # 关键词搜索 (同时匹配 卷宗名称 OR 案件号 OR 委托人 OR 卷内文件)
+        # 关键词搜索 (同时匹配 卷宗名/案号/委托人/卷内文件/独立卷宗字段)
         if params.keyword:
             search = f"%{params.keyword}%"
             # 注意：CaseVolume.name 是卷宗名，Case.case_number 是案号
@@ -69,6 +70,10 @@ def _apply_volume_filters(query, db: Session, current_user: User, params: Option
                     Case.parties.any(
                         and_(CaseParty.party_type.like('%委托%'), CaseParty.name.ilike(search))
                     ),
+                    # 独立卷宗字段搜索
+                    CaseVolume.client_name.ilike(search),
+                    CaseVolume.main_lawyer_name.ilike(search),
+                    CaseVolume.case_description.ilike(search),
                     # 同时搜索卷内文件：文件名、摘要、OCR全文、标签
                     CaseVolume.files.any(
                         or_(
@@ -81,15 +86,20 @@ def _apply_volume_filters(query, db: Session, current_user: User, params: Option
                 )
             )
 
-        # 按案件类别
+        # 按案件类别（对独立卷宗也生效，匹配 CaseVolume.category）
         if params.case_category:
-            query = query.filter(Case.case_category == params.case_category)
+            query = query.filter(
+                or_(
+                    Case.case_category == params.case_category,
+                    CaseVolume.category == params.case_category,
+                )
+            )
 
-        # 按主办律师
+        # 按主办律师（仅对案件卷宗生效，独立卷宗无此维度）
         if params.lawyer_id:
             query = query.filter(Case.main_lawyer_id == params.lawyer_id)
 
-        # 按日期范围 (基于案件委托日期)
+        # 按日期范围 (基于案件委托日期，仅对案件卷宗生效)
         if params.start_date:
             query = query.filter(Case.commission_date >= params.start_date)
         if params.end_date:
@@ -102,13 +112,21 @@ def _apply_volume_filters(query, db: Session, current_user: User, params: Option
 # 卷宗 (CaseVolume) 操作
 # =========================================================
 
-def create_volume(db: Session, volume_in: CaseVolumeCreate) -> CaseVolume:
-    """创建新的电子卷宗"""
+def create_volume(db: Session, volume_in: CaseVolumeCreate, current_user_id: int = None) -> CaseVolume:
+    """创建新的电子卷宗（支持绑定案件或独立卷宗两种模式）"""
+    is_standalone = volume_in.case_id is None
     db_volume = CaseVolume(
         case_id=volume_in.case_id,
         name=volume_in.name,
         sort_order=volume_in.sort_order,
-        physical_location=volume_in.physical_location
+        physical_location=volume_in.physical_location,
+        is_standalone=1 if is_standalone else 0,
+        client_name=volume_in.client_name if is_standalone else None,
+        client_phone=volume_in.client_phone if is_standalone else None,
+        main_lawyer_name=volume_in.main_lawyer_name if is_standalone else None,
+        case_description=volume_in.case_description if is_standalone else None,
+        category=volume_in.category if is_standalone else None,
+        created_by=current_user_id if is_standalone else None,
     )
     db.add(db_volume)
     db.commit()
@@ -162,8 +180,8 @@ def get_multi_volumes(
     获取卷宗列表 (支持分页、筛选、权限控制)
     仿照 Finance 的 get_multi 逻辑
     """
-    # 1. 构建基础查询，Join Case 表以便获取案件信息
-    query = db.query(CaseVolume).join(Case, CaseVolume.case_id == Case.case_id)
+    # 1. 构建基础查询，outerjoin Case 表以兼容独立卷宗（case_id 为 NULL）
+    query = db.query(CaseVolume).outerjoin(Case, CaseVolume.case_id == Case.case_id)
 
     # 预加载案件信息和主办律师信息，防止 N+1
     query = query.options(
@@ -342,8 +360,8 @@ def search_all_files(
     """
     全局文件搜索 (在所有我有权限的案件卷宗中搜索文件)
     """
-    # 1. 基础查询
-    query = db.query(VolumeFile).join(CaseVolume).join(Case)
+    # 1. 基础查询（outerjoin 以兼容独立卷宗）
+    query = db.query(VolumeFile).join(CaseVolume).outerjoin(Case, CaseVolume.case_id == Case.case_id)
     query = query.options(joinedload(VolumeFile.uploader))
 
     # 2. 权限过滤 (复用逻辑)
@@ -375,8 +393,8 @@ def search_files_with_count(
     """
     带总数统计的全局文件搜索，用于分页
     """
-    # 1. 构建基础查询
-    query = db.query(VolumeFile).join(CaseVolume).join(Case)
+    # 1. 构建基础查询（outerjoin 以兼容独立卷宗）
+    query = db.query(VolumeFile).join(CaseVolume).outerjoin(Case, CaseVolume.case_id == Case.case_id)
     query = query.options(joinedload(VolumeFile.uploader))
 
     # 2. 权限过滤

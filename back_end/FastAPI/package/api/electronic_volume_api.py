@@ -27,7 +27,7 @@ from sqlalchemy import or_, case as sql_case  # 引入 sql_case 用于保持搜�
 from sqlalchemy.orm import Session, joinedload
 
 from ..api.deps import get_current_user
-from ..core.config import ELECTRONIC_VOLUME_ROOT, PDF_VOLUME_ROOT
+from ..core.config import ELECTRONIC_VOLUME_ROOT, PDF_VOLUME_ROOT, get_volume_storage_prefix
 # 引入本模块的 CRUD 和 Schema
 from ..crud import electronic_volume_crud as crud
 from ..crud.attachment import convert_word_to_pdf  # 复用现有的Word转PDF工具
@@ -127,13 +127,14 @@ def extract_multiple_snippets(highlighted_text: str, max_snippets: int = 5, cont
 # 辅助函数：权限与业务逻辑检查
 # ==========================================
 
-def check_volume_write_permission(db: Session, user: User, case_id: int):
+def check_volume_write_permission(db: Session, user: User, case_id: Optional[int], volume_id: Optional[int] = None):
     """
     检查用户是否有权对指定案件的卷宗进行【写操作】（增删改）
     逻辑：
     1. 超级管理员/拥有 volume_manage 权限 -> 通过
     2. 案件的主办/助理/执行/执行助理 -> 通过
-    3. 否则 -> 拒绝
+    3. 独立卷宗（case_id 为空）：创建者或管理员 -> 通过
+    4. 否则 -> 拒绝
     """
     # 1. 超级权限
     if user.role in ['owner']:
@@ -141,7 +142,18 @@ def check_volume_write_permission(db: Session, user: User, case_id: int):
     if user.permissions and user.permissions.get("volume_manage"):
         return True
 
-    # 2. 案件相关人校验
+    # 2. 独立卷宗权限校验
+    if case_id is None:
+        if volume_id is None:
+            return True  # 创建时尚未有 volume_id，创建操作本身允许
+        volume = db.query(CaseVolume).filter(CaseVolume.id == volume_id).first()
+        if not volume:
+            raise HTTPException(status_code=404, detail="卷宗不存在")
+        if volume.created_by != user.id:
+            raise HTTPException(status_code=403, detail="您无权操作此独立卷宗（仅创建者可操作）")
+        return True
+
+    # 3. 案件相关人校验
     case = db.query(Case).filter(Case.case_id == case_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="关联案件不存在")
@@ -167,7 +179,7 @@ def check_volume_write_permission(db: Session, user: User, case_id: int):
     return True
 
 
-def check_volume_read_permission(db: Session, user: User, case_id: int):
+def check_volume_read_permission(db: Session, user: User, case_id: Optional[int], volume_id: Optional[int] = None):
     """
     检查用户是否有权查看指定案件的卷宗【读操作】
     与写权限的区别：不要求案件状态为"已审核"
@@ -175,6 +187,17 @@ def check_volume_read_permission(db: Session, user: User, case_id: int):
     if user.role in ['owner']:
         return
     if user.permissions and user.permissions.get("volume_manage"):
+        return
+
+    # 独立卷宗权限校验
+    if case_id is None:
+        if volume_id is None:
+            return
+        volume = db.query(CaseVolume).filter(CaseVolume.id == volume_id).first()
+        if not volume:
+            raise HTTPException(status_code=404, detail="卷宗不存在")
+        if volume.created_by != user.id:
+            raise HTTPException(status_code=403, detail="您无权查看此独立卷宗")
         return
 
     case = db.query(Case).filter(Case.case_id == case_id).first()
@@ -203,11 +226,11 @@ def create_volume(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    """创建新的电子卷宗册"""
+    """创建新的电子卷宗册（支持绑定案件或独立卷宗两种模式）"""
     # 权限校验
     check_volume_write_permission(db, current_user, volume_in.case_id)
 
-    return crud.create_volume(db, volume_in)
+    return crud.create_volume(db, volume_in, current_user.id)
 
 
 @router.get("/", response_model=schemas.CaseVolumePageOut)
@@ -262,7 +285,7 @@ def get_volume_detail(
     if not volume:
         raise HTTPException(status_code=404, detail="卷宗不存在")
 
-    check_volume_read_permission(db, current_user, volume.case_id)
+    check_volume_read_permission(db, current_user, volume.case_id, volume.id)
     return volume
 
 
@@ -327,7 +350,7 @@ def list_files_in_volume(
     if not volume:
         raise HTTPException(status_code=404, detail="卷宗不存在")
 
-    check_volume_read_permission(db, current_user, volume.case_id)
+    check_volume_read_permission(db, current_user, volume.case_id, volume.id)
 
     meta_kw = meta_keyword.strip() if meta_keyword and meta_keyword.strip() else None
     ocr_kw = ocr_keyword.strip() if ocr_keyword and ocr_keyword.strip() else None
@@ -412,7 +435,7 @@ def update_volume(
     if not volume:
         raise HTTPException(status_code=404, detail="卷宗不存在")
 
-    check_volume_write_permission(db, current_user, volume.case_id)
+    check_volume_write_permission(db, current_user, volume.case_id, volume.id)
 
     return crud.update_volume(db, volume_id, volume_in)
 
@@ -431,21 +454,20 @@ def delete_volume(
     if not volume:
         raise HTTPException(status_code=404, detail="卷宗不存在")
 
-    check_volume_write_permission(db, current_user, volume.case_id)
+    check_volume_write_permission(db, current_user, volume.case_id, volume.id)
 
     # 1. 物理删除文件夹
-    # 路径规则：ELECTRONIC_VOLUME_ROOT / case_{id} / vol_{id}
-    volume_dir = os.path.join(ELECTRONIC_VOLUME_ROOT, f"case_{volume.case_id}", f"vol_{volume_id}")
+    storage_prefix = get_volume_storage_prefix(volume.case_id, volume_id)
+    volume_dir = os.path.join(ELECTRONIC_VOLUME_ROOT, storage_prefix)
 
     if os.path.exists(volume_dir):
         try:
             shutil.rmtree(volume_dir)
         except Exception as e:
-            # 记录日志，但不阻断数据库删除
             print(f"Error deleting directory {volume_dir}: {e}")
 
-    # 同时删除可能存在的已合并PDF (在 PDF_VOLUME_ROOT)
-    merged_dir_pdf = os.path.join(PDF_VOLUME_ROOT, f"case_{volume.case_id}", f"vol_{volume_id}")
+    # 同时删除可能存在的已合并PDF
+    merged_dir_pdf = os.path.join(PDF_VOLUME_ROOT, storage_prefix)
     if os.path.exists(merged_dir_pdf):
         try:
             shutil.rmtree(merged_dir_pdf)
@@ -514,9 +536,9 @@ def background_ocr_task(file_id: int, file_path: str, file_type: str):
             print(f"[OCR Task] 成功写入 ocr_content, file_id={file_id}, 字数={len(content)}")
             # ================= 同步到 Meilisearch =================
             try:
-                # 获取关联的 case_id，这是后期搜索进行权限过滤的关键字段
+                # 获取关联的 case_id（独立卷宗为 0），这是搜索权限过滤的关键字段
                 volume = db.query(CaseVolume).filter(CaseVolume.id == file_obj.volume_id).first()
-                case_id = volume.case_id if volume else 0
+                case_id = volume.case_id if (volume and volume.case_id) else 0
 
                 document = {
                     "id": file_obj.id,
@@ -564,11 +586,11 @@ async def upload_volume_file(
     if not volume:
         raise HTTPException(status_code=404, detail="卷宗不存在")
 
-    check_volume_write_permission(db, current_user, volume.case_id)
+    check_volume_write_permission(db, current_user, volume.case_id, volume.id)
 
     # 2. 保存文件到磁盘
-    # 目录结构: ELECTRONIC_VOLUME_ROOT / case_{id} / volume_{id} / file
-    save_dir = os.path.join(ELECTRONIC_VOLUME_ROOT, f"case_{volume.case_id}", f"vol_{volume_id}")
+    storage_prefix = get_volume_storage_prefix(volume.case_id, volume_id)
+    save_dir = os.path.join(ELECTRONIC_VOLUME_ROOT, storage_prefix)
     os.makedirs(save_dir, exist_ok=True)
 
     file_ext = os.path.splitext(file.filename)[1]
@@ -594,8 +616,8 @@ async def upload_volume_file(
         ).start()
 
     # 3. 构造 Create Schema
-    # 存储的路径是相对路径，方便迁移
-    relative_path = os.path.join(f"case_{volume.case_id}", f"vol_{volume_id}", unique_name)
+    # 存储相对路径
+    relative_path = os.path.join(storage_prefix, unique_name)
     file_size = os.path.getsize(save_path)
 
     # 解析 tags
@@ -628,12 +650,12 @@ async def upload_volume_file(
         document = {
             "id": new_file.id,
             "volume_id": new_file.volume_id,
-            "case_id": volume.case_id,
+            "case_id": volume.case_id if volume.case_id else 0,  # 独立卷宗用 0
             "file_name": new_file.file_name,
             "category": new_file.category,
             "summary": new_file.summary or "",
             "tags": new_file.tags or [],
-            "ocr_content": ""  # 初始为空，稍后由后台 OCR 任务覆盖
+            "ocr_content": ""
         }
         meili_client.index('volume_files').add_documents([document], primary_key='id')
     except Exception as e:
@@ -672,7 +694,7 @@ def update_volume_file(
 
     # 2. 查权限 (通过 Volume -> Case)
     volume = crud.get_volume_by_id(db, file_obj.volume_id)
-    check_volume_write_permission(db, current_user, volume.case_id)
+    check_volume_write_permission(db, current_user, volume.case_id, volume.id)
 
     # 3. 执行更新
     updated_file = crud.update_volume_file(db, file_id, file_in)
@@ -717,10 +739,9 @@ def batch_update_sort(
     if not volume:
         raise HTTPException(status_code=404, detail="关联卷宗不存在")
 
-    check_volume_write_permission(db, current_user, volume.case_id)
+    check_volume_write_permission(db, current_user, volume.case_id, volume.id)
 
     # 4. 执行批量更新
-    #    确保传入的是字典列表
     crud.batch_update_sort_order(db, [item.model_dump() for item in sort_data])
 
     # 排序变更，旧的合并文件失效
@@ -763,6 +784,15 @@ def search_files_global(
             )
         ).all()
         allowed_case_ids = [c[0] for c in allowed_cases]
+
+        # 检查用户是否有独立卷宗（Meilisearch 中 case_id=0）
+        has_standalone = db.query(CaseVolume.id).filter(
+            CaseVolume.is_standalone == 1,
+            CaseVolume.created_by == current_user.id
+        ).first() is not None
+
+        if has_standalone:
+            allowed_case_ids.append(0)
 
         if not allowed_case_ids:
             return {"total": 0, "items": []}
@@ -853,7 +883,7 @@ def delete_volume_file(
 
     # 查 Volume 进而查 Case 进而查权限
     volume = crud.get_volume_by_id(db, file_obj.volume_id)
-    check_volume_write_permission(db, current_user, volume.case_id)
+    check_volume_write_permission(db, current_user, volume.case_id, volume.id)
 
     # 物理删除文件
     full_path = os.path.join(ELECTRONIC_VOLUME_ROOT, file_obj.file_path)
@@ -901,7 +931,7 @@ def download_volume_file(
     # 权限校验：通过文件所属卷宗追溯到案件
     volume = crud.get_volume_by_id(db, file_obj.volume_id)
     if volume:
-        check_volume_read_permission(db, current_user, volume.case_id)
+        check_volume_read_permission(db, current_user, volume.case_id, volume.id)
 
     full_path = os.path.join(ELECTRONIC_VOLUME_ROOT, file_obj.file_path)
     if not os.path.exists(full_path):
@@ -935,7 +965,7 @@ def preview_volume_file(
     # 权限校验
     volume = crud.get_volume_by_id(db, file_obj.volume_id)
     if volume:
-        check_volume_read_permission(db, current_user, volume.case_id)
+        check_volume_read_permission(db, current_user, volume.case_id, volume.id)
 
     full_path = os.path.join(ELECTRONIC_VOLUME_ROOT, file_obj.file_path)
     if not os.path.exists(full_path):
@@ -1354,7 +1384,8 @@ def background_merge_task(volume_id: int):
         if not files:
             return
 
-        merged_dir = os.path.join(PDF_VOLUME_ROOT, f"case_{volume.case_id}", f"vol_{volume_id}")
+        storage_prefix = get_volume_storage_prefix(volume.case_id, volume_id)
+        merged_dir = os.path.join(PDF_VOLUME_ROOT, storage_prefix)
         os.makedirs(merged_dir, exist_ok=True)
         merged_filename = f"{volume.name}_Merged_{datetime.now().strftime('%Y%m%d%H%M')}.pdf"
         merged_path = os.path.join(merged_dir, merged_filename)
@@ -1363,7 +1394,7 @@ def background_merge_task(volume_id: int):
         _process_merge(db, volume, files, merged_path)
 
         # 成功后更新数据库
-        relative_path = os.path.join(f"case_{volume.case_id}", f"vol_{volume_id}", merged_filename)
+        relative_path = os.path.join(storage_prefix, merged_filename)
         crud.update_merged_file_path(db, volume_id, relative_path)
 
     except Exception as e:
@@ -1390,7 +1421,7 @@ def merge_volume_files(
     if not volume:
         raise HTTPException(status_code=404, detail="卷宗不存在")
 
-    check_volume_write_permission(db, current_user, volume.case_id)
+    check_volume_write_permission(db, current_user, volume.case_id, volume.id)
 
     # 在开始新的合并前，强制清理旧的合并文件和记录
     crud.invalidate_volume_merge_status(db, volume_id)
@@ -1412,7 +1443,7 @@ def download_merged_volume(
     if not volume:
         raise HTTPException(status_code=404, detail="卷宗不存在")
 
-    check_volume_read_permission(db, current_user, volume.case_id)
+    check_volume_read_permission(db, current_user, volume.case_id, volume.id)
 
     if not volume.merged_file_path:
         raise HTTPException(status_code=404, detail="该卷宗尚未执行合并操作，或合并文件不存在")
@@ -1447,7 +1478,7 @@ def preview_merged_volume(
     if not volume:
         raise HTTPException(status_code=404, detail="卷宗不存在")
 
-    check_volume_read_permission(db, current_user, volume.case_id)
+    check_volume_read_permission(db, current_user, volume.case_id, volume.id)
 
     if not volume.merged_file_path:
         raise HTTPException(status_code=404, detail="该卷宗尚未执行合并操作")

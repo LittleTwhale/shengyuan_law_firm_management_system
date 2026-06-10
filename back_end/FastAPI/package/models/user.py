@@ -56,6 +56,9 @@ class User(Base):
     # 用户上传的卷宗文件
     uploaded_volume_files = relationship("VolumeFile", back_populates="uploader")
 
+    # 用户创建的独立卷宗
+    created_standalone_volumes = relationship("CaseVolume", back_populates="creator")
+
 class UserSchedule(Base):
     __tablename__ = "user_schedules"
 

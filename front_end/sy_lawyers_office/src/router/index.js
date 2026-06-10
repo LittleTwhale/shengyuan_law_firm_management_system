@@ -15,6 +15,7 @@ import FinancePage from '@/views/FinancePage.vue'
 import PartyBuildingPage from '@/views/PartyBuildingPage.vue'
 import PartyMaterialDetail from '@/views/PartyMaterialDetail.vue'
 import VolumesPage from '@/views/VolumesPage.vue'
+import StandaloneVolumePanel from '@/views/StandaloneVolumePanel.vue'
 import AnnouncementCenter from '@/views/AnnouncementCenter.vue'
 import AIAnalysisPage from '@/views/AIAnalysisPage.vue'
 import LegalSearchPage from '@/views/LegalSearchPage.vue'
@@ -46,6 +47,7 @@ const routes = [
       { path: 'party_building/detail/:id', component: PartyMaterialDetail },
       { path: 'reminders', component: EventReminderPage },
       { path: 'volumes', component: VolumesPage, meta: { title: '电子卷宗中心' } },
+      { path: 'standalone-volume/:volumeId', name: 'StandaloneVolume', component: StandaloneVolumePanel, meta: { title: '独立卷宗管理' } },
       {
         path: 'admin/settings',
         component: SystemSettingPage,
