@@ -910,8 +910,9 @@ const handleApproveAndStamp = async (row) => {
     // 缓存PDF，供确认盖章时使用，避免重复请求
     cachedPdfBytes.value = response.data
 
-    // 2. 加载 PDF.js
-    const loadingTask = pdfjsLib.getDocument({ data: response.data })
+    // 2. 加载 PDF.js（使用克隆的 ArrayBuffer，避免 pdf.js Worker 转移导致原 buffer 被 detached）
+    const pdfDataForJs = response.data.slice(0)
+    const loadingTask = pdfjsLib.getDocument({ data: pdfDataForJs })
     pdfDoc = await loadingTask.promise
     totalPages.value = pdfDoc.numPages
     currentPage.value = 1
