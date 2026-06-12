@@ -46,6 +46,9 @@ from ..utils.search_engine import meili_client
 os.makedirs(ELECTRONIC_VOLUME_ROOT, exist_ok=True)
 os.makedirs(PDF_VOLUME_ROOT, exist_ok=True)
 
+# OCR 并发控制信号量：限制同时只有 1 个 OCR 任务在跑，避免 CPU 过载
+ocr_semaphore = threading.Semaphore(1)
+
 # 获取当前文件所在目录的上级目录作为基准
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FONT_PATH = os.path.join(BASE_DIR, "assets", "fonts", "SimHei.ttf") # 或者 NotoSans.ttf
@@ -604,12 +607,13 @@ def background_ocr_task(file_id: int, file_path: str, file_type: str):
         else:
             print(f"[OCR Task] 警告: .doc 转 PDF 超时，尝试直接处理原文件")
 
-    # === 执行智能提取 ===
-    try:
-        content = perform_smart_extraction(real_path, file_type)
-    except Exception as e:
-        print(f"[OCR Task] 提取异常: {e}")
-        content = ""
+    # === 执行智能提取（受信号量控制，同一时间仅一个 OCR 在跑） ===
+    with ocr_semaphore:
+        try:
+            content = perform_smart_extraction(real_path, file_type)
+        except Exception as e:
+            print(f"[OCR Task] 提取异常: {e}")
+            content = ""
 
     if not content or not content.strip():
         print(f"[OCR Task] 未提取到有效内容 file_id={file_id}")

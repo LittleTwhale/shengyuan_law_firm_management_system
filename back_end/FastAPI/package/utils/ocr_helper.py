@@ -1,6 +1,7 @@
 # utils/ocr_helper.py
 import logging
 import os
+import time
 import cv2
 import numpy as np
 
@@ -153,6 +154,9 @@ def extract_pdf_hybrid(file_path: str, min_text_len: int = 50) -> str:
                     # 传入 is_bgr=False，因为 PIL 生成的是 RGB，上面的函数会自动处理
                     ocr_text = _ocr_image_data(img_array, is_bgr=False)
                     full_content.append(f"--- 第 {i + 1} 页 (OCR识别) ---\n{ocr_text}")
+
+                # 页间主动让出 CPU，避免单一大文件长时间独占
+                time.sleep(0.05)
 
     except Exception as e:
         logger.error(f"PDF Hybrid Extract Error: {e}")
