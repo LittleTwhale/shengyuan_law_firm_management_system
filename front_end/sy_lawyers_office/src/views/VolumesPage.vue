@@ -80,10 +80,14 @@
         </div>
 
         <div class="filter-right">
-          <el-button type="success" :icon="Plus" @click="openStandaloneDialog">创建独立卷宗</el-button>
+          <el-button type="success" :icon="Plus" @click="openStandaloneDialog"
+            >创建独立卷宗</el-button
+          >
           <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
           <el-button :icon="Refresh" @click="resetFilters">重置</el-button>
-          <el-button type="warning" plain icon="Search" @click="globalSearchVisible = true">全文穿透搜索</el-button>
+          <el-button type="warning" plain icon="Search" @click="globalSearchVisible = true"
+            >全文穿透搜索</el-button
+          >
         </div>
       </div>
 
@@ -96,105 +100,116 @@
           highlight-current-row
           class="custom-table"
           header-cell-class-name="table-header-gray"
+          @sort-change="handleSortChange"
         >
-        <el-table-column
-          label="关联业务号"
-          min-width="180"
-          align="center"
-          :fixed="isMobile ? false : 'left'"
-        >
-          <template #default="{ row }">
-            <el-link
-              v-if="row.case"
-              type="primary"
-              :underline="false"
-              class="case-link"
-              @click="goToCaseDetail(row.case_id)"
-            >
-              {{ row.case.case_number }}
-            </el-link>
-            <el-tag v-else-if="row.is_standalone" type="warning" size="small" effect="plain">独立卷宗</el-tag>
-            <span v-else class="text-gray">-</span>
-          </template>
-        </el-table-column>
+          <el-table-column
+            label="关联业务号"
+            min-width="180"
+            align="center"
+            :fixed="isMobile ? false : 'left'"
+          >
+            <template #default="{ row }">
+              <el-link
+                v-if="row.case"
+                type="primary"
+                :underline="false"
+                class="case-link"
+                @click="goToCaseDetail(row.case_id)"
+              >
+                {{ row.case.case_number }}
+              </el-link>
+              <el-tag v-else-if="row.is_standalone" type="warning" size="small" effect="plain"
+                >独立卷宗</el-tag
+              >
+              <span v-else class="text-gray">-</span>
+            </template>
+          </el-table-column>
 
-        <el-table-column label="卷宗名称" min-width="220">
-          <template #default="{ row }">
-            <div class="vol-name-cell">
-              <el-icon class="folder-icon"><Folder /></el-icon>
-              <div class="vol-info">
-                <span class="vol-name" @click="goToManage(row)">{{ row.name }}</span>
-                <el-tag
-                  v-if="row.merged_file_path"
-                  size="small"
-                  type="success"
-                  effect="light"
-                  class="status-tag"
-                  >已归档</el-tag
-                >
-                <el-tag v-else size="small" type="info" effect="plain" class="status-tag"
-                  >未归档</el-tag
-                >
+          <el-table-column label="卷宗名称" min-width="220">
+            <template #default="{ row }">
+              <div class="vol-name-cell">
+                <el-icon class="folder-icon"><Folder /></el-icon>
+                <div class="vol-info">
+                  <span class="vol-name" @click="goToManage(row)">{{ row.name }}</span>
+                  <el-tag
+                    v-if="row.merged_file_path"
+                    size="small"
+                    type="success"
+                    effect="light"
+                    class="status-tag"
+                    >已归档</el-tag
+                  >
+                  <el-tag v-else size="small" type="info" effect="plain" class="status-tag"
+                    >未归档</el-tag
+                  >
+                </div>
               </div>
-            </div>
-          </template>
-        </el-table-column>
+            </template>
+          </el-table-column>
 
-        <el-table-column
-          prop="physical_location"
-          label="纸质文件存放位置"
-          min-width="160"
-          show-overflow-tooltip
-        >
-          <template #default="{ row }">
-            <div
-              v-if="row.physical_location"
-              style="display: flex; align-items: center; gap: 5px; color: #606266"
-            >
-              <el-icon><Location /></el-icon>
-              <span>{{ row.physical_location }}</span>
-            </div>
-            <span v-else style="color: #ccc; font-size: 12px">未登记</span>
-          </template>
-        </el-table-column>
+          <el-table-column
+            prop="physical_location"
+            label="纸质文件存放位置"
+            min-width="160"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">
+              <div
+                v-if="row.physical_location"
+                style="display: flex; align-items: center; gap: 5px; color: #606266"
+              >
+                <el-icon><Location /></el-icon>
+                <span>{{ row.physical_location }}</span>
+              </div>
+              <span v-else style="color: #ccc; font-size: 12px">未登记</span>
+            </template>
+          </el-table-column>
 
-        <el-table-column label="业务类别" min-width="130" align="center">
-          <template #default="{ row }">
-            <el-tag size="small" effect="plain">{{ row.case?.case_category || row.category || '-' }}</el-tag>
-          </template>
-        </el-table-column>
+          <el-table-column label="业务类别" min-width="130" align="center">
+            <template #default="{ row }">
+              <el-tag size="small" effect="plain">{{
+                row.case?.case_category || row.category || '-'
+              }}</el-tag>
+            </template>
+          </el-table-column>
 
-        <el-table-column label="主办律师" min-width="120" align="center">
-          <template #default="{ row }">
-            {{ row.case?.main_lawyer?.real_name || row.main_lawyer_name || '-' }}
-          </template>
-        </el-table-column>
+          <el-table-column label="主办律师" min-width="120" align="center">
+            <template #default="{ row }">
+              {{ row.case?.main_lawyer?.real_name || row.main_lawyer_name || '-' }}
+            </template>
+          </el-table-column>
 
-        <el-table-column label="文件数" min-width="100" align="center">
-          <template #default="{ row }">
-            <span class="file-count">{{ row.files ? row.files.length : 0 }}</span> 份
-          </template>
-        </el-table-column>
+          <el-table-column label="文件数" min-width="100" align="center">
+            <template #default="{ row }">
+              <span class="file-count">{{ row.file_count || 0 }}</span> 份
+            </template>
+          </el-table-column>
 
-        <el-table-column prop="updated_at" label="最后更新" min-width="170" align="center">
-          <template #default="{ row }">
-            <span class="time-text">{{ formatTime(row.updated_at) }}</span>
-          </template>
-        </el-table-column>
+          <el-table-column
+            prop="updated_at"
+            label="最后更新"
+            min-width="170"
+            align="center"
+            sortable="custom"
+          >
+            <template #default="{ row }">
+              <span class="time-text">{{ formatTime(row.updated_at) }}</span>
+            </template>
+          </el-table-column>
 
-        <el-table-column
-          label="操作"
-          min-width="120"
-          align="center"
-          :fixed="isMobile ? false : 'right'"
-        >
-          <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="goToManage(row)">
-              管理卷宗
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+          <el-table-column
+            label="操作"
+            min-width="120"
+            align="center"
+            :fixed="isMobile ? false : 'right'"
+          >
+            <template #default="{ row }">
+              <el-button link type="primary" size="small" @click="goToManage(row)">
+                管理卷宗
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
       </div>
 
       <div class="pagination-wrapper">
@@ -259,7 +274,12 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="案件类别">
-              <el-select v-model="standaloneForm.category" placeholder="选择类别" style="width: 100%" clearable>
+              <el-select
+                v-model="standaloneForm.category"
+                placeholder="选择类别"
+                style="width: 100%"
+                clearable
+              >
                 <el-option v-for="c in caseCategories" :key="c" :label="c" :value="c" />
               </el-select>
             </el-form-item>
@@ -270,13 +290,23 @@
             <el-input v-model="standaloneForm.main_lawyer_name" placeholder="主办律师姓名" />
           </el-form-item>
           <el-form-item label="案件类别">
-            <el-select v-model="standaloneForm.category" placeholder="选择类别" style="width: 100%" clearable>
+            <el-select
+              v-model="standaloneForm.category"
+              placeholder="选择类别"
+              style="width: 100%"
+              clearable
+            >
               <el-option v-for="c in caseCategories" :key="c" :label="c" :value="c" />
             </el-select>
           </el-form-item>
         </template>
         <el-form-item label="简要描述">
-          <el-input v-model="standaloneForm.case_description" type="textarea" :rows="2" placeholder="案件简要描述" />
+          <el-input
+            v-model="standaloneForm.case_description"
+            type="textarea"
+            :rows="2"
+            placeholder="案件简要描述"
+          />
         </el-form-item>
         <el-form-item label="存放位置">
           <el-input v-model="standaloneForm.physical_location" placeholder="纸质原件存放位置" />
@@ -284,7 +314,9 @@
       </el-form>
       <template #footer>
         <el-button @click="standaloneDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitStandaloneVolume" :loading="standaloneSubmitting">确认创建</el-button>
+        <el-button type="primary" @click="submitStandaloneVolume" :loading="standaloneSubmitting"
+          >确认创建</el-button
+        >
       </template>
     </el-dialog>
   </div>
@@ -333,6 +365,24 @@ const pagination = reactive({
   limit: 15,
   total: 0,
 })
+
+// 排序状态（默认最新在前）
+const sortOrder = ref('desc')
+
+// 标准的排序监听方法
+const handleSortChange = ({ order }) => {
+  // Element Plus 的 order 值为 'ascending', 'descending', 或者 null
+  if (order === 'ascending') {
+    sortOrder.value = 'asc'
+  } else if (order === 'descending') {
+    sortOrder.value = 'desc'
+  } else {
+    // 如果用户点击到第三下取消了排序（order 为 null），强制设为默认的降序
+    sortOrder.value = 'desc'
+  }
+
+  handleSearch()
+}
 
 const filters = reactive({
   keyword: '',
@@ -444,6 +494,8 @@ const loadData = async () => {
       start_date: filters.dateRange && filters.dateRange[0] ? filters.dateRange[0] : null,
       end_date: filters.dateRange && filters.dateRange[1] ? filters.dateRange[1] : null,
       is_archived: filters.archive_status === '' ? null : filters.archive_status,
+      sort_by: 'updated_at',
+      sort_order: sortOrder.value,
     }
 
     Object.keys(params).forEach((key) => {

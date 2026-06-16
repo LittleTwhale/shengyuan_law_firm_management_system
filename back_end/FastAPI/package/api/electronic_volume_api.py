@@ -15,6 +15,7 @@ from typing import List, Optional
 from PyPDF2 import PdfReader, PdfWriter, Transformation, PdfMerger
 from PyPDF2.generic import RectangleObject, AnnotationBuilder
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, BackgroundTasks
+from fastapi.responses import PlainTextResponse
 from fastapi.responses import FileResponse
 from reportlab.lib import colors
 # 引入 ReportLab 用于生成目录页
@@ -323,7 +324,7 @@ def create_volume(
     return crud.create_volume(db, volume_in, current_user.id)
 
 
-@router.get("/", response_model=schemas.CaseVolumePageOut)
+@router.get("/", response_model=schemas.CaseVolumePageListOut)
 def list_volumes(
         page: int = 1,
         page_size: int = 20,
@@ -332,13 +333,17 @@ def list_volumes(
         lawyer_id: Optional[int] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
+        sort_by: Optional[str] = 'updated_at',
+        sort_order: Optional[str] = 'desc',
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
     """
-    获取卷宗列表（支持分页、搜索、筛选）
+    获取卷宗列表（支持分页、搜索、筛选、排序）
     - 普通用户只能看到自己相关的案件卷宗
     - 管理员可查看全部
+    - sort_by: created_at / updated_at
+    - sort_order: asc / desc
     """
     query_params = schemas.VolumeFilterQuery(
         keyword=keyword,
@@ -346,6 +351,8 @@ def list_volumes(
         lawyer_id=lawyer_id,
         start_date=start_date,
         end_date=end_date,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
 
     skip = (page - 1) * page_size
@@ -1105,6 +1112,38 @@ def preview_volume_file(
     )
 
 
+@router.get("/files/{file_id}/ocr_text")
+def export_ocr_text(
+        file_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """导出OCR识别结果（纯文本格式下载）"""
+    file_obj = crud.get_file_by_id(db, file_id)
+    if not file_obj:
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    if not file_obj.ocr_content:
+        raise HTTPException(status_code=404, detail="该文件尚无OCR识别结果")
+
+    # 权限校验
+    volume = crud.get_volume_by_id(db, file_obj.volume_id)
+    if volume:
+        check_volume_read_permission(db, current_user, volume.case_id, volume.id)
+
+    # 构建导出文件名: 原文件名_OCR.txt
+    base_name = os.path.splitext(file_obj.file_name)[0]
+    filename = f"{base_name}_OCR.txt"
+    from urllib.parse import quote
+    encoded_name = quote(filename)
+
+    return PlainTextResponse(
+        content=file_obj.ocr_content,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=utf-8''{encoded_name}"}
+    )
+
+
 # ==========================================
 # 3. 核心功能：卷宗合并导出 (含目录生成)
 # ==========================================
@@ -1586,4 +1625,49 @@ def preview_merged_volume(
     return FileResponse(
         full_path,
         media_type="application/pdf"
+    )
+
+
+@router.get("/{volume_id}/ocr_text")
+def export_volume_ocr_text(
+        volume_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """导出全卷所有文件的OCR识别结果（合并为一个纯文本文件）"""
+    volume = crud.get_volume_by_id(db, volume_id)
+    if not volume:
+        raise HTTPException(status_code=404, detail="卷宗不存在")
+
+    check_volume_read_permission(db, current_user, volume.case_id, volume.id)
+
+    # 获取卷内所有文件
+    files = crud.get_files_in_volume(db, volume_id)
+
+    # 拼接所有文件的OCR内容，按文件名分隔
+    parts = []
+    for f in files:
+        if f.ocr_content:
+            parts.append(f"=" * 60)
+            parts.append(f"文件: {f.file_name}")
+            if f.page_start and f.page_end:
+                parts.append(f"全卷页码: P{f.page_start} - P{f.page_end}")
+            parts.append(f"=" * 60)
+            parts.append("")
+            parts.append(f.ocr_content)
+            parts.append("")
+            parts.append("")
+
+    if not parts:
+        raise HTTPException(status_code=404, detail="该卷宗内暂无文件的OCR识别结果")
+
+    content = "\n".join(parts)
+    filename = f"{volume.name}_全卷OCR.txt"
+    from urllib.parse import quote
+    encoded_name = quote(filename)
+
+    return PlainTextResponse(
+        content=content,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=utf-8''{encoded_name}"}
     )

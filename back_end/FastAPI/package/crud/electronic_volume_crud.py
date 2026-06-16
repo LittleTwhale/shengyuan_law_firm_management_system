@@ -177,8 +177,8 @@ def get_multi_volumes(
         limit: int = 20
 ) -> Tuple[List[CaseVolume], int, int]:
     """
-    获取卷宗列表 (支持分页、筛选、权限控制)
-    仿照 Finance 的 get_multi 逻辑
+    获取卷宗列表 (支持分页、筛选、权限控制、排序)
+    不加载 files 关系（减少网络传输量），file_count 通过子查询单独统计
     """
     # 1. 构建基础查询，outerjoin Case 表以兼容独立卷宗（case_id 为 NULL）
     query = db.query(CaseVolume).outerjoin(Case, CaseVolume.case_id == Case.case_id)
@@ -197,9 +197,35 @@ def get_multi_volumes(
     # 4. 获取已归档(已合并)的数量 - 基于当前筛选条件
     merged_count = query.filter(CaseVolume.merged_file_path.isnot(None)).count()
 
-    # 5. 排序与分页 (默认按案件创建时间倒序，同一案件内按卷宗排序)
-    query = query.order_by(Case.created_at.desc(), CaseVolume.sort_order.asc())
+    # 5. 排序（支持动态字段和方向）
+    allowed_sort_fields = {
+        'created_at': CaseVolume.created_at,
+        'updated_at': CaseVolume.updated_at,
+    }
+    sort_field = allowed_sort_fields.get(
+        query_params.sort_by or 'updated_at',
+        CaseVolume.updated_at
+    )
+    if query_params.sort_order == 'asc':
+        query = query.order_by(sort_field.asc())
+    else:
+        query = query.order_by(sort_field.desc())
+
+    # 6. 分页
     items = query.offset(skip).limit(limit).all()
+
+    # 7. 批量加载文件数量（替代加载完整 files 列表，大幅减少数据传输量）
+    if items:
+        volume_ids = [v.id for v in items]
+        counts = db.query(
+            VolumeFile.volume_id,
+            func.count(VolumeFile.id).label('cnt')
+        ).filter(
+            VolumeFile.volume_id.in_(volume_ids)
+        ).group_by(VolumeFile.volume_id).all()
+        count_map = {c.volume_id: c.cnt for c in counts}
+        for v in items:
+            v.file_count = count_map.get(v.id, 0)
 
     return items, total, merged_count
 

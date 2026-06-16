@@ -172,6 +172,18 @@
                   >下载全卷PDF</el-button
                 >
               </el-tooltip>
+
+              <el-tooltip content="导出全卷所有文件的OCR识别文本" placement="top">
+                <el-button
+                  v-if="currentVolumeId && hasOcrInVolume"
+                  type="success"
+                  :icon="Document"
+                  plain
+                  class="tool-btn"
+                  @click="handleExportVolumeOcr"
+                  >导出全卷OCR</el-button
+                >
+              </el-tooltip>
             </div>
           </div>
 
@@ -278,7 +290,7 @@
 
                 <el-table-column
                   label="操作"
-                  :width="isMobile ? 200 : 220"
+                  :width="isMobile ? 220 : 260"
                   align="center"
                   :fixed="isMobile ? false : 'right'"
                 >
@@ -288,6 +300,14 @@
                     >
                     <el-button link type="primary" size="small" @click="handleDownload(row)"
                       >下载</el-button
+                    >
+                    <el-button
+                      v-if="row.ocr_content"
+                      link
+                      type="success"
+                      size="small"
+                      @click="handleExportOcr(row)"
+                      >导出OCR</el-button
                     >
                     <el-button
                       v-if="canEdit"
@@ -423,6 +443,14 @@
                           >
                           <el-button link type="primary" size="small" @click="handleDownload(row)"
                             >下载</el-button
+                          >
+                          <el-button
+                            v-if="row.ocr_content"
+                            link
+                            type="success"
+                            size="small"
+                            @click="handleExportOcr(row)"
+                            >导出OCR</el-button
                           >
                           <el-button
                             v-if="canEdit"
@@ -707,6 +735,10 @@ const maxSortOrder = computed(() => {
     (acc, cur) => ((cur.sort_order || 0) > acc ? cur.sort_order : acc),
     0,
   )
+})
+// 当前卷宗内是否存在有OCR内容的文件
+const hasOcrInVolume = computed(() => {
+  return fileList.value.some((f) => f.ocr_content)
 })
 const groupedFiles = computed(() => {
   const groups = {}
@@ -1068,6 +1100,23 @@ const downloadBlob = async (url, filename) => {
 const handleDownload = async (row) => {
   const url = `/electronic_volumes/files/${row.id}/download`
   await downloadBlob(url, row.file_name)
+}
+
+// 导出OCR识别结果（纯文本文件）
+const handleExportOcr = async (row) => {
+  const url = `/electronic_volumes/files/${row.id}/ocr_text`
+  const baseName = row.file_name.replace(/\.[^/.]+$/, '')
+  await downloadBlob(url, baseName + '_OCR.txt')
+}
+
+// 导出全卷OCR识别结果（合并为一个纯文本文件）
+const handleExportVolumeOcr = async () => {
+  if (!currentVolumeId.value) return
+  const volName = currentVolume.value?.name || `卷宗${currentVolumeId.value}`
+  await downloadBlob(
+    `/electronic_volumes/${currentVolumeId.value}/ocr_text`,
+    volName + '_全卷OCR.txt',
+  )
 }
 
 // ---------------------- 合并卷宗支持后台异步 ----------------------

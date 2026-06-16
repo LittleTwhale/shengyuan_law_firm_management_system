@@ -5,8 +5,12 @@
       <div class="header-top">
         <el-button link :icon="ArrowLeft" @click="goBack" class="back-btn">返回卷宗中心</el-button>
         <div v-if="canEdit" class="header-actions">
-          <el-button type="primary" link :icon="Edit" size="small" @click="openEditInfoDialog">编辑信息</el-button>
-          <el-button type="danger" link :icon="Delete" size="small" @click="handleDeleteVolume">删除卷宗</el-button>
+          <el-button type="primary" link :icon="Edit" size="small" @click="openEditInfoDialog"
+            >编辑信息</el-button
+          >
+          <el-button type="danger" link :icon="Delete" size="small" @click="handleDeleteVolume"
+            >删除卷宗</el-button
+          >
         </div>
       </div>
       <div class="header-body">
@@ -24,12 +28,23 @@
           <span v-if="volumeInfo.main_lawyer_name" class="info-item">
             <el-icon><Avatar /></el-icon> 主办律师：{{ volumeInfo.main_lawyer_name }}
           </span>
-          <el-tag v-if="volumeInfo.category" size="small" effect="plain" class="info-tag">{{ volumeInfo.category }}</el-tag>
-          <el-tag v-if="volumeInfo.physical_location" size="small" type="info" effect="plain" class="info-tag">
-            <el-icon style="vertical-align: middle"><Location /></el-icon> {{ volumeInfo.physical_location }}
+          <el-tag v-if="volumeInfo.category" size="small" effect="plain" class="info-tag">{{
+            volumeInfo.category
+          }}</el-tag>
+          <el-tag
+            v-if="volumeInfo.physical_location"
+            size="small"
+            type="info"
+            effect="plain"
+            class="info-tag"
+          >
+            <el-icon style="vertical-align: middle"><Location /></el-icon>
+            {{ volumeInfo.physical_location }}
           </el-tag>
         </div>
-        <p v-if="volumeInfo.case_description" class="info-desc">{{ volumeInfo.case_description }}</p>
+        <p v-if="volumeInfo.case_description" class="info-desc">
+          {{ volumeInfo.case_description }}
+        </p>
       </div>
     </div>
 
@@ -45,7 +60,9 @@
               clearable
               class="file-search-input meta-search-input"
             >
-              <template #prefix><el-icon><Document /></el-icon></template>
+              <template #prefix
+                ><el-icon><Document /></el-icon
+              ></template>
             </el-input>
             <el-input
               v-model="ocrKeyword"
@@ -54,7 +71,9 @@
               clearable
               class="file-search-input ocr-search-input"
             >
-              <template #prefix><el-icon><Search /></el-icon></template>
+              <template #prefix
+                ><el-icon><Search /></el-icon
+              ></template>
             </el-input>
             <el-button type="primary" link size="small" @click="clearSearch">清空</el-button>
           </div>
@@ -74,16 +93,57 @@
           </el-tooltip>
 
           <template v-if="canEdit">
-            <el-button type="primary" :icon="Upload" @click="showUploadDialog = true" class="tool-btn">上传文件</el-button>
-            <el-button type="success" :icon="Connection" class="tool-btn" :loading="merging" @click="handleMergeVolume">生成电子卷宗</el-button>
+            <el-button
+              type="primary"
+              :icon="Upload"
+              @click="showUploadDialog = true"
+              class="tool-btn"
+              >上传文件</el-button
+            >
+            <el-button
+              type="success"
+              :icon="Connection"
+              class="tool-btn"
+              :loading="merging"
+              @click="handleMergeVolume"
+              >生成电子卷宗</el-button
+            >
           </template>
 
           <el-tooltip content="在线预览已合并的电子卷宗" placement="top">
-            <el-button v-if="volumeInfo.merged_file_path" type="primary" :icon="View" plain class="tool-btn" @click="previewMergedFile">预览全卷</el-button>
+            <el-button
+              v-if="volumeInfo.merged_file_path"
+              type="primary"
+              :icon="View"
+              plain
+              class="tool-btn"
+              @click="previewMergedFile"
+              >预览全卷</el-button
+            >
           </el-tooltip>
 
           <el-tooltip content="下载包含目录和所有文件的完整PDF" placement="top">
-            <el-button v-if="volumeInfo.merged_file_path" type="warning" :icon="Download" plain class="tool-btn" @click="downloadMergedFile">下载全卷PDF</el-button>
+            <el-button
+              v-if="volumeInfo.merged_file_path"
+              type="warning"
+              :icon="Download"
+              plain
+              class="tool-btn"
+              @click="downloadMergedFile"
+              >下载全卷PDF</el-button
+            >
+          </el-tooltip>
+
+          <el-tooltip content="导出全卷所有文件的OCR识别文本" placement="top">
+            <el-button
+              v-if="volumeId && hasOcrInVolume"
+              type="success"
+              :icon="Document"
+              plain
+              class="tool-btn"
+              @click="handleExportVolumeOcr"
+              >导出全卷OCR</el-button
+            >
           </el-tooltip>
         </div>
       </div>
@@ -102,7 +162,9 @@
           >
             <el-table-column width="40" align="center" v-if="canEdit">
               <template #default>
-                <el-icon class="drag-handle" style="cursor: move; color: #909399; font-size: 16px"><Rank /></el-icon>
+                <el-icon class="drag-handle" style="cursor: move; color: #909399; font-size: 16px"
+                  ><Rank
+                /></el-icon>
               </template>
             </el-table-column>
 
@@ -112,16 +174,34 @@
               <template #default="{ row }">
                 <div class="file-name-cell">
                   <el-icon v-if="isPdf(row.file_type)" style="color: #f56c6c"><Document /></el-icon>
-                  <el-icon v-else-if="isImage(row.file_type)" style="color: #409eff"><Picture /></el-icon>
+                  <el-icon v-else-if="isImage(row.file_type)" style="color: #409eff"
+                    ><Picture
+                  /></el-icon>
                   <el-icon v-else style="color: #909399"><DocumentCopy /></el-icon>
-                  <span class="fname" @click="handlePreview(row)" v-html="DOMPurify.sanitize(row.file_name)"></span>
-                  <el-tag v-if="row.ocr_content" type="success" size="small" effect="plain" round style="transform: scale(0.8); margin-left: 5px">OCR</el-tag>
+                  <span
+                    class="fname"
+                    @click="handlePreview(row)"
+                    v-html="DOMPurify.sanitize(row.file_name)"
+                  ></span>
+                  <el-tag
+                    v-if="row.ocr_content"
+                    type="success"
+                    size="small"
+                    effect="plain"
+                    round
+                    style="transform: scale(0.8); margin-left: 5px"
+                    >OCR</el-tag
+                  >
                 </div>
                 <div v-if="row.ocr_content && (metaKeyword || ocrKeyword)" class="ocr-snippet">
                   <el-icon><Search /></el-icon>
                   <span v-html="DOMPurify.sanitize(row.ocr_content)"></span>
                 </div>
-                <div v-if="row.summary" class="row-summary" v-html="DOMPurify.sanitize(row.summary)"></div>
+                <div
+                  v-if="row.summary"
+                  class="row-summary"
+                  v-html="DOMPurify.sanitize(row.summary)"
+                ></div>
               </template>
             </el-table-column>
 
@@ -145,14 +225,18 @@
 
             <el-table-column label="全卷页码" width="100" align="center">
               <template #default="{ row }">
-                <span v-if="row.page_start" class="page-badge">P{{ row.page_start }} - P{{ row.page_end }}</span>
+                <span v-if="row.page_start" class="page-badge"
+                  >P{{ row.page_start }} - P{{ row.page_end }}</span
+                >
                 <span v-else style="color: #ccc">-</span>
               </template>
             </el-table-column>
 
             <el-table-column prop="uploader_name" label="上传人" width="100" align="center">
               <template #default="{ row }">
-                <el-tag size="small" type="info" effect="plain">{{ row.uploader_name || '未知' }}</el-tag>
+                <el-tag size="small" type="info" effect="plain">{{
+                  row.uploader_name || '未知'
+                }}</el-tag>
               </template>
             </el-table-column>
 
@@ -160,18 +244,54 @@
               <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
             </el-table-column>
 
-            <el-table-column label="操作" :width="isMobile ? 200 : 220" align="center" :fixed="isMobile ? false : 'right'">
+            <el-table-column
+              label="操作"
+              :width="isMobile ? 220 : 260"
+              align="center"
+              :fixed="isMobile ? false : 'right'"
+            >
               <template #default="{ row }">
-                <el-button link type="primary" size="small" @click="handlePreview(row)">预览</el-button>
-                <el-button link type="primary" size="small" @click="handleDownload(row)">下载</el-button>
-                <el-button v-if="canEdit" link type="warning" size="small" @click="openEditDialog(row)">编辑</el-button>
-                <el-button v-if="canEdit" link type="danger" size="small" @click="handleDeleteFile(row)">删除</el-button>
+                <el-button link type="primary" size="small" @click="handlePreview(row)"
+                  >预览</el-button
+                >
+                <el-button link type="primary" size="small" @click="handleDownload(row)"
+                  >下载</el-button
+                >
+                <el-button
+                  v-if="row.ocr_content"
+                  link
+                  type="success"
+                  size="small"
+                  @click="handleExportOcr(row)"
+                  >导出OCR</el-button
+                >
+                <el-button
+                  v-if="canEdit"
+                  link
+                  type="warning"
+                  size="small"
+                  @click="openEditDialog(row)"
+                  >编辑</el-button
+                >
+                <el-button
+                  v-if="canEdit"
+                  link
+                  type="danger"
+                  size="small"
+                  @click="handleDeleteFile(row)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
 
           <!-- 分组视图 -->
-          <el-scrollbar v-else height="calc(100vh - 360px)" class="grouped-view" style="margin-top: 10px">
+          <el-scrollbar
+            v-else
+            height="calc(100vh - 360px)"
+            class="grouped-view"
+            style="margin-top: 10px"
+          >
             <el-collapse v-model="activeNames">
               <el-collapse-item v-for="(files, cat) in groupedFiles" :key="cat" :name="cat">
                 <template #title>
@@ -187,10 +307,33 @@
                   <el-table-column label="文件名" min-width="200">
                     <template #default="{ row }">
                       <div class="file-name-cell">
-                        <span class="fname" @click="handlePreview(row)" v-html="DOMPurify.sanitize(row.file_name)"></span>
-                        <el-tag v-if="row.ocr_content" type="success" size="small" effect="plain" round style="transform: scale(0.8)">OCR</el-tag>
+                        <span
+                          class="fname"
+                          @click="handlePreview(row)"
+                          v-html="DOMPurify.sanitize(row.file_name)"
+                        ></span>
+                        <el-tag
+                          v-if="row.ocr_content"
+                          type="success"
+                          size="small"
+                          effect="plain"
+                          round
+                          style="transform: scale(0.8)"
+                          >OCR</el-tag
+                        >
                       </div>
-                      <div v-if="row.ocr_content && (metaKeyword || ocrKeyword)" class="ocr-snippet" style="font-size:12px;color:#666;margin-top:4px;padding:4px 8px;background:#f9f9f9;border-radius:4px">
+                      <div
+                        v-if="row.ocr_content && (metaKeyword || ocrKeyword)"
+                        class="ocr-snippet"
+                        style="
+                          font-size: 12px;
+                          color: #666;
+                          margin-top: 4px;
+                          padding: 4px 8px;
+                          background: #f9f9f9;
+                          border-radius: 4px;
+                        "
+                      >
                         <el-icon><Search /></el-icon>
                         <span v-html="DOMPurify.sanitize(row.ocr_content)"></span>
                       </div>
@@ -198,30 +341,70 @@
                   </el-table-column>
                   <el-table-column label="标签" min-width="100">
                     <template #default="{ row }">
-                      <el-tag v-for="t in row.tags || []" :key="t" size="small" style="margin-right:4px">
+                      <el-tag
+                        v-for="t in row.tags || []"
+                        :key="t"
+                        size="small"
+                        style="margin-right: 4px"
+                      >
                         <span v-html="DOMPurify.sanitize(t)"></span>
                       </el-tag>
                     </template>
                   </el-table-column>
                   <el-table-column label="全卷页码" width="100" align="center">
                     <template #default="{ row }">
-                      <span v-if="row.page_start" class="page-badge">P{{ row.page_start }}-{{ row.page_end }}</span>
+                      <span v-if="row.page_start" class="page-badge"
+                        >P{{ row.page_start }}-{{ row.page_end }}</span
+                      >
                     </template>
                   </el-table-column>
                   <el-table-column prop="uploader_name" label="上传人" width="100" align="center">
                     <template #default="{ row }">
-                      <el-tag size="small" type="info" effect="plain">{{ row.uploader_name || '未知' }}</el-tag>
+                      <el-tag size="small" type="info" effect="plain">{{
+                        row.uploader_name || '未知'
+                      }}</el-tag>
                     </template>
                   </el-table-column>
                   <el-table-column prop="created_at" label="上传时间" width="150" align="center">
                     <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
                   </el-table-column>
-                  <el-table-column label="操作" width="180" align="center" :fixed="isMobile ? false : 'right'">
+                  <el-table-column
+                    label="操作"
+                    width="180"
+                    align="center"
+                    :fixed="isMobile ? false : 'right'"
+                  >
                     <template #default="{ row }">
-                      <el-button link type="primary" size="small" @click="handlePreview(row)">预览</el-button>
-                      <el-button link type="primary" size="small" @click="handleDownload(row)">下载</el-button>
-                      <el-button v-if="canEdit" link type="warning" size="small" @click="openEditDialog(row)">编辑</el-button>
-                      <el-button v-if="canEdit" link type="danger" size="small" @click="handleDeleteFile(row)">删除</el-button>
+                      <el-button link type="primary" size="small" @click="handlePreview(row)"
+                        >预览</el-button
+                      >
+                      <el-button link type="primary" size="small" @click="handleDownload(row)"
+                        >下载</el-button
+                      >
+                      <el-button
+                        v-if="row.ocr_content"
+                        link
+                        type="success"
+                        size="small"
+                        @click="handleExportOcr(row)"
+                        >导出OCR</el-button
+                      >
+                      <el-button
+                        v-if="canEdit"
+                        link
+                        type="warning"
+                        size="small"
+                        @click="openEditDialog(row)"
+                        >编辑</el-button
+                      >
+                      <el-button
+                        v-if="canEdit"
+                        link
+                        type="danger"
+                        size="small"
+                        @click="handleDeleteFile(row)"
+                        >删除</el-button
+                      >
                     </template>
                   </el-table-column>
                 </el-table>
@@ -243,39 +426,62 @@
     />
 
     <!-- 编辑卷宗信息对话框 -->
-    <el-dialog v-model="infoDialogVisible" title="编辑卷宗信息" :width="isMobile ? '95%' : '550px'" destroy-on-close append-to-body>
-      <el-form :model="infoForm" :label-width="isMobile ? 'auto' : '100px'" :label-position="isMobile ? 'top' : 'right'" @submit.prevent>
+    <el-dialog
+      v-model="infoDialogVisible"
+      title="编辑卷宗信息"
+      :width="isMobile ? '95%' : '550px'"
+      destroy-on-close
+      append-to-body
+    >
+      <el-form
+        :model="infoForm"
+        :label-width="isMobile ? 'auto' : '100px'"
+        :label-position="isMobile ? 'top' : 'right'"
+        @submit.prevent
+      >
         <el-form-item label="卷宗名称" required>
           <el-input v-model="infoForm.name" />
         </el-form-item>
         <el-row :gutter="16" v-if="!isMobile">
           <el-col :span="12">
-            <el-form-item label="委托人姓名"><el-input v-model="infoForm.client_name" /></el-form-item>
+            <el-form-item label="委托人姓名"
+              ><el-input v-model="infoForm.client_name"
+            /></el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="委托人电话"><el-input v-model="infoForm.client_phone" /></el-form-item>
+            <el-form-item label="委托人电话"
+              ><el-input v-model="infoForm.client_phone"
+            /></el-form-item>
           </el-col>
         </el-row>
         <template v-else>
-          <el-form-item label="委托人姓名"><el-input v-model="infoForm.client_name" /></el-form-item>
-          <el-form-item label="委托人电话"><el-input v-model="infoForm.client_phone" /></el-form-item>
+          <el-form-item label="委托人姓名"
+            ><el-input v-model="infoForm.client_name"
+          /></el-form-item>
+          <el-form-item label="委托人电话"
+            ><el-input v-model="infoForm.client_phone"
+          /></el-form-item>
         </template>
         <el-row :gutter="16" v-if="!isMobile">
           <el-col :span="12">
-            <el-form-item label="主办律师"><el-input v-model="infoForm.main_lawyer_name" /></el-form-item>
+            <el-form-item label="主办律师"
+              ><el-input v-model="infoForm.main_lawyer_name"
+            /></el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="案件类别">
-              <el-select v-model="infoForm.category" style="width:100%" clearable>
+              <el-select v-model="infoForm.category" style="width: 100%" clearable>
                 <el-option v-for="c in caseCategories" :key="c" :label="c" :value="c" />
               </el-select>
             </el-form-item>
           </el-col>
         </el-row>
         <template v-else>
-          <el-form-item label="主办律师"><el-input v-model="infoForm.main_lawyer_name" /></el-form-item>
+          <el-form-item label="主办律师"
+            ><el-input v-model="infoForm.main_lawyer_name"
+          /></el-form-item>
           <el-form-item label="案件类别">
-            <el-select v-model="infoForm.category" style="width:100%" clearable>
+            <el-select v-model="infoForm.category" style="width: 100%" clearable>
               <el-option v-for="c in caseCategories" :key="c" :label="c" :value="c" />
             </el-select>
           </el-form-item>
@@ -289,27 +495,57 @@
       </el-form>
       <template #footer>
         <el-button @click="infoDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitInfoUpdate" :loading="infoSubmitting">保存</el-button>
+        <el-button type="primary" @click="submitInfoUpdate" :loading="infoSubmitting"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
 
     <!-- 文件编辑对话框 -->
-    <el-dialog v-model="editDialogVisible" title="编辑文件信息" :width="isMobile ? '95%' : '500px'" destroy-on-close append-to-body>
-      <el-form :model="editForm" :label-width="isMobile ? 'auto' : '80px'" :label-position="isMobile ? 'top' : 'right'">
+    <el-dialog
+      v-model="editDialogVisible"
+      title="编辑文件信息"
+      :width="isMobile ? '95%' : '500px'"
+      destroy-on-close
+      append-to-body
+    >
+      <el-form
+        :model="editForm"
+        :label-width="isMobile ? 'auto' : '80px'"
+        :label-position="isMobile ? 'top' : 'right'"
+      >
         <el-form-item label="文件名"><el-input v-model="editForm.file_name" /></el-form-item>
         <el-form-item label="分类">
-          <el-select v-model="editForm.category" style="width:100%">
+          <el-select v-model="editForm.category" style="width: 100%">
             <el-option v-for="opt in categoryOptions" :key="opt" :label="opt" :value="opt" />
           </el-select>
         </el-form-item>
         <el-form-item label="排序权重">
-          <el-input-number v-model="editForm.sort_order" :min="0" controls-position="right" style="width:100%" />
+          <el-input-number
+            v-model="editForm.sort_order"
+            :min="0"
+            controls-position="right"
+            style="width: 100%"
+          />
           <div class="form-tip">数字越小越靠前，用于合并PDF时的顺序</div>
         </el-form-item>
         <el-form-item label="标签">
           <div class="tag-editor">
-            <el-tag v-for="(tag, i) in editForm.tags" :key="i" closable @close="editForm.tags.splice(i, 1)">{{ tag }}</el-tag>
-            <el-input v-model="tempEditTag" size="small" style="width:80px;margin-left:5px" placeholder="+ Tag" @keyup.enter="addEditTag" @blur="addEditTag" />
+            <el-tag
+              v-for="(tag, i) in editForm.tags"
+              :key="i"
+              closable
+              @close="editForm.tags.splice(i, 1)"
+              >{{ tag }}</el-tag
+            >
+            <el-input
+              v-model="tempEditTag"
+              size="small"
+              style="width: 80px; margin-left: 5px"
+              placeholder="+ Tag"
+              @keyup.enter="addEditTag"
+              @blur="addEditTag"
+            />
           </div>
         </el-form-item>
         <el-form-item label="摘要备注">
@@ -323,10 +559,28 @@
     </el-dialog>
 
     <!-- 预览对话框 -->
-    <el-dialog v-model="previewVisible" title="文件预览" :width="isMobile ? '100%' : '80%'" top="5vh" destroy-on-close>
-      <div class="preview-box" v-loading="previewLoading" :element-loading-text="previewLoadingText">
-        <iframe v-if="previewUrl && previewType === 'pdf'" :src="previewUrl" class="preview-frame"></iframe>
-        <img v-else-if="previewUrl && previewType === 'image'" :src="previewUrl" class="preview-img" />
+    <el-dialog
+      v-model="previewVisible"
+      title="文件预览"
+      :width="isMobile ? '100%' : '80%'"
+      top="5vh"
+      destroy-on-close
+    >
+      <div
+        class="preview-box"
+        v-loading="previewLoading"
+        :element-loading-text="previewLoadingText"
+      >
+        <iframe
+          v-if="previewUrl && previewType === 'pdf'"
+          :src="previewUrl"
+          class="preview-frame"
+        ></iframe>
+        <img
+          v-else-if="previewUrl && previewType === 'image'"
+          :src="previewUrl"
+          class="preview-img"
+          alt="预览图片"/>
         <div v-else class="preview-error">无法预览此文件，请下载查看</div>
       </div>
     </el-dialog>
@@ -338,9 +592,24 @@ import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch, inject } fr
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import {
-  ArrowLeft, Edit, Delete, Document, DocumentCopy, Folder, FolderOpened,
-  Picture, Rank, Location, Upload, Download, Connection, View, Search,
-  User, Phone, Avatar
+  ArrowLeft,
+  Edit,
+  Delete,
+  Document,
+  DocumentCopy,
+  Folder,
+  FolderOpened,
+  Picture,
+  Rank,
+  Location,
+  Upload,
+  Download,
+  Connection,
+  View,
+  Search,
+  User,
+  Phone,
+  Avatar,
 } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 import BatchUploadDialog from '@/components/BatchUploadDialog.vue'
@@ -374,24 +643,45 @@ let mergePollingTimer = null
 // 文件分类选项
 const categoryOptions = ['证据材料', '法律文书', '起诉/答辩状', '笔录资料', '备考表', '其他材料']
 const caseCategories = [
-  '民事案件', '银行案件', '刑事案件', '行政案件', '非诉业务',
-  '执行案件', '劳动仲裁', '商事仲裁', '法律顾问业务',
-  '法律援助(民事)', '法律援助(刑事)', '法律援助(行政)',
+  '民事案件',
+  '银行案件',
+  '刑事案件',
+  '行政案件',
+  '非诉业务',
+  '执行案件',
+  '劳动仲裁',
+  '商事仲裁',
+  '法律顾问业务',
+  '法律援助(民事)',
+  '法律援助(刑事)',
+  '法律援助(行政)',
 ]
 
 // 编辑卷宗信息
 const infoDialogVisible = ref(false)
 const infoSubmitting = ref(false)
 const infoForm = ref({
-  name: '', client_name: '', client_phone: '', main_lawyer_name: '',
-  category: '', case_description: '', physical_location: '',
+  name: '',
+  client_name: '',
+  client_phone: '',
+  main_lawyer_name: '',
+  category: '',
+  case_description: '',
+  physical_location: '',
 })
 
 // 文件编辑
 const editDialogVisible = ref(false)
 const submitting = ref(false)
 const tempEditTag = ref('')
-const editForm = ref({ id: null, file_name: '', category: '', sort_order: 0, tags: [], summary: '' })
+const editForm = ref({
+  id: null,
+  file_name: '',
+  category: '',
+  sort_order: 0,
+  tags: [],
+  summary: '',
+})
 
 // 预览
 const previewVisible = ref(false)
@@ -407,26 +697,36 @@ let sortableInstance = null
 // 计算属性
 const maxSortOrder = computed(() => {
   if (!fileList.value.length) return 0
-  return fileList.value.reduce((acc, cur) => ((cur.sort_order || 0) > acc ? cur.sort_order : acc), 0)
+  return fileList.value.reduce(
+    (acc, cur) => ((cur.sort_order || 0) > acc ? cur.sort_order : acc),
+    0,
+  )
+})
+
+// 当前卷宗内是否存在有OCR内容的文件
+const hasOcrInVolume = computed(() => {
+  return fileList.value.some((f) => f.ocr_content)
 })
 
 const groupedFiles = computed(() => {
   const groups = {}
-  categoryOptions.forEach(c => (groups[c] = []))
+  categoryOptions.forEach((c) => (groups[c] = []))
   groups['其他'] = []
-  fileList.value.forEach(file => {
+  fileList.value.forEach((file) => {
     const cat = file.category || '其他'
     if (!groups[cat]) groups[cat] = []
     groups[cat].push(file)
   })
-  Object.keys(groups).forEach(k => {
+  Object.keys(groups).forEach((k) => {
     if (groups[k].length === 0) delete groups[k]
     else groups[k].sort((a, b) => a.sort_order - b.sort_order)
   })
   return groups
 })
 
-watch(groupedFiles, val => { activeNames.value = Object.keys(val) })
+watch(groupedFiles, (val) => {
+  activeNames.value = Object.keys(val)
+})
 
 // 初始化
 onMounted(async () => {
@@ -445,7 +745,8 @@ const fetchPermissions = async () => {
   try {
     const userRes = await request.get(`/user/profile/info?user_id=${userId}`)
     const userInfo = userRes.data
-    const isSuper = userInfo.role === 'owner' || (userInfo.permissions && userInfo.permissions.volume_manage)
+    const isSuper =
+      userInfo.role === 'owner' || (userInfo.permissions && userInfo.permissions.volume_manage)
     if (isSuper) {
       canEdit.value = true
       return
@@ -453,7 +754,7 @@ const fetchPermissions = async () => {
     // 加载卷宗详情判断创建者
     const volRes = await request.get(`/electronic_volumes/${volumeId.value}`)
     volumeInfo.value = volRes.data
-    canEdit.value = (volRes.data.created_by === Number(userId))
+    canEdit.value = volRes.data.created_by === Number(userId)
   } catch (err) {
     console.error('权限获取失败', err)
     canEdit.value = false
@@ -486,22 +787,30 @@ const handleFileSearch = async () => {
   try {
     const metaKw = metaKeyword.value.trim()
     const ocrKw = ocrKeyword.value.trim()
-    if (!metaKw && !ocrKw) { await refreshVolume(); return }
+    if (!metaKw && !ocrKw) {
+      await refreshVolume()
+      return
+    }
     const res = await request.get(`/electronic_volumes/${volumeId.value}/files`, {
-      params: { meta_keyword: metaKw || undefined, ocr_keyword: ocrKw || undefined }
+      params: { meta_keyword: metaKw || undefined, ocr_keyword: ocrKw || undefined },
     })
     fileList.value = res.data.items || []
     fileList.value.sort((a, b) => a.sort_order - b.sort_order)
   } catch (err) {
     console.error('搜索失败', err)
     ElMessage.error('文件搜索失败')
-  } finally { fileSearchLoading.value = false }
+  } finally {
+    fileSearchLoading.value = false
+  }
 }
 
 const debouncedFileSearch = debounce(() => handleFileSearch(), 400)
 watch([metaKeyword, ocrKeyword], () => debouncedFileSearch())
 
-const clearSearch = () => { metaKeyword.value = ''; ocrKeyword.value = '' }
+const clearSearch = () => {
+  metaKeyword.value = ''
+  ocrKeyword.value = ''
+}
 
 // 拖拽
 const initSortable = () => {
@@ -510,26 +819,49 @@ const initSortable = () => {
   if (!el) return
   if (sortableInstance) sortableInstance.destroy()
   sortableInstance = Sortable.create(el, {
-    handle: '.drag-handle', animation: 150, ghostClass: 'sortable-ghost',
+    handle: '.drag-handle',
+    animation: 150,
+    ghostClass: 'sortable-ghost',
     onEnd: async ({ newIndex, oldIndex }) => {
       if (newIndex === oldIndex) return
       const targetRow = fileList.value.splice(oldIndex, 1)[0]
       fileList.value.splice(newIndex, 0, targetRow)
-      const updates = fileList.value.map((item, index) => ({ id: item.id, sort_order: (index + 1) * 10 }))
+      const updates = fileList.value.map((item, index) => ({
+        id: item.id,
+        sort_order: (index + 1) * 10,
+      }))
       try {
         await request.post('/electronic_volumes/files/batch_sort', updates)
         ElMessage.success('排序更新成功')
-        fileList.value.forEach((item, index) => { item.sort_order = (index + 1) * 10 })
-      } catch (err) { console.error(err); ElMessage.error('排序保存失败'); await refreshVolume() }
-    }
+        fileList.value.forEach((item, index) => {
+          item.sort_order = (index + 1) * 10
+        })
+      } catch (err) {
+        console.error(err)
+        ElMessage.error('排序保存失败')
+        await refreshVolume()
+      }
+    },
   })
 }
 
-watch([() => viewMode.value, () => fileList.value], async ([mode, list]) => {
-  if (mode === 'list' && list.length > 0) { await nextTick(); initSortable() }
-}, { flush: 'post' })
+watch(
+  [() => viewMode.value, () => fileList.value],
+  async ([mode, list]) => {
+    if (mode === 'list' && list.length > 0) {
+      await nextTick()
+      initSortable()
+    }
+  },
+  { flush: 'post' },
+)
 
-watch(volumeId, () => { if (sortableInstance) { sortableInstance.destroy(); sortableInstance = null } })
+watch(volumeId, () => {
+  if (sortableInstance) {
+    sortableInstance.destroy()
+    sortableInstance = null
+  }
+})
 
 // 卷宗信息编辑
 const openEditInfoDialog = () => {
@@ -546,7 +878,10 @@ const openEditInfoDialog = () => {
 }
 
 const submitInfoUpdate = async () => {
-  if (!infoForm.value.name.trim()) { ElMessage.warning('请输入卷宗名称'); return }
+  if (!infoForm.value.name.trim()) {
+    ElMessage.warning('请输入卷宗名称')
+    return
+  }
   infoSubmitting.value = true
   try {
     await request.put(`/electronic_volumes/${volumeId.value}`, {
@@ -561,8 +896,12 @@ const submitInfoUpdate = async () => {
     ElMessage.success('更新成功')
     infoDialogVisible.value = false
     await refreshVolume()
-  } catch (err) { console.error(err); ElMessage.error('更新失败') }
-  finally { infoSubmitting.value = false }
+  } catch (err) {
+    console.error(err)
+    ElMessage.error('更新失败')
+  } finally {
+    infoSubmitting.value = false
+  }
 }
 
 // 文件编辑
@@ -583,14 +922,21 @@ const submitEdit = async () => {
   submitting.value = true
   try {
     await request.put(`/electronic_volumes/files/${editForm.value.id}`, {
-      file_name: editForm.value.file_name, category: editForm.value.category,
-      sort_order: editForm.value.sort_order, tags: editForm.value.tags, summary: editForm.value.summary,
+      file_name: editForm.value.file_name,
+      category: editForm.value.category,
+      sort_order: editForm.value.sort_order,
+      tags: editForm.value.tags,
+      summary: editForm.value.summary,
     })
     ElMessage.success('更新成功')
     editDialogVisible.value = false
     await refreshVolume()
-  } catch (err) { console.error(err); ElMessage.error('更新失败') }
-  finally { submitting.value = false }
+  } catch (err) {
+    console.error(err)
+    ElMessage.error('更新失败')
+  } finally {
+    submitting.value = false
+  }
 }
 
 const handleDeleteFile = async (row) => {
@@ -599,36 +945,73 @@ const handleDeleteFile = async (row) => {
     await request.delete(`/electronic_volumes/files/${row.id}`)
     ElMessage.success('删除成功')
     await refreshVolume()
-  } catch (err) { console.error(err) }
+  } catch (err) {
+    console.error(err)
+  }
 }
 
 // 下载
 const downloadBlob = async (url, filename) => {
   let loadingInstance = null
   try {
-    loadingInstance = ElLoading.service({ lock: true, text: '正在请求下载，请耐心等待...', background: 'rgba(0, 0, 0, 0.7)' })
+    loadingInstance = ElLoading.service({
+      lock: true,
+      text: '正在请求下载，请耐心等待...',
+      background: 'rgba(0, 0, 0, 0.7)',
+    })
     const res = await request.get(url, {
-      responseType: 'blob', timeout: 0,
+      responseType: 'blob',
+      timeout: 0,
       onDownloadProgress: (progressEvent) => {
         if (progressEvent.total) {
-          loadingInstance.setText(`正在下载文件: ${Math.round((progressEvent.loaded * 100) / progressEvent.total)}%`)
+          loadingInstance.setText(
+            `正在下载文件: ${Math.round((progressEvent.loaded * 100) / progressEvent.total)}%`,
+          )
         } else {
-          loadingInstance.setText(`正在下载文件: ${(progressEvent.loaded / 1024 / 1024).toFixed(2)} MB`)
+          loadingInstance.setText(
+            `正在下载文件: ${(progressEvent.loaded / 1024 / 1024).toFixed(2)} MB`,
+          )
         }
-      }
+      },
     })
-    const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' })
+    const blob = new Blob([res.data], {
+      type: res.headers['content-type'] || 'application/octet-stream',
+    })
     const link = document.createElement('a')
     const href = window.URL.createObjectURL(blob)
-    link.href = href; link.download = filename
-    document.body.appendChild(link); link.click(); document.body.removeChild(link)
+    link.href = href
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
     window.URL.revokeObjectURL(href)
     ElMessage.success('下载完成！')
-  } catch (err) { console.error('下载失败', err); ElMessage.error('下载失败') }
-  finally { if (loadingInstance) loadingInstance.close() }
+  } catch (err) {
+    console.error('下载失败', err)
+    ElMessage.error('下载失败')
+  } finally {
+    if (loadingInstance) loadingInstance.close()
+  }
 }
 
-const handleDownload = (row) => downloadBlob(`/electronic_volumes/files/${row.id}/download`, row.file_name)
+const handleDownload = (row) =>
+  downloadBlob(`/electronic_volumes/files/${row.id}/download`, row.file_name)
+
+// 导出OCR识别结果（纯文本文件）
+const handleExportOcr = (row) => {
+  const baseName = row.file_name.replace(/\.[^/.]+$/, '')
+  downloadBlob(`/electronic_volumes/files/${row.id}/ocr_text`, baseName + '_OCR.txt')
+}
+
+// 导出全卷OCR识别结果（合并为一个纯文本文件）
+const handleExportVolumeOcr = () => {
+  if (!volumeId.value) return
+  const volName = volumeInfo.value?.name || `卷宗${volumeId.value}`
+  downloadBlob(
+    `/electronic_volumes/${volumeId.value}/ocr_text`,
+    volName + '_全卷OCR.txt',
+  )
+}
 
 // 合并
 const handleMergeVolume = async () => {
@@ -639,7 +1022,10 @@ const handleMergeVolume = async () => {
     ElMessage.info('合并任务已提交，系统正在后台处理，请耐心等待...')
     await request.post(`/electronic_volumes/${targetVolumeId}/merge`, null, { timeout: 120000 })
     startPollingMergeStatus(targetVolumeId)
-  } catch (err) { ElMessage.error(err.response?.data?.detail || '合并任务提交失败'); merging.value = false }
+  } catch (err) {
+    ElMessage.error(err.response?.data?.detail || '合并任务提交失败')
+    merging.value = false
+  }
 }
 
 const startPollingMergeStatus = (volId) => {
@@ -648,58 +1034,88 @@ const startPollingMergeStatus = (volId) => {
     try {
       const res = await request.get(`/electronic_volumes/${volId}`)
       if (res.data.merged_file_path) {
-        clearInterval(mergePollingTimer); mergePollingTimer = null
+        clearInterval(mergePollingTimer)
+        mergePollingTimer = null
         ElMessage.success('电子卷宗生成成功！')
-        if (volumeId.value === volId) { merging.value = false; volumeInfo.value = res.data }
+        if (volumeId.value === volId) {
+          merging.value = false
+          volumeInfo.value = res.data
+        }
         await refreshVolume()
       }
-    } catch (e) { console.error('轮询合并状态失败', e) }
+    } catch (e) {
+      console.error('轮询合并状态失败', e)
+    }
   }, 3000)
 }
 
 const previewMergedFile = async () => {
   if (!volumeInfo.value.merged_file_path) return
-  previewLoading.value = true; previewVisible.value = true; previewType.value = 'pdf'
+  previewLoading.value = true
+  previewVisible.value = true
+  previewType.value = 'pdf'
   previewLoadingText.value = '正在请求全卷预览，请稍候...'
   try {
     const res = await request.get(`/electronic_volumes/${volumeId.value}/preview_merged`, {
-      responseType: 'blob', timeout: 0,
+      responseType: 'blob',
+      timeout: 0,
       onDownloadProgress: (progressEvent) => {
-        if (progressEvent.total) previewLoadingText.value = `正在加载全卷预览: ${Math.round((progressEvent.loaded * 100) / progressEvent.total)}%`
-        else previewLoadingText.value = `正在加载全卷预览: ${(progressEvent.loaded / 1024 / 1024).toFixed(2)} MB`
-      }
+        if (progressEvent.total)
+          previewLoadingText.value = `正在加载全卷预览: ${Math.round((progressEvent.loaded * 100) / progressEvent.total)}%`
+        else
+          previewLoadingText.value = `正在加载全卷预览: ${(progressEvent.loaded / 1024 / 1024).toFixed(2)} MB`
+      },
     })
     previewUrl.value = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
-  } catch (err) { console.error(err); ElMessage.error('预览加载失败'); previewVisible.value = false }
-  finally { previewLoading.value = false }
+  } catch (err) {
+    console.error(err)
+    ElMessage.error('预览加载失败')
+    previewVisible.value = false
+  } finally {
+    previewLoading.value = false
+  }
 }
 
 const downloadMergedFile = () => {
   if (!volumeInfo.value.merged_file_path) return
-  downloadBlob(`/electronic_volumes/${volumeId.value}/download_merged`, `${volumeInfo.value.name}_全卷.pdf`)
+  downloadBlob(
+    `/electronic_volumes/${volumeId.value}/download_merged`,
+    `${volumeInfo.value.name}_全卷.pdf`,
+  )
 }
 
 // 预览
 const handlePreview = async (row) => {
-  previewLoading.value = true; previewVisible.value = true
+  previewLoading.value = true
+  previewVisible.value = true
   previewLoadingText.value = '正在加载预览文件...'
   try {
     const res = await request.get(`/electronic_volumes/files/${row.id}/preview`, {
-      responseType: 'blob', timeout: 0,
+      responseType: 'blob',
+      timeout: 0,
       onDownloadProgress: (progressEvent) => {
-        if (progressEvent.total) previewLoadingText.value = `正在下载预览文件: ${Math.round((progressEvent.loaded * 100) / progressEvent.total)}%`
-        else previewLoadingText.value = `正在下载预览文件: ${(progressEvent.loaded / 1024 / 1024).toFixed(2)} MB`
-      }
+        if (progressEvent.total)
+          previewLoadingText.value = `正在下载预览文件: ${Math.round((progressEvent.loaded * 100) / progressEvent.total)}%`
+        else
+          previewLoadingText.value = `正在下载预览文件: ${(progressEvent.loaded / 1024 / 1024).toFixed(2)} MB`
+      },
     })
-    previewUrl.value = window.URL.createObjectURL(new Blob([res.data], { type: res.headers['content-type'] }))
+    previewUrl.value = window.URL.createObjectURL(
+      new Blob([res.data], { type: res.headers['content-type'] }),
+    )
     previewType.value = res.headers['content-type'].includes('image') ? 'image' : 'pdf'
-  } catch (err) { console.error(err); ElMessage.error('预览失败或文件正在转换中'); previewVisible.value = false }
-  finally { previewLoading.value = false }
+  } catch (err) {
+    console.error(err)
+    ElMessage.error('预览失败或文件正在转换中')
+    previewVisible.value = false
+  } finally {
+    previewLoading.value = false
+  }
 }
 
 const isPdf = (type) => type?.includes('pdf')
 const isImage = (type) => type?.includes('image')
-const formatTime = (val) => val ? new Date(val).toLocaleString() : ''
+const formatTime = (val) => (val ? new Date(val).toLocaleString() : '')
 
 const goBack = () => router.push('/main/volumes')
 
@@ -741,9 +1157,17 @@ const handleDeleteVolume = async () => {
   align-items: center;
   margin-bottom: 10px;
 }
-.back-btn { font-size: 14px; }
-.header-actions { display: flex; gap: 8px; align-items: center; }
-.header-body { padding: 0; }
+.back-btn {
+  font-size: 14px;
+}
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.header-body {
+  padding: 0;
+}
 .volume-title {
   margin: 0 0 10px 0;
   font-size: 20px;
@@ -753,7 +1177,10 @@ const handleDeleteVolume = async () => {
   align-items: center;
   gap: 8px;
 }
-.title-icon { color: #e6a23c; font-size: 22px; }
+.title-icon {
+  color: #e6a23c;
+  font-size: 22px;
+}
 .info-tags {
   display: flex;
   flex-wrap: wrap;
@@ -768,7 +1195,9 @@ const handleDeleteVolume = async () => {
   align-items: center;
   gap: 4px;
 }
-.info-tag { margin: 0; }
+.info-tag {
+  margin: 0;
+}
 .info-desc {
   font-size: 13px;
   color: #909399;
@@ -805,7 +1234,9 @@ const handleDeleteVolume = async () => {
   flex-wrap: wrap;
   gap: 10px;
 }
-.tool-btn { margin-left: 0 !important; }
+.tool-btn {
+  margin-left: 0 !important;
+}
 
 /* 搜索栏 */
 .search-bar-compact {
@@ -813,10 +1244,17 @@ const handleDeleteVolume = async () => {
   align-items: center;
   gap: 8px;
 }
-.file-search-input { width: 200px; transition: width 0.3s ease; }
-.file-search-input:focus-within { width: 300px; }
+.file-search-input {
+  width: 200px;
+  transition: width 0.3s ease;
+}
+.file-search-input:focus-within {
+  width: 300px;
+}
 
-.view-mode-group { margin-left: 20px; }
+.view-mode-group {
+  margin-left: 20px;
+}
 .drag-tip {
   margin-left: 15px;
   font-size: 12px;
@@ -827,12 +1265,37 @@ const handleDeleteVolume = async () => {
 }
 
 /* 文件表格 */
-.file-name-cell { display: flex; align-items: center; gap: 8px; }
-.fname { cursor: pointer; color: #606266; font-weight: 500; }
-.fname:hover { color: #409eff; text-decoration: underline; }
-.page-badge { background: #f0f9eb; color: #67c23a; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-.tags-cell { display: flex; flex-wrap: wrap; gap: 4px; }
-.form-tip { font-size: 12px; color: #999; line-height: 1.2; }
+.file-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fname {
+  cursor: pointer;
+  color: #606266;
+  font-weight: 500;
+}
+.fname:hover {
+  color: #409eff;
+  text-decoration: underline;
+}
+.page-badge {
+  background: #f0f9eb;
+  color: #67c23a;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.tags-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.form-tip {
+  font-size: 12px;
+  color: #999;
+  line-height: 1.2;
+}
 .tag-editor {
   border: 1px solid #dcdfe6;
   padding: 5px;
@@ -844,15 +1307,49 @@ const handleDeleteVolume = async () => {
 }
 
 /* 分组视图 */
-.group-header { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 14px; margin-left: 10px; }
-.cat-name { color: #303133; }
-.row-summary { font-size: 12px; color: #909399; margin-left: 24px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: bold;
+  font-size: 14px;
+  margin-left: 10px;
+}
+.cat-name {
+  color: #303133;
+}
+.row-summary {
+  font-size: 12px;
+  color: #909399;
+  margin-left: 24px;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* 预览 */
-.preview-box { width: 100%; height: 70vh; display: flex; justify-content: center; align-items: center; background: #f2f2f2; }
-.preview-frame { width: 100%; height: 100%; border: none; }
-.preview-img { max-width: 100%; max-height: 100%; }
-.preview-error { color: #909399; font-size: 16px; }
+.preview-box {
+  width: 100%;
+  height: 70vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #f2f2f2;
+}
+.preview-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+.preview-img {
+  max-width: 100%;
+  max-height: 100%;
+}
+.preview-error {
+  color: #909399;
+  font-size: 16px;
+}
 
 /* OCR 搜索高亮 */
 :deep(.search-highlight) {
@@ -863,39 +1360,106 @@ const handleDeleteVolume = async () => {
   padding: 0 2px;
 }
 .ocr-snippet {
-  font-size: 13px; color: #606266; margin-top: 6px; padding: 8px 10px;
-  background: #f4f4f5; border-left: 3px solid #409eff; border-radius: 0 4px 4px 0;
-  line-height: 1.6; word-break: break-all; max-height: 120px; overflow-y: auto;
+  font-size: 13px;
+  color: #606266;
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: #f4f4f5;
+  border-left: 3px solid #409eff;
+  border-radius: 0 4px 4px 0;
+  line-height: 1.6;
+  word-break: break-all;
+  max-height: 120px;
+  overflow-y: auto;
 }
-.ocr-snippet::-webkit-scrollbar { width: 6px; }
-.ocr-snippet::-webkit-scrollbar-thumb { background: #dcdfe6; border-radius: 3px; }
-.ocr-snippet::-webkit-scrollbar-track { background: transparent; }
-.ocr-snippet :deep(.search-highlight) { background-color: #fff176; color: #d32f2f; }
+.ocr-snippet::-webkit-scrollbar {
+  width: 6px;
+}
+.ocr-snippet::-webkit-scrollbar-thumb {
+  background: #dcdfe6;
+  border-radius: 3px;
+}
+.ocr-snippet::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ocr-snippet :deep(.search-highlight) {
+  background-color: #fff176;
+  color: #d32f2f;
+}
 
-.sortable-ghost { opacity: 0.8; color: #fff !important; background: #409eff !important; }
-.drag-handle:active { cursor: grabbing; }
+.sortable-ghost {
+  opacity: 0.8;
+  color: #fff !important;
+  background: #409eff !important;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
 
 /* ============ 响应式 ============ */
 @media screen and (max-width: 992px) {
-  .standalone-volume-panel { padding: 12px; }
-  .info-header-card { padding: 12px 14px; }
-  .volume-title { font-size: 17px; }
-  .info-tags { gap: 8px; }
-  .file-content { padding: 12px; }
-  .file-search-input { width: 140px; }
-  .file-search-input:focus-within { width: 200px; }
+  .standalone-volume-panel {
+    padding: 12px;
+  }
+  .info-header-card {
+    padding: 12px 14px;
+  }
+  .volume-title {
+    font-size: 17px;
+  }
+  .info-tags {
+    gap: 8px;
+  }
+  .file-content {
+    padding: 12px;
+  }
+  .file-search-input {
+    width: 140px;
+  }
+  .file-search-input:focus-within {
+    width: 200px;
+  }
 }
 
 @media screen and (max-width: 768px) {
-  .standalone-volume-panel { padding: 8px; }
-  .info-header-card { padding: 10px 12px; }
-  .volume-title { font-size: 15px; }
-  .info-tags { flex-direction: column; align-items: flex-start; gap: 4px; }
-  .search-bar-compact { width: 100%; flex-wrap: wrap; }
-  .file-search-input { flex: 1; min-width: 100px; }
-  .file-search-input:focus-within { flex: 1.5; }
-  .view-mode-group { margin-left: 0; width: 100%; }
-  .toolbar-right { width: 100%; justify-content: space-between; }
-  .tool-btn { flex: 1; min-width: 60px; padding: 8px 6px; font-size: 12px; }
+  .standalone-volume-panel {
+    padding: 8px;
+  }
+  .info-header-card {
+    padding: 10px 12px;
+  }
+  .volume-title {
+    font-size: 15px;
+  }
+  .info-tags {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .search-bar-compact {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .file-search-input {
+    flex: 1;
+    min-width: 100px;
+  }
+  .file-search-input:focus-within {
+    flex: 1.5;
+  }
+  .view-mode-group {
+    margin-left: 0;
+    width: 100%;
+  }
+  .toolbar-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .tool-btn {
+    flex: 1;
+    min-width: 60px;
+    padding: 8px 6px;
+    font-size: 12px;
+  }
 }
 </style>

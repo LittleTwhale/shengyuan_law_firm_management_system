@@ -27,6 +27,8 @@ class VolumeFilterQuery(BaseModel):
     end_date: Optional[date] = None
     lawyer_id: Optional[int] = None  # 筛选主办律师
     case_category: Optional[str] = None  # 筛选案件类型
+    sort_by: Optional[str] = 'updated_at'  # 排序字段: created_at, updated_at
+    sort_order: Optional[str] = 'desc'  # 排序方向: asc, desc
 
 
 # ---------------------------------------------------------
@@ -168,15 +170,52 @@ class VolumeSimpleOut(BaseModel):
         from_attributes = True
 
 
+class CaseVolumeListOut(CaseVolumeBase):
+    """
+    卷宗列表专用 Schema（不包含 files 列表，避免 Ocr 全文数据拖慢列表加载）
+    替代 CaseVolumeOut 用于列表场景
+    """
+    id: int
+    case_id: Optional[int] = None
+    merged_file_path: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+    # 独立卷宗扩展字段
+    is_standalone: Optional[int] = 0
+    client_name: Optional[str] = None
+    client_phone: Optional[str] = None
+    main_lawyer_name: Optional[str] = None
+    case_description: Optional[str] = None
+    category: Optional[str] = None
+    created_by: Optional[int] = None
+
+    # 文件数量（通过子查询预加载，避免 N+1）
+    file_count: int = 0
+
+    # 案件概要（独立卷宗时为 None）
+    case: Optional[CaseSimpleInfo] = None
+
+    class Config:
+        from_attributes = True
+
+
 # ---------------------------------------------------------
 # 分页响应模型 (Pagination Schemas)
 # ---------------------------------------------------------
 
 class CaseVolumePageOut(BaseModel):
-    """卷宗列表分页模型"""
+    """卷宗列表分页模型（完整信息，含文件列表）"""
     total: int
     merged_count: int = 0
     items: List[CaseVolumeOut]
+
+
+class CaseVolumePageListOut(BaseModel):
+    """卷宗列表分页模型（轻量，不含文件列表和OCR全文）"""
+    total: int
+    merged_count: int = 0
+    items: List[CaseVolumeListOut]
 
 
 class VolumeFilePageOut(BaseModel):
