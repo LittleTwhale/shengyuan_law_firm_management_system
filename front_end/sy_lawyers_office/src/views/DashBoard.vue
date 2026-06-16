@@ -134,6 +134,11 @@
           </template>
         </el-menu-item>
 
+        <el-menu-item index="/main/error-analyses">
+          <el-icon><WarningFilled /></el-icon>
+          <template #title><span>错误分析</span></template>
+        </el-menu-item>
+
         <el-menu-item index="/main/admin/settings" v-if="hasAdminAccess">
           <el-icon><Setting /></el-icon>
           <template #title><span>后台管理</span></template>
@@ -235,6 +240,11 @@
               <span>公告中心</span>
               <el-badge :value="unreadCount" :hidden="unreadCount <= 0" class="menu-badge" />
             </template>
+          </el-menu-item>
+
+          <el-menu-item index="/main/error-analyses">
+            <el-icon><WarningFilled /></el-icon>
+            <template #title><span>错误分析</span></template>
           </el-menu-item>
 
           <el-menu-item index="/main/admin/settings" v-if="hasAdminAccess">
@@ -379,6 +389,7 @@ import {
   Promotion,
   Close,
   Warning,
+  WarningFilled,
   MagicStick,
   Notebook,
 } from '@element-plus/icons-vue'

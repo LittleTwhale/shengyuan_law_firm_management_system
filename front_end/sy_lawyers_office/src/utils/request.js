@@ -1,7 +1,8 @@
 // src/utils/request.js
 import axios from 'axios'
-import router from '@/router' // 引入路由，用于401跳转
-import { ElMessage } from 'element-plus' // 引入 Element Plus 的提示框
+import router from '@/router'
+import { ElMessage } from 'element-plus'
+import { handleErrorAnalysis } from './errorAnalysisNotify'
 
 // 1. 创建 axios 实例
 const service = axios.create({
@@ -39,25 +40,35 @@ service.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       ElMessage.error('登录已过期，请重新登录')
 
-      // 1. 获取当前登录的 user_id
       const userId = localStorage.getItem('user_id')
-
-      // 2. 如果存在 user_id，则清除该用户的紧急事项弹窗标记
       if (userId) {
         localStorage.removeItem(`has_shown_urgent_reminder_${userId}`)
       }
 
-      // 3. 彻底清除本地过期的 token 及其他用户身份缓存信息
       localStorage.removeItem('token')
       localStorage.removeItem('username')
       localStorage.removeItem('role')
       localStorage.removeItem('user_id')
       localStorage.removeItem('permissions')
 
-      // 跳转到登录页
       router.push('/login')
+    } else if (error.response && error.response.status === 500) {
+      // 500 错误：检查是否携带 analysis_id（错误分析系统）
+      const data = error.response.data
+      if (data && data.analysis_id) {
+        // 触发错误分析通知流程（轮询 + 弹窗）
+        handleErrorAnalysis(data, data.detail)
+      } else {
+        // 普通 500 错误，显示服务器返回的消息
+        ElMessage.error(data?.detail || '服务器内部错误')
+      }
+    } else if (error.response) {
+      // 其他 HTTP 错误（4xx 等）：优先使用服务器返回的 detail 消息
+      const serverMsg = error.response.data?.detail || error.response.data?.message
+      ElMessage.error(serverMsg || error.message || '请求失败')
     } else {
-      ElMessage.error(error.message || '请求失败')
+      // 无响应（网络断开、超时等）
+      ElMessage.error('网络连接失败，请检查网络后重试')
     }
     return Promise.reject(error)
   },
