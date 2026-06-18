@@ -19,9 +19,12 @@ class TemplateCreate(BaseModel):
 class TemplateOut(BaseModel):
     id: int = Field(..., description="模板ID")
     name: str = Field(..., description="模板名称")
-    file_path: str = Field(..., description="文件存储路径（后端内部使用）")
+    file_path: Optional[str] = Field(None, description="文件存储路径（LOCAL 模式使用，仅供参考）")
+    cos_key: Optional[str] = Field(None, description="COS 对象键（COS 模式使用）")
     file_type: str = Field(..., description="文件MIME类型")
     file_size: int = Field(..., description="文件大小（KB）")
+    preview_url: Optional[str] = Field(None, description="预览链接（由 storage_manager 动态计算）")
+    download_url: Optional[str] = Field(None, description="下载链接（由 storage_manager 动态计算）")
     description: Optional[str] = Field(None, description="模板描述")
     uploaded_by: int = Field(..., description="上传人ID")
     uploader: Optional[UserOut] = Field(None, description="上传人信息")

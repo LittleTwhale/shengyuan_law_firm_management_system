@@ -1,5 +1,5 @@
-from fastapi import APIRouter, HTTPException, Query, Depends, status, UploadFile, File, Form
-from fastapi.responses import FileResponse,StreamingResponse
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Depends, status, UploadFile, File, Form
+from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
@@ -7,13 +7,17 @@ from docxtpl import DocxTemplate
 from io import BytesIO
 from urllib.parse import quote
 import os
+import uuid
+import shutil
 import mimetypes
 
-from ..core.config import DOCUMENT_TEMPLATE_ROOT
+from ..core.config import DOCUMENT_TEMPLATE_ROOT, settings
 from ..crud.case import get_case_by_id
-from ..crud.document import create_template, get_template_by_id, delete_template, get_templates
+from ..crud.document import create_template, get_template_by_id, delete_template, get_templates, convert_word_to_pdf
 from ..database.database import get_db
+from ..models.document import DocumentTemplate
 from ..schemas.document import TemplateCreate, TemplateOut
+from ..utils.storage_manager import get_upload_credential, get_file_preview_url, get_file_download_url, cleanup_local_file
 
 from .deps import get_current_active_user
 from ..models.user import User
@@ -25,6 +29,31 @@ router = APIRouter(
 
 # 模板文件目录
 TEMPLATE_DIR = os.path.join("FastAPI", "static", "template")
+
+
+def _template_word_convert_and_cleanup(save_path: str, cos_key: str):
+    """
+    后台任务：Word→PDF 转换 → 上传 PDF 到 COS 预览缓存 → 清理本地文件及空文件夹
+    """
+    try:
+        pdf_path = convert_word_to_pdf(save_path)
+        if pdf_path and settings.STORAGE_TYPE == "COS":
+            from ..utils.storage_manager import _get_cos_client
+            stem, _ = os.path.splitext(cos_key)
+            pdf_cos_key = f"preview_cache/{stem}.pdf"
+            _get_cos_client().upload_file(
+                Bucket=settings.COS_BUCKET,
+                Key=pdf_cos_key,
+                LocalFilePath=pdf_path,
+            )
+        # 清理本地 Word 和临时 PDF
+        if os.path.exists(save_path):
+            cleanup_local_file(save_path, DOCUMENT_TEMPLATE_ROOT)
+        if pdf_path and os.path.exists(pdf_path):
+            cleanup_local_file(pdf_path, DOCUMENT_TEMPLATE_ROOT)
+    except Exception as e:
+        print(f"[TemplateWordConvert] 处理失败: {e}")
+
 
 @router.get("/download")
 async def download_template(
@@ -50,50 +79,130 @@ async def download_template(
         media_type=mime_type
     )
 
-@router.post("/document", response_model=TemplateOut, status_code=status.HTTP_201_CREATED)
+@router.post("/document", status_code=status.HTTP_201_CREATED)
 async def upload_document_template(
     name: str = Query(..., description="模板名称"),
     description: Optional[str] = Form(None),
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(None, description="模板文件（LOCAL 模式必填）"),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user) # 注入当前用户
+    current_user: User = Depends(get_current_active_user)
 ):
-    """上传文书模板（保存到 根目录/当前年份/文件名）"""
+    """
+    上传文书模板
+    - COS 模式 + Word 文件：本地保存 → 上传 COS → 后台转 PDF 预览 → 清理本地
+    - COS 模式 + 非 Word 文件：返回 STS 临时凭证供前端直传 COS
+    - LOCAL 模式：接收二进制文件流，保存到本地磁盘
+    """
     template_in = TemplateCreate(
         name=name,
         description=description,
         uploaded_by=current_user.id
     )
 
+    if not file:
+        raise HTTPException(400, "需要上传文件")
+
+    file_name = file.filename or "unknown"
+
+    if settings.STORAGE_TYPE == "COS":
+        # 判断是否为 Word 文件（需要本地 LibreOffice 转换 PDF）
+        is_word = file.content_type in [
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ] or file_name.lower().endswith(('.doc', '.docx'))
+
+        now = datetime.now()
+        path_prefix = f"templates/{now.year}/{now.month:02d}"
+
+        if is_word:
+            # === Word 文件：本地保存 → 上传 COS → 后台转换 PDF → 清理 ===
+            unique_name = f"{uuid.uuid4().hex}{os.path.splitext(file_name)[1]}"
+            relative_path = os.path.join("templates", str(now.year), f"{now.month:02d}", unique_name)
+            save_path = os.path.join(DOCUMENT_TEMPLATE_ROOT, relative_path)
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            with open(save_path, "wb") as f:
+                shutil.copyfileobj(file.file, f)
+
+            file_size = os.path.getsize(save_path)
+            cos_key = relative_path.replace("\\", "/")
+
+            # 上传原始文件到 COS
+            from ..utils.storage_manager import _get_cos_client
+            _get_cos_client().upload_file(
+                Bucket=settings.COS_BUCKET,
+                Key=cos_key,
+                LocalFilePath=save_path,
+            )
+
+            # 创建数据库记录
+            db_template = DocumentTemplate(
+                name=name,
+                file_path=relative_path,
+                cos_key=cos_key,
+                file_type=file.content_type or "application/octet-stream",
+                file_size=file_size,
+                description=description,
+                uploaded_by=current_user.id,
+            )
+            db.add(db_template)
+            db.commit()
+            db.refresh(db_template)
+
+            # 后台转换 PDF → 上传 COS 预览缓存 → 清理本地
+            background_tasks.add_task(
+                _template_word_convert_and_cleanup,
+                save_path=save_path,
+                cos_key=cos_key,
+            )
+
+            return db_template
+
+        else:
+            # === 非 Word 文件：STS 前端直传 COS ===
+            cred = get_upload_credential(file_name, path_prefix)
+            db_template = DocumentTemplate(
+                name=name,
+                file_path=cred["key"],
+                cos_key=cred["key"],
+                file_type=file.content_type or "application/octet-stream",
+                file_size=0,
+                description=description,
+                uploaded_by=current_user.id,
+            )
+            db.add(db_template)
+            db.commit()
+            db.refresh(db_template)
+
+            return {
+                "type": "COS",
+                "credentials": cred["credentials"],
+                "bucket": cred["bucket"],
+                "region": cred["region"],
+                "key": cred["key"],
+                "template_id": db_template.id,
+                "file_name": file_name,
+            }
+
+    # LOCAL 模式
     try:
         db_template = await create_template(
             db=db,
             template_in=template_in,
             file=file
         )
-        # 检查是否为Word文件，若是则触发PDF转换
+
+        # Word 文件后台生成 PDF
         if db_template.file_type in [
             "application/msword",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         ]:
-            # 构建Word文件的完整路径
             full_path = os.path.join(DOCUMENT_TEMPLATE_ROOT, str(db_template.file_path))
-
-            # 异步执行转换（不阻塞当前请求）
-            import threading
-            from ..crud.document import convert_word_to_pdf
-            threading.Thread(
-                target=convert_word_to_pdf,
-                args=(full_path,),
-                daemon=True  # 随主线程退出而终止
-            ).start()
+            background_tasks.add_task(convert_word_to_pdf, full_path)
 
         return db_template
     except RuntimeError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/document", response_model=List[TemplateOut])
 def list_document_templates(
@@ -144,25 +253,21 @@ def remove_document_template(
 def download_document_template(
     template_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user) # 增加鉴权
+    current_user: User = Depends(get_current_active_user)
 ):
     """下载指定ID的文书模板文件"""
     template = get_template_by_id(db, template_id)
     if not template:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"模板ID {template_id} 不存在"
-        )
+        raise HTTPException(status_code=404, detail=f"模板ID {template_id} 不存在")
 
-    full_path = os.path.join(DOCUMENT_TEMPLATE_ROOT, template.file_path)
-    if not os.path.exists(full_path):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="模板文件已丢失"
-        )
+    result = get_file_download_url(template, root_dir=DOCUMENT_TEMPLATE_ROOT)
+    if result["type"] == "ERROR":
+        raise HTTPException(status_code=404, detail=result["message"])
+    elif result["type"] == "COS":
+        return RedirectResponse(url=result["url"])
 
     return FileResponse(
-        path=full_path,
+        path=result["file_path"],
         filename=template.name,
         media_type=template.file_type or "application/octet-stream"
     )
@@ -171,59 +276,41 @@ def download_document_template(
 def preview_document_template(
     template_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user) # 增加鉴权
+    current_user: User = Depends(get_current_active_user)
 ):
-    """预览文书模板（支持图片、PDF和Word转换）"""
+    """预览文书模板（图片/PDF/Word转PDF，支持LOCAL和COS双模式）"""
     template = get_template_by_id(db, template_id)
     if not template:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"模板ID {template_id} 不存在"
-        )
+        raise HTTPException(status_code=404, detail=f"模板ID {template_id} 不存在")
 
-    full_path = os.path.join(DOCUMENT_TEMPLATE_ROOT, template.file_path)
-    if not os.path.exists(full_path):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="模板文件已丢失"
-        )
+    result = get_file_preview_url(template, root_dir=DOCUMENT_TEMPLATE_ROOT)
+    if result["type"] == "ERROR":
+        raise HTTPException(status_code=404, detail=result["message"])
+    elif result["type"] == "COS":
+        return RedirectResponse(url=result["url"])
 
-    # 支持直接预览的类型
+    # LOCAL 模式
+    file_path = result["file_path"]
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="模板文件已丢失")
+
+    is_word = template.file_type in [
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ]
+    if is_word:
+        return FileResponse(path=file_path, media_type="application/pdf",
+                            headers={"Content-Disposition": "inline"})
+
     supported_types = {
         "image/jpeg", "image/png", "image/gif", "image/bmp", "image/webp",
         "application/pdf"
     }
-
-    # Word文件处理（转换为PDF预览）
-    if template.file_type in [
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    ]:
-        from ..crud.document import convert_word_to_pdf
-        pdf_path = convert_word_to_pdf(full_path)
-        if pdf_path:
-            return FileResponse(
-                path=pdf_path,
-                media_type="application/pdf",
-                headers={"Content-Disposition": "inline"}  # 设置为内联显示
-            )
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Word文档转换预览格式失败，请下载查看"
-            )
-
     if template.file_type not in supported_types:
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=f"不支持预览该类型文件: {template.file_type}"
-        )
+        raise HTTPException(status_code=415, detail=f"不支持预览该类型文件: {template.file_type}")
 
-    return FileResponse(
-        path=full_path,
-        media_type=template.file_type,
-        headers={"Content-Disposition": "inline"}  # 设置为内联显示
-    )
+    return FileResponse(path=file_path, media_type=template.file_type,
+                        headers={"Content-Disposition": "inline"})
 
 
 @router.post("/document/{template_id}/generate/{case_id}", summary="根据模板和案件自动生成文书")
@@ -235,7 +322,12 @@ async def generate_document_from_template(
 ):
     """
     根据选择的 Word 模板和案件 ID，自动填充数据并生成文书下载
+    - LOCAL 模式：直接读取本地模板文件
+    - COS 模式：从 COS 下载模板到临时目录，处理完毕自动清理
     """
+    import tempfile
+    import shutil as shutil_mod
+
     # 1. 验证并获取模板
     template = get_template_by_id(db, template_id)
     if not template:
@@ -244,9 +336,26 @@ async def generate_document_from_template(
     if not template.file_type.startswith("application/vnd.openxmlformats") and "msword" not in template.file_type:
         raise HTTPException(status_code=400, detail="该模板不是 Word 文档，无法进行自动填充")
 
-    full_template_path = os.path.join(DOCUMENT_TEMPLATE_ROOT, template.file_path)
-    if not os.path.exists(full_template_path):
-        raise HTTPException(status_code=404, detail="模板实体文件丢失")
+    # 获取模板文件（LOCAL 直接从磁盘，COS 下载到临时目录）
+    _tmp_cleanup = None
+    if settings.STORAGE_TYPE == "COS":
+        from ..utils.storage_manager import _get_cos_client
+        cos_client = _get_cos_client()
+        cos_key = getattr(template, "cos_key", None) or template.file_path
+        tmp_dir = tempfile.mkdtemp(prefix="template_gen_")
+        _tmp_cleanup = tmp_dir
+        full_template_path = os.path.join(tmp_dir, template.name or "template.docx")
+        try:
+            cos_client.download_file(
+                Bucket=settings.COS_BUCKET, Key=cos_key, DestFilePath=full_template_path
+            )
+        except Exception as e:
+            shutil_mod.rmtree(tmp_dir, ignore_errors=True)
+            raise HTTPException(status_code=404, detail=f"模板文件下载失败: {e}")
+    else:
+        full_template_path = os.path.join(DOCUMENT_TEMPLATE_ROOT, template.file_path)
+        if not os.path.exists(full_template_path):
+            raise HTTPException(status_code=404, detail="模板实体文件丢失")
 
     # 2. 验证并获取案件数据
     case = get_case_by_id(db=db, case_id=case_id)
@@ -363,3 +472,7 @@ async def generate_document_from_template(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"文书生成失败: {str(e)}")
+    finally:
+        # COS 模式：清理临时下载的模板文件
+        if _tmp_cleanup:
+            shutil_mod.rmtree(_tmp_cleanup, ignore_errors=True)

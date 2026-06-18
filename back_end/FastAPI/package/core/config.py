@@ -1,6 +1,7 @@
 # core/config.py
 import os
 from dotenv import load_dotenv
+from pydantic_settings import BaseSettings
 
 # 加载环境变量
 load_dotenv()
@@ -54,6 +55,26 @@ ELECTRONIC_VOLUME_ROOT = os.path.join("D:\\", "syls", "database", "electronic_vo
 
 # 合并后的电子卷宗 PDF 存储路径
 PDF_VOLUME_ROOT = os.path.join("D:\\", "syls", "database", "pdf_volumes")
+
+
+class Settings(BaseSettings):
+    """存储配置 — 支持本地文件系统与腾讯云 COS 切换"""
+
+    # 存储类型: "LOCAL"（本地文件系统）或 "COS"（腾讯云对象存储）
+    STORAGE_TYPE: str = "LOCAL"
+
+    # 腾讯云 COS 配置（STORAGE_TYPE == "COS" 时需设置）
+    COS_SECRET_ID: str = ""
+    COS_SECRET_KEY: str = ""
+    COS_BUCKET: str = ""
+    COS_REGION: str = ""
+    COS_STS_ROLE_ARN: str = ""  # 用于签发前端直传临时密钥的角色 ARN
+
+    model_config = {"env_file": ".env", "extra": "ignore"}
+
+
+# 全局配置实例（导入时自动从环境变量或 .env 文件加载）
+settings = Settings()
 
 
 def get_volume_storage_prefix(case_id, volume_id):

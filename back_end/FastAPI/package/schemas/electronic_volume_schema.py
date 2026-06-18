@@ -95,6 +95,11 @@ class VolumeFileOut(VolumeFileBase):
     # 用于前端展示上传者名称（需要在 CRUD 层 join 或 再次查询，或者前端根据 ID 匹配）
     uploader_name: Optional[str] = None
 
+    # 云存储支持
+    cos_key: Optional[str] = None
+    preview_url: Optional[str] = None
+    download_url: Optional[str] = None
+
     class Config:
         from_attributes = True
 
@@ -113,6 +118,11 @@ class VolumeFileBriefOut(VolumeFileBase):
     created_at: datetime
     ocr_status: Optional[str] = 'pending'
     uploader_name: Optional[str] = None
+
+    # 云存储支持
+    cos_key: Optional[str] = None
+    preview_url: Optional[str] = None
+    download_url: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -174,6 +184,11 @@ class CaseVolumeOut(CaseVolumeBase):
     # 包含案件简要信息 (用于列表显示，独立卷宗时为 None)
     case: Optional[CaseSimpleInfo] = None
 
+    # 云存储支持
+    cos_key: Optional[str] = None
+    preview_url: Optional[str] = None
+    download_url: Optional[str] = None
+
     class Config:
         from_attributes = True
 
@@ -204,6 +219,11 @@ class CaseVolumeDetailOut(CaseVolumeBase):
 
     # 包含案件简要信息
     case: Optional[CaseSimpleInfo] = None
+
+    # 云存储支持
+    cos_key: Optional[str] = None
+    preview_url: Optional[str] = None
+    download_url: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -249,6 +269,11 @@ class CaseVolumeListOut(CaseVolumeBase):
 
     # 案件概要（独立卷宗时为 None）
     case: Optional[CaseSimpleInfo] = None
+
+    # 云存储支持
+    cos_key: Optional[str] = None
+    preview_url: Optional[str] = None
+    download_url: Optional[str] = None
 
     class Config:
         from_attributes = True

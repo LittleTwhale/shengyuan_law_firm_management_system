@@ -9,7 +9,7 @@ from fastapi import UploadFile
 
 from ..models.document import DocumentTemplate
 from ..schemas.document import TemplateCreate
-from ..core.config import DOCUMENT_TEMPLATE_ROOT
+from ..core.config import DOCUMENT_TEMPLATE_ROOT, settings
 
 
 def _generate_file_path() -> str:
@@ -142,20 +142,25 @@ def delete_template(
 
     full_path = os.path.join(DOCUMENT_TEMPLATE_ROOT, template.file_path)
     try:
-        # 删除文件
-        if os.path.exists(full_path):
-            os.remove(full_path)
+        from ..utils.storage_manager import cleanup_local_file
 
-            # 检查并删除转换的PDF（如果有）
-            if full_path.lower().endswith(('.doc', '.docx')):
-                pdf_path = os.path.splitext(full_path)[0] + '.pdf'
-                if os.path.exists(pdf_path):
-                    os.remove(pdf_path)
+        # 删除本地文件及级联空文件夹
+        cleanup_local_file(full_path, DOCUMENT_TEMPLATE_ROOT)
+        if full_path.lower().endswith(('.doc', '.docx')):
+            pdf_path = os.path.splitext(full_path)[0] + '.pdf'
+            cleanup_local_file(pdf_path, DOCUMENT_TEMPLATE_ROOT)
 
-        # 尝试删除空目录（年份目录）
-        dir_path = os.path.dirname(full_path)
-        if os.path.isdir(dir_path) and not os.listdir(dir_path):
-            os.rmdir(dir_path)
+        # COS 模式：删除 COS 对象
+        cos_key = getattr(template, 'cos_key', None)
+        if cos_key and settings.STORAGE_TYPE == "COS":
+            try:
+                from ..utils.storage_manager import _get_cos_client
+                _get_cos_client().delete_object(Bucket=settings.COS_BUCKET, Key=cos_key)
+                stem, _ = os.path.splitext(cos_key)
+                cache_key = f"preview_cache/{stem}.pdf"
+                _get_cos_client().delete_object(Bucket=settings.COS_BUCKET, Key=cache_key)
+            except Exception as e:
+                print(f"[Delete] COS 删除失败: {e}")
 
         # 删除数据库记录
         db.delete(template)

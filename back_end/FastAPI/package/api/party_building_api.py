@@ -2,20 +2,22 @@
 
 import os
 import shutil
-import threading
+import tempfile
 import uuid
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request
-from fastapi.responses import FileResponse
+from types import SimpleNamespace
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, UploadFile, File, Form, Request
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
-from ..core.config import PARTY_FILE_ROOT, PARTY_IMAGE_ROOT
+from ..core.config import settings, PARTY_FILE_ROOT, PARTY_IMAGE_ROOT
 from ..database.database import get_db
 from ..models.user import User
 from ..api.deps import get_current_user  # 获取当前登录用户的依赖
 from ..schemas import party_building_schema as schemas
 from ..crud import party_building_crud as crud
 from ..crud.attachment import convert_word_to_pdf
+from ..utils.storage_manager import get_file_download_url, get_file_preview_url, cleanup_local_file
 
 # 确保目录存在
 os.makedirs(PARTY_FILE_ROOT, exist_ok=True)
@@ -186,24 +188,26 @@ def delete_material(
     if not material:
         raise HTTPException(status_code=404, detail="资料不存在")
 
-    # 2. 遍历并删除物理文件
+    # 2. 遍历并删除物理文件 + COS 对象
     if material.attachments:
         for attachment in material.attachments:
+            # 删除本地文件及级联空文件夹
             full_path = os.path.join(PARTY_FILE_ROOT, attachment.file_path)
-            if os.path.exists(full_path):
-                try:
-                    os.remove(full_path)
-                    print(f"已物理删除文件: {full_path}")
-                except Exception as e:
-                    print(f"删除文件失败 {full_path}: {e}")
-
+            cleanup_local_file(full_path, PARTY_FILE_ROOT)
             pdf_path = os.path.splitext(full_path)[0] + ".pdf"
-            if os.path.exists(pdf_path):
+            cleanup_local_file(pdf_path, PARTY_FILE_ROOT)
+
+            # COS 模式：删除 COS 对象
+            cos_key = getattr(attachment, 'cos_key', None)
+            if cos_key and settings.STORAGE_TYPE == "COS":
                 try:
-                    os.remove(pdf_path)
-                    print(f"已物理删除pdf文件: {pdf_path}")
+                    from ..utils.storage_manager import _get_cos_client
+                    _get_cos_client().delete_object(Bucket=settings.COS_BUCKET, Key=cos_key)
+                    stem, _ = os.path.splitext(cos_key)
+                    cache_key = f"preview_cache/{stem}.pdf"
+                    _get_cos_client().delete_object(Bucket=settings.COS_BUCKET, Key=cache_key)
                 except Exception as e:
-                    print(f"删除pdf                                           文件失败 {pdf_path}: {e}")
+                    print(f"COS 删除失败 ({cos_key}): {e}")
 
     # 3. 删除数据库记录 (级联删除会自动清理 attachment 表的记录)
     success = crud.delete_material(db, material_id)
@@ -217,10 +221,40 @@ def delete_material(
 # 3. 附件管理接口 (Attachments)
 # ==========================================
 
+
+def _party_word_convert_and_cleanup(save_path: str, cos_key: Optional[str] = None):
+    """
+    后台任务：Word→PDF 转换 → 上传 PDF 到 COS 预览缓存 → 清理本地文件
+    """
+    try:
+        pdf_path = convert_word_to_pdf(save_path)
+        if pdf_path and cos_key and settings.STORAGE_TYPE == "COS":
+            from ..utils.storage_manager import _get_cos_client
+            stem, _ = os.path.splitext(cos_key)
+            pdf_cos_key = f"preview_cache/{stem}.pdf"
+            _get_cos_client().upload_file(
+                Bucket=settings.COS_BUCKET,
+                Key=pdf_cos_key,
+                LocalFilePath=pdf_path,
+            )
+            # 清理本地 Word 和 PDF（级联删除空文件夹）
+            cleanup_local_file(save_path, PARTY_FILE_ROOT)
+            if pdf_path:
+                cleanup_local_file(pdf_path, PARTY_FILE_ROOT)
+            print(f"[PartyWordConvert] 转换 + COS 上传完成，已清理本地文件")
+        elif pdf_path:
+            # LOCAL 模式：转换后删除本地临时 PDF
+            cleanup_local_file(pdf_path, PARTY_FILE_ROOT)
+            print(f"[PartyWordConvert] LOCAL 模式转换完成，已清理临时 PDF")
+    except Exception as e:
+        print(f"[PartyWordConvert] 处理失败: {e}")
+
+
 @router.post("/attachments", response_model=schemas.PartyAttachmentOut)
 async def upload_attachment(
         material_id: int = Form(...),
         file: UploadFile = File(...),
+        background_tasks: BackgroundTasks = BackgroundTasks(),
         db: Session = Depends(get_db),
         user: User = Depends(require_party_admin)
 ):
@@ -233,28 +267,32 @@ async def upload_attachment(
     # 2. 生成安全的文件名
     file_ext = os.path.splitext(file.filename)[1]
     unique_filename = f"{uuid.uuid4().hex}{file_ext}"
-    file_path = os.path.join(PARTY_FILE_ROOT, unique_filename)
+    save_path = os.path.join(PARTY_FILE_ROOT, unique_filename)
 
     # 3. 保存文件
     try:
-        with open(file_path, "wb") as buffer:
+        with open(save_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
     except Exception as e:
         raise HTTPException(status_code=500, detail="文件保存失败")
 
-    # === 如果是Word文档，异步生成PDF ===
-    if file.content_type in [
+    # 计算 COS 对象键
+    cos_key = f"party_attachments/{unique_filename}" if settings.STORAGE_TYPE == "COS" else None
+
+    # === 如果是Word文档，后台转换 PDF + 上传 COS + 清理本地文件 ===
+    is_word = file.content_type in [
         "application/msword",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    ]:
-        threading.Thread(
-            target=convert_word_to_pdf,
-            args=(file_path,),  # 传入绝对路径
-            daemon=True
-        ).start()
+    ] or file.filename.lower().endswith(('.doc', '.docx'))
+    if is_word:
+        background_tasks.add_task(
+            _party_word_convert_and_cleanup,
+            save_path=save_path,
+            cos_key=cos_key,
+        )
 
     # 4. 获取文件大小
-    file_size = os.path.getsize(file_path)
+    file_size = os.path.getsize(save_path)
 
     # 5. 写入数据库
     attachment = crud.create_party_attachment(
@@ -262,10 +300,28 @@ async def upload_attachment(
         material_id=material_id,
         uploaded_by=user.id,
         file_name=file.filename,
-        file_path=unique_filename,  # 只存文件名，不存绝对路径
+        file_path=unique_filename,
         file_size=file_size,
         file_type=file.content_type
     )
+
+    # COS 模式：上传文件到云存储并记录 cos_key
+    if settings.STORAGE_TYPE == "COS":
+        try:
+            from ..utils.storage_manager import _get_cos_client
+            _get_cos_client().upload_file(
+                Bucket=settings.COS_BUCKET,
+                Key=cos_key,
+                LocalFilePath=save_path,
+            )
+            db.query(type(attachment)).filter(type(attachment).id == attachment.id).update({"cos_key": cos_key})
+            db.commit()
+            db.refresh(attachment)
+            # 非 Word 文件：无后台任务，直接清理本地（Word 由后台任务清理）
+            if not is_word:
+                cleanup_local_file(save_path, PARTY_FILE_ROOT)
+        except Exception as e:
+            print(f"[PartyUpload] COS 上传失败: {e}")
 
     # 补充上传人名字以便返回
     attachment.uploaded_by_name = user.real_name
@@ -279,23 +335,32 @@ def download_attachment(
         user: User = Depends(get_current_user)
 ):
     attachment = crud.get_attachment(db, attachment_id)
-
     if not attachment:
         raise HTTPException(status_code=404, detail="附件不存在")
 
-    full_path = os.path.join(PARTY_FILE_ROOT, attachment.file_path)
-
-    if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="文件在服务器上已丢失")
-
-    # 加上 quote 处理中文文件名，防止下载时文件名乱码
-    from urllib.parse import quote
-    return FileResponse(
-        path=full_path,
-        filename=attachment.file_name,
-        media_type='application/octet-stream',
-        headers={"Content-Disposition": f"attachment; filename*=utf-8''{quote(attachment.file_name)}"}
+    record = SimpleNamespace(
+        file_path=attachment.file_path,
+        file_name=attachment.file_name,
+        file_type=attachment.file_type or "application/octet-stream",
+        cos_key=getattr(attachment, 'cos_key', None),
     )
+    result = get_file_download_url(record, root_dir=PARTY_FILE_ROOT)
+
+    if result["type"] == "LOCAL":
+        full_path = result["file_path"]
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail="文件在服务器上已丢失")
+        from urllib.parse import quote
+        return FileResponse(
+            path=full_path,
+            filename=attachment.file_name,
+            media_type='application/octet-stream',
+            headers={"Content-Disposition": f"attachment; filename*=utf-8''{quote(attachment.file_name)}"}
+        )
+    elif result["type"] == "COS":
+        return RedirectResponse(url=result["url"])
+    else:
+        raise HTTPException(status_code=404, detail=result.get("message", "文件不可用"))
 
 
 @router.delete("/attachments/{attachment_id}")
@@ -304,30 +369,31 @@ def delete_attachment(
         db: Session = Depends(get_db),
         user: User = Depends(require_party_admin)
 ):
-    # 使用 CRUD
     attachment = crud.get_attachment(db, attachment_id)
     if not attachment:
         raise HTTPException(status_code=404, detail="附件不存在")
 
     full_path = os.path.join(PARTY_FILE_ROOT, attachment.file_path)
 
-    # 物理删除
-    # 1. 删除原文件
-    if os.path.exists(full_path):
-        try:
-            os.remove(full_path)
-        except OSError:
-            pass
+    # 删除本地原文件及级联空文件夹
+    cleanup_local_file(full_path, PARTY_FILE_ROOT)
 
-    # 2. 删除可能存在的PDF副本 (针对Word)
+    # 删除本地 PDF 副本
     pdf_path = os.path.splitext(full_path)[0] + ".pdf"
-    if os.path.exists(pdf_path):
-        try:
-            os.remove(pdf_path)
-        except OSError:
-            pass
+    cleanup_local_file(pdf_path, PARTY_FILE_ROOT)
 
-    # 数据库删除
+    # COS 模式：删除 COS 对象
+    cos_key = getattr(attachment, 'cos_key', None)
+    if cos_key and settings.STORAGE_TYPE == "COS":
+        try:
+            from ..utils.storage_manager import _get_cos_client
+            _get_cos_client().delete_object(Bucket=settings.COS_BUCKET, Key=cos_key)
+            stem, _ = os.path.splitext(cos_key)
+            cache_key = f"preview_cache/{stem}.pdf"
+            _get_cos_client().delete_object(Bucket=settings.COS_BUCKET, Key=cache_key)
+        except Exception as e:
+            print(f"COS 删除失败: {e}")
+
     crud.delete_party_attachment(db, attachment_id)
     return {"detail": "附件已删除"}
 
@@ -336,7 +402,7 @@ def delete_attachment(
 def preview_attachment(
         attachment_id: int,
         db: Session = Depends(get_db),
-        user: User = Depends(get_current_user)  # 所有登录用户均可预览
+        user: User = Depends(get_current_user)
 ):
     """
     预览党建附件 (支持图片、PDF、Word自动转PDF)
@@ -345,51 +411,63 @@ def preview_attachment(
     if not attachment:
         raise HTTPException(status_code=404, detail="附件不存在")
 
-    full_path = os.path.join(PARTY_FILE_ROOT, attachment.file_path)
-    if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="文件在服务器上已丢失")
-
-    # 1. 优先直接支持的类型 (图片, PDF)
-    supported_types = {
-        "image/jpeg", "image/png", "image/gif", "image/bmp", "image/webp",
-        "application/pdf"
-    }
-
-    # 2. Word文档特殊处理
-    if attachment.file_type in [
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    ]:
-        # 预测PDF路径
-        name, _ = os.path.splitext(full_path)
-        pdf_path = f"{name}.pdf"
-
-        # 检查PDF是否有效（存在且比原文件新）
-        if os.path.exists(pdf_path):
-            word_mtime = os.path.getmtime(full_path)
-            pdf_mtime = os.path.getmtime(pdf_path)
-            if pdf_mtime >= word_mtime:
-                return FileResponse(path=pdf_path, media_type="application/pdf")
-
-        # 若无效，尝试实时转换
-        pdf_path = convert_word_to_pdf(full_path)
-        if pdf_path:
-            return FileResponse(path=pdf_path, media_type="application/pdf")
-        else:
-            raise HTTPException(status_code=500, detail="预览生成失败，请下载查看")
-
-    # 3. 其他不支持预览的类型
-    if attachment.file_type not in supported_types:
-        raise HTTPException(
-            status_code=415,
-            detail=f"不支持在线预览此格式: {attachment.file_type}"
-        )
-
-    # 4. 返回原文件预览
-    return FileResponse(
-        path=full_path,
-        media_type=str(attachment.file_type)
+    # 使用存储抽象层获取预览
+    record = SimpleNamespace(
+        file_path=attachment.file_path,
+        file_name=attachment.file_name,
+        file_type=attachment.file_type or "application/octet-stream",
+        cos_key=getattr(attachment, 'cos_key', None),
     )
+    result = get_file_preview_url(record, root_dir=PARTY_FILE_ROOT)
+
+    if result["type"] == "LOCAL":
+        return FileResponse(
+            path=result["file_path"],
+            media_type="application/pdf"
+            if result["file_path"].lower().endswith('.pdf')
+            else str(attachment.file_type or "application/octet-stream")
+        )
+    elif result["type"] == "COS":
+        return RedirectResponse(url=result["url"])
+    else:
+        # 回退到原有本地预览逻辑
+        full_path = os.path.join(PARTY_FILE_ROOT, attachment.file_path)
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail="文件在服务器上已丢失")
+
+        supported_types = {
+            "image/jpeg", "image/png", "image/gif", "image/bmp", "image/webp",
+            "application/pdf"
+        }
+
+        if attachment.file_type in [
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ]:
+            name, _ = os.path.splitext(full_path)
+            pdf_path = f"{name}.pdf"
+            if os.path.exists(pdf_path):
+                word_mtime = os.path.getmtime(full_path)
+                pdf_mtime = os.path.getmtime(pdf_path)
+                if pdf_mtime >= word_mtime:
+                    return FileResponse(path=pdf_path, media_type="application/pdf")
+
+            pdf_path = convert_word_to_pdf(full_path)
+            if pdf_path:
+                return FileResponse(path=pdf_path, media_type="application/pdf")
+            else:
+                raise HTTPException(status_code=500, detail="预览生成失败，请下载查看")
+
+        if attachment.file_type not in supported_types:
+            raise HTTPException(
+                status_code=415,
+                detail=f"不支持在线预览此格式: {attachment.file_type}"
+            )
+
+        return FileResponse(
+            path=full_path,
+            media_type=str(attachment.file_type)
+        )
 
 
 # ==========================================
@@ -407,20 +485,35 @@ async def upload_rich_text_image(
 
     file_ext = os.path.splitext(file.filename)[1]
     unique_filename = f"{uuid.uuid4().hex}{file_ext}"
-    file_path = os.path.join(PARTY_IMAGE_ROOT, unique_filename)
+    save_path = os.path.join(PARTY_IMAGE_ROOT, unique_filename)
 
-    with open(file_path, "wb") as buffer:
+    with open(save_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # 【关键】这里返回的 URL 必须能被浏览器访问到
-    # 假设你在 main.py 里把 PARTY_IMAGE_ROOT 挂载到了 /static/party_images
-    # 那么 URL 应该是：
-
-    # 方式 A: 相对路径 (如果前端和后端同域)
-    # url = f"/static/party_images/{unique_filename}"
-
-    # 方式 B: 包含域名的完整路径 (建议从配置读取 BASE_URL)
-    url = f"http://127.0.0.1:8002/static_resources/party_images/{unique_filename}"
+    if settings.STORAGE_TYPE == "COS":
+        try:
+            from ..utils.storage_manager import _get_cos_client
+            cos_key = f"party_images/{unique_filename}"
+            _get_cos_client().upload_file(
+                Bucket=settings.COS_BUCKET,
+                Key=cos_key,
+                LocalFilePath=save_path,
+            )
+            # 上传到 COS 后删除本地文件
+            os.remove(save_path)
+            url = _get_cos_client().get_presigned_url(
+                Method="GET",
+                Bucket=settings.COS_BUCKET,
+                Key=cos_key,
+                Expired=86400,
+            )
+        except Exception as e:
+            print(f"[PartyImage] COS 上传失败: {e}")
+            # url = f"/static_resources/party_images/{unique_filename}"
+            url = f"http://127.0.0.1:8002/static_resources/party_images/{unique_filename}"
+    else:
+        # url = f"/static_resources/party_images/{unique_filename}"
+        url = f"http://127.0.0.1:8002/static_resources/party_images/{unique_filename}"
 
     return {
         "errno": 0,

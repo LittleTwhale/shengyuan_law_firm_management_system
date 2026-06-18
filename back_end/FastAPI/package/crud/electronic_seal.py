@@ -7,7 +7,7 @@ from fastapi import UploadFile
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 
-from ..core.config import ELECTRONIC_SEAL_ROOT, SEAL_APPLICATION_ROOT
+from ..core.config import ELECTRONIC_SEAL_ROOT, SEAL_APPLICATION_ROOT, settings
 from ..crud.document import convert_word_to_pdf  # 假设已安装libreoffice并配置路径
 from ..models.electronic_seal import ElectronicSeal, SealApplication, SealAuditLog
 from ..schemas.electronic_seal import (
@@ -131,15 +131,26 @@ def update_electronic_seal(db: Session, seal_id: int, seal_in: ElectronicSealUpd
 
 
 def delete_electronic_seal(db: Session, seal_id: int) -> bool:
-    """删除印章（文件 + 数据库）"""
+    """删除印章（本地文件 + COS 对象 + 数据库）"""
+    from ..utils.storage_manager import cleanup_local_file
+
     db_seal = get_electronic_seal_by_id(db, seal_id)
     if not db_seal:
         return False
 
     try:
+        # 删除本地文件及级联空文件夹
         full_path = os.path.join(ELECTRONIC_SEAL_ROOT, db_seal.image_path)
-        if os.path.exists(full_path):
-            os.remove(full_path)
+        cleanup_local_file(full_path, ELECTRONIC_SEAL_ROOT)
+
+        # COS 模式：删除 COS 对象
+        cos_key = getattr(db_seal, 'image_cos_key', None)
+        if cos_key and settings.STORAGE_TYPE == "COS":
+            try:
+                from ..utils.storage_manager import _get_cos_client
+                _get_cos_client().delete_object(Bucket=settings.COS_BUCKET, Key=cos_key)
+            except Exception as e:
+                print(f"[Delete] COS 删除失败: {e}")
 
         db.delete(db_seal)
         db.commit()
@@ -361,13 +372,15 @@ def convert_application_word_to_pdf(application_id: int) -> bool:
 
 
 def delete_seal_application(db: Session, application_id: int) -> bool:
-    """删除用印申请 (包括所有关联文件)"""
+    """删除用印申请 (包括所有关联文件和 COS 对象)"""
+    from ..utils.storage_manager import cleanup_local_file
+
     db_application = get_seal_application_by_id(db, application_id)
     if not db_application:
         return False
 
     try:
-        # 收集所有需要删除的文件路径（相对路径）
+        # 收集所有需要删除的本地文件路径（相对路径）
         file_paths = [
             db_application.original_file_path,
             db_application.preview_pdf_path,
@@ -377,13 +390,22 @@ def delete_seal_application(db: Session, application_id: int) -> bool:
         for rel_path in file_paths:
             if rel_path:
                 full_path = os.path.join(SEAL_APPLICATION_ROOT, rel_path)
-                if os.path.exists(full_path):
+                cleanup_local_file(full_path, SEAL_APPLICATION_ROOT)
+
+        # COS 模式：删除所有关联的 COS 对象
+        if settings.STORAGE_TYPE == "COS":
+            from ..utils.storage_manager import _get_cos_client
+            cos_keys = [
+                getattr(db_application, 'original_cos_key', None),
+                getattr(db_application, 'preview_pdf_cos_key', None),
+                getattr(db_application, 'stamped_file_cos_key', None),
+            ]
+            for cos_key in cos_keys:
+                if cos_key:
                     try:
-                        os.remove(full_path)
-                    except OSError as e:
-                        # 单个文件删除失败不应阻塞数据库记录删除，记录警告后继续
-                        import logging
-                        logging.warning(f"删除文件失败: {full_path}, 错误: {e}")
+                        _get_cos_client().delete_object(Bucket=settings.COS_BUCKET, Key=cos_key)
+                    except Exception as e:
+                        print(f"[Delete] COS 对象删除失败 ({cos_key}): {e}")
 
         # 删除数据库记录 (日志会通过 cascade 自动删除)
         db.delete(db_application)

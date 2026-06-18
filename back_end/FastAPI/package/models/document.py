@@ -10,7 +10,8 @@ class DocumentTemplate(Base):
     # 字段定义（与表结构一一对应）
     id = Column(Integer, primary_key=True, index=True, comment="模板ID")
     name = Column(String(255), nullable=False, comment="模板名称（")
-    file_path = Column(String(512), nullable=False, comment="模板文件存储路径")
+    file_path = Column(String(512), nullable=True, comment="模板文件存储路径（LOCAL 模式使用，COS 模式可为空）")
+    cos_key = Column(String(1024), nullable=True, comment="COS 对象键（COS 模式使用，LOCAL 模式可为空）")
     file_type = Column(String(100), nullable=False, comment="文件类型（如：application/docx）")
     file_size = Column(Integer, nullable=False, comment="文件大小（单位：KB）")
     description = Column(Text, nullable=True, comment="模板描述（可选）")

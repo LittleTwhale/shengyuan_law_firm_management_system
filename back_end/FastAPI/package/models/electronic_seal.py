@@ -10,7 +10,8 @@ class ElectronicSeal(Base):
 
     id = Column(Integer, primary_key=True, index=True, comment="印章ID")
     name = Column(String(100), nullable=False, comment="印章名称")
-    image_path = Column(String(512), nullable=False, comment="印章图片路径")
+    image_path = Column(String(512), nullable=True, comment="印章图片路径（LOCAL 模式使用，COS 模式可为空）")
+    image_cos_key = Column(String(1024), nullable=True, comment="印章图片 COS 对象键（COS 模式使用）")
     file_size = Column(Integer, default=0, comment="文件大小(KB)")
     is_active = Column(Boolean, default=True, nullable=False, comment="是否启用")
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False, comment="上传人ID")
@@ -32,11 +33,13 @@ class SealApplication(Base):
 
     # 原始文件信息
     original_file_name = Column(String(255), nullable=False, comment="原始文件名")
-    original_file_path = Column(String(512), nullable=False, comment="原始文件路径（可能是Word或PDF）")
+    original_file_path = Column(String(512), nullable=True, comment="原始文件路径（LOCAL 模式使用，COS 模式可为空）")
+    original_cos_key = Column(String(1024), nullable=True, comment="原始文件 COS 对象键（COS 模式使用）")
     file_type = Column(String(200), nullable=False, comment="原始文件类型")
 
     # 预览/底图文件 (Word转PDF后的路径，或者是原PDF路径)
-    preview_pdf_path = Column(String(512), nullable=True, comment="预览/盖章底图PDF路径")
+    preview_pdf_path = Column(String(512), nullable=True, comment="预览/盖章底图PDF路径（LOCAL 模式）")
+    preview_pdf_cos_key = Column(String(1024), nullable=True, comment="预览PDF的 COS 对象键（COS 模式）")
 
     # 申请详情
     apply_reason = Column(Text, nullable=True, comment="用印原因")
@@ -48,7 +51,8 @@ class SealApplication(Base):
     review_remark = Column(Text, nullable=True, comment="审核备注")
 
     # 结果文件 (前端合成后回传的PDF)
-    stamped_file_path = Column(String(512), nullable=True, comment="已盖章文件路径")
+    stamped_file_path = Column(String(512), nullable=True, comment="已盖章文件路径（LOCAL 模式）")
+    stamped_file_cos_key = Column(String(1024), nullable=True, comment="已盖章文件的 COS 对象键（COS 模式）")
 
     created_at = Column(DateTime, server_default=func.now(), comment="申请时间")
     updated_at = Column(DateTime, server_default=func.now(), server_onupdate=func.now(), comment="更新时间")

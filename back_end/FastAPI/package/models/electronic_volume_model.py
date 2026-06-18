@@ -20,6 +20,7 @@ class CaseVolume(Base):
 
     # 缓存优化字段
     merged_file_path = Column(String(512), nullable=True, comment="合并后的PDF文件路径 (缓存)")
+    cos_key = Column(String(512), nullable=True, comment="合并PDF的COS对象存储键（云存储模式）")
 
     # 排序与位置
     sort_order = Column(Integer, default=0, comment="显示排序")
@@ -71,9 +72,10 @@ class VolumeFile(Base):
 
     # 文件基础信息
     file_name = Column(String(255), nullable=False, index=True, comment="文件显示名称")
-    file_path = Column(String(512), nullable=False, comment="文件存储路径")
+    file_path = Column(String(512), nullable=False, comment="文件存储路径（本地相对路径）")
     file_size = Column(Integer, default=0, comment="文件大小(字节)")
     file_type = Column(String(255), nullable=True, comment="文件类型")
+    cos_key = Column(String(512), nullable=True, comment="COS对象存储键（云存储模式）")
 
     # 核心分类与排序
     category = Column(String(50), default='其他材料', nullable=False, index=True, comment="文件目录分类")

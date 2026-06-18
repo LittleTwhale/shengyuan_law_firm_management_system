@@ -533,6 +533,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue' // 新增了 onUnmounted
 import request from '@/utils/request'
+import { uploadToCOS } from '@/utils/cosUpload'
 import { ElMessage, ElNotification } from 'element-plus'
 import CaseForm from './CaseForm.vue' // 引入抽离的CaseForm组件
 import { useRouter } from 'vue-router'
@@ -1080,14 +1081,22 @@ const submitAttachments = async () => {
 
   try {
     // 并行上传所有选中的文件
-    const uploadPromises = attachmentFileList.value.map((file) => {
+    const uploadPromises = attachmentFileList.value.map(async (file) => {
       const formData = new FormData()
       formData.append('case_id', currentUploadCaseId.value)
-      formData.append('file', file.raw) // 注意：ElementPlus 中要用 file.raw 获取原生文件对象
+      formData.append('file', file.raw)
 
-      return request.post('/attachments/', formData, {
+      const res = await request.post('/attachments/', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
+      // COS 模式 + 非 Word 文件：后端返回 STS 临时凭证，需前端直传 COS
+      if (res.data?.type === 'COS') {
+        const result = await uploadToCOS(file.raw, res.data)
+        if (!result.success) {
+          throw new Error(result.error || 'COS 上传失败')
+        }
+      }
+      return res
     })
 
     // 等待所有上传完成

@@ -282,7 +282,8 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed, onUnmounted } from 'vue'
-import request from '@/utils/request' // 【修改】替换原有的 axios 为封装的 request
+import request from '@/utils/request'
+import { uploadToCOS } from '@/utils/cosUpload'
 import {
   Document,
   PictureFilled,
@@ -483,10 +484,20 @@ const handleUploadSubmit = async () => {
 
   isUploading.value = true
   try {
-    // 使用 request，移除硬编码域名，且不再传递伪造风险极高的 uploaded_by 参数
-    await request.post(`/template/document?name=${encodeURIComponent(templateName)}`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    const res = await request.post(
+      `/template/document?name=${encodeURIComponent(templateName)}`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      },
+    )
+    // COS 模式 + 非 Word 文件：后端返回 STS 临时凭证，需前端直传 COS
+    if (res.data?.type === 'COS') {
+      const result = await uploadToCOS(file, res.data)
+      if (!result.success) {
+        throw new Error(result.error || 'COS 上传失败')
+      }
+    }
     ElNotification({
       title: '成功',
       message: '模板上传成功',
@@ -879,6 +890,7 @@ const handleDelete = async (templateId) => {
   margin-bottom: 12px;
   display: -webkit-box;
   -webkit-line-clamp: 3; /* 限制描述显示3行 */
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

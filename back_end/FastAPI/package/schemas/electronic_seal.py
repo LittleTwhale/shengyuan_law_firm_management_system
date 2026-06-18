@@ -33,9 +33,11 @@ class ElectronicSealOut(BaseModel):
     """印章信息响应"""
     id: int
     name: str
-    image_path: str
+    image_path: Optional[str] = Field(None, description="印章图片路径（LOCAL 模式，仅供参考）")
+    image_cos_key: Optional[str] = Field(None, description="印章图片 COS 对象键（COS 模式）")
     file_size: int
     is_active: bool
+    preview_url: Optional[str] = Field(None, description="印章预览链接（由 storage_manager 动态计算）")
     uploaded_by: int
     uploader: Optional[UserOut] = None
     created_at: datetime
@@ -97,9 +99,15 @@ class SealApplicationOut(BaseModel):
 
     original_file_name: str
     file_type: str
-    # 仅返回预览PDF路径给前端，原文件路径一般不暴露或按需暴露
-    preview_pdf_path: Optional[str]
-    stamped_file_path: Optional[str]
+    # 原始路径字段（内部使用，前端应优先使用 preview_url / download_url）
+    original_file_path: Optional[str] = Field(None, description="原始文件路径（LOCAL 模式，仅供参考）")
+    original_cos_key: Optional[str] = Field(None, description="原始文件 COS 对象键")
+    preview_pdf_path: Optional[str] = Field(None, description="预览 PDF 路径（LOCAL 模式，仅供参考）")
+    preview_pdf_cos_key: Optional[str] = Field(None, description="预览 PDF 的 COS 对象键")
+    stamped_file_path: Optional[str] = Field(None, description="已盖章文件路径（LOCAL 模式，仅供参考）")
+    stamped_file_cos_key: Optional[str] = Field(None, description="已盖章文件的 COS 对象键")
+    preview_url: Optional[str] = Field(None, description="预览链接（由 storage_manager 动态计算）")
+    download_url: Optional[str] = Field(None, description="下载链接（由 storage_manager 动态计算）")
 
     apply_reason: Optional[str]
     status: str
@@ -125,8 +133,16 @@ class SealApplicationSimpleOut(BaseModel):
     applicant: Optional[UserOut]
     seal: Optional[ElectronicSealOut]
     status: str
-    stamped_file_path: Optional[str]
-    preview_pdf_path: Optional[str] = None  # 用于前端判断 Word 转换是否完成
+
+    # 文件路径字段（内部记录，前端应优先使用 preview_url / download_url）
+    original_file_path: Optional[str] = Field(None, description="原始文件路径（LOCAL 模式，仅供参考）")
+    original_cos_key: Optional[str] = Field(None, description="原始文件 COS 对象键")
+    preview_pdf_path: Optional[str] = Field(None, description="预览 PDF 路径（LOCAL 模式，仅供参考）")
+    preview_pdf_cos_key: Optional[str] = Field(None, description="预览 PDF 的 COS 对象键")
+    stamped_file_path: Optional[str] = Field(None, description="已盖章文件路径（LOCAL 模式，仅供参考）")
+    stamped_file_cos_key: Optional[str] = Field(None, description="已盖章文件的 COS 对象键")
+    preview_url: Optional[str] = Field(None, description="预览链接（由 storage_manager 动态计算）")
+    download_url: Optional[str] = Field(None, description="下载链接（由 storage_manager 动态计算）")
 
     apply_reason: Optional[str]
     reviewer: Optional[UserOut] = None

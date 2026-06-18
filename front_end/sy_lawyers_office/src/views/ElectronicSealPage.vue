@@ -494,7 +494,8 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, EditPen, Edit, CircleClose, Search } from '@element-plus/icons-vue' // 引入所需图标
-import request from '@/utils/request' // 修改为引入封装好的 request
+import request from '@/utils/request'
+import { uploadToCOS } from '@/utils/cosUpload'
 
 // 引入 PDF 相关库
 import * as pdfjsLib from 'pdfjs-dist'
@@ -776,7 +777,14 @@ const handleCreateSeal = async () => {
   // 移除 uploaded_by 和 role，后端已通过 Token 解析
 
   try {
-    await request.post(`/electronic_seal/seals`, fd)
+    const res = await request.post(`/electronic_seal/seals`, fd)
+    // COS 模式：后端返回 STS 临时凭证，需前端直传 COS
+    if (res.data?.type === 'COS') {
+      const result = await uploadToCOS(sealForm.file, res.data)
+      if (!result.success) {
+        throw new Error(result.error || 'COS 上传失败')
+      }
+    }
     ElMessage.success('印章上传成功')
     showCreateSealDialog.value = false
     await fetchSeals()
@@ -821,7 +829,14 @@ const handleCreateApplication = async () => {
   // 移除 applicant_id，后端已通过 Token 解析
 
   try {
-    await request.post(`/electronic_seal/applications`, fd)
+    const res = await request.post(`/electronic_seal/applications`, fd)
+    // COS 模式 + 非 Word 文件：后端返回 STS 临时凭证，需前端直传 COS
+    if (res.data?.type === 'COS') {
+      const result = await uploadToCOS(applyForm.file, res.data)
+      if (!result.success) {
+        throw new Error(result.error || 'COS 上传失败')
+      }
+    }
     ElMessage.success('申请已提交，请等待审核')
     showApplyDialog.value = false
     resetApplyForm()
@@ -1191,7 +1206,14 @@ const executeStamping = async () => {
   fd.append('log_data_json', JSON.stringify(logData))
 
   // 9. 调用 POST /applications/{application_id}/confirm 接口
-  await request.post(`/electronic_seal/applications/${currentAuditRow.value.id}/confirm`, fd)
+  const res = await request.post(`/electronic_seal/applications/${currentAuditRow.value.id}/confirm`, fd)
+  // COS 模式：后端返回 STS 临时凭证，需前端直传 COS
+  if (res.data?.type === 'COS') {
+    const result = await uploadToCOS(file, res.data)
+    if (!result.success) {
+      throw new Error(result.error || 'COS 上传失败')
+    }
+  }
 }
 
 // --- 工具函数 (保持不变) ---

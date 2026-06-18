@@ -19,3 +19,7 @@ rapidocr_onnxruntime
 pdfplumber
 meilisearch
 psutil
+pydantic-settings
+# 对象存储（腾讯云 COS）相关
+cos-python-sdk-v5
+qcloud-python-sts

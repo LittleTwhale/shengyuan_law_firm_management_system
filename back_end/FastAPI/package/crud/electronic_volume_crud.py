@@ -5,7 +5,7 @@ from typing import List, Optional, Tuple
 from sqlalchemy import or_, and_, func, Text
 from sqlalchemy.orm import Session, joinedload, defer
 
-from ..core.config import PDF_VOLUME_ROOT
+from ..core.config import settings, PDF_VOLUME_ROOT
 from ..models.case import Case, CaseParty
 from ..models.electronic_volume_model import CaseVolume, VolumeFile
 from ..models.user import User
@@ -153,26 +153,34 @@ def get_volume_basic(db: Session, volume_id: int) -> Optional[CaseVolume]:
 def invalidate_volume_merge_status(db: Session, volume_id: int):
     """
     使卷宗的合并状态失效：
-    1. 物理删除已生成的 PDF 文件
-    2. 将数据库 merged_file_path 置为 None
-    3. 更新卷宗修改时间（无论是否有合并文件，文件变动都应更新）
+    1. 物理删除已生成的 PDF 文件（本地 + COS）
+    2. 将数据库 merged_file_path 和 cos_key 置为 None
+    3. 更新卷宗修改时间
     """
     volume = db.query(CaseVolume).filter(CaseVolume.id == volume_id).first()
     if not volume:
         return
 
     if volume.merged_file_path:
-        # 1. 物理删除
+        # 1. 物理删除本地文件及空文件夹
         full_path = os.path.join(PDF_VOLUME_ROOT, volume.merged_file_path)
-        if os.path.exists(full_path):
-            try:
-                os.remove(full_path)
-                print(f"Deleted old merged file: {full_path}")
-            except Exception as e:
-                print(f"Error deleting merged file: {e}")
+        from ..utils.storage_manager import cleanup_local_file
+        cleanup_local_file(full_path, PDF_VOLUME_ROOT)
 
         # 2. 数据库重置
         volume.merged_file_path = None
+
+    # COS 模式：删除云存储上的合并 PDF
+    if volume.cos_key:
+        try:
+            from ..utils.storage_manager import _get_cos_client
+            _get_cos_client().delete_object(
+                Bucket=settings.COS_BUCKET,
+                Key=volume.cos_key,
+            )
+        except Exception as e:
+            print(f"Error deleting COS merged file: {e}")
+        volume.cos_key = None
 
     # 3. 无论是否有合并文件，都更新修改时间
     # 设置任何字段以触发 SQLAlchemy 脏检查 + MySQL ON UPDATE CURRENT_TIMESTAMP

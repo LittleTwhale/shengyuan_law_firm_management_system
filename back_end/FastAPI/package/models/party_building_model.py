@@ -62,6 +62,7 @@ class PartyAttachment(Base):
     file_path = Column(String(512), nullable=False, comment="文件存储路径")
     file_size = Column(Integer, nullable=False, comment="文件大小(字节)")
     file_type = Column(String(100), nullable=True, comment="文件MIME类型")
+    cos_key = Column(String(512), nullable=True, comment="COS对象存储键（云存储模式）")
 
     uploaded_by = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, comment="上传人ID")
     created_at = Column(DateTime, server_default=func.now(), comment="上传时间")

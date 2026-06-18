@@ -108,6 +108,7 @@ import { ref, reactive, watch, computed, provide, onUnmounted, onMounted, nextTi
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { UploadFilled, WarningFilled } from '@element-plus/icons-vue'
+import { uploadToCOS } from '@/utils/cosUpload'
 
 // 引入拆分后的子组件
 import GeneralCaseForm from '@/views/GeneralCaseForm.vue'
@@ -811,15 +812,23 @@ const handleSubmit = async () => {
 
         // ================== 附件上传 ==================
         if (rawFiles.value.length > 0 && targetCaseId) {
-          const uploadPromises = rawFiles.value.map((fileItem) => {
+          const uploadPromises = rawFiles.value.map(async (fileItem) => {
             const fd = new FormData()
             const file = fileItem.raw || fileItem
             fd.append('file', file)
-            fd.append('case_id', targetCaseId) // ✅ 如果是复用生成的，这里会把暂存区的附件挂载到新业务下
+            fd.append('case_id', targetCaseId)
 
-            return request.post('/attachments/', fd, {
+            const res = await request.post('/attachments/', fd, {
               headers: { 'Content-Type': 'multipart/form-data' },
             })
+            // COS 模式 + 非 Word 文件：后端返回 STS 临时凭证，需前端直传 COS
+            if (res.data?.type === 'COS') {
+              const result = await uploadToCOS(file, res.data)
+              if (!result.success) {
+                throw new Error(result.error || 'COS 上传失败')
+              }
+            }
+            return res
           })
 
           try {

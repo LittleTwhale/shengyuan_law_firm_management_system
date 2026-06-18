@@ -545,6 +545,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import request from '@/utils/request'
+import { uploadToCOS } from '@/utils/cosUpload'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import CaseForm from './CaseForm.vue'
 import { useRouter } from 'vue-router'
@@ -934,14 +935,22 @@ const submitAttachments = async () => {
   isUploadingAttachments.value = true
 
   try {
-    const uploadPromises = attachmentFileList.value.map((file) => {
+    const uploadPromises = attachmentFileList.value.map(async (file) => {
       const formData = new FormData()
       formData.append('case_id', currentUploadCaseId.value)
       formData.append('file', file.raw)
 
-      return request.post('/attachments/', formData, {
+      const res = await request.post('/attachments/', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
+      // COS 模式 + 非 Word 文件：后端返回 STS 临时凭证，需前端直传 COS
+      if (res.data?.type === 'COS') {
+        const result = await uploadToCOS(file.raw, res.data)
+        if (!result.success) {
+          throw new Error(result.error || 'COS 上传失败')
+        }
+      }
+      return res
     })
 
     await Promise.all(uploadPromises)

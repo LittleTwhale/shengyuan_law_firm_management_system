@@ -43,6 +43,11 @@ class PartyAttachmentOut(BaseModel):
     # 这里只返回上传者名字，避免嵌套太深
     uploaded_by_name: Optional[str] = None
 
+    # 云存储支持
+    cos_key: Optional[str] = None
+    preview_url: Optional[str] = None
+    download_url: Optional[str] = None
+
     class Config:
         from_attributes = True
 

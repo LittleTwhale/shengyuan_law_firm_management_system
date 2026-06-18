@@ -1,24 +1,28 @@
 # api/electronic_seal.py
 import json
 import os
+import uuid
+import shutil
+from datetime import datetime
 from typing import List, Optional
 from urllib.parse import unquote
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, UploadFile, File, Form, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
-from ..core.config import ELECTRONIC_SEAL_ROOT, SEAL_APPLICATION_ROOT
-from ..crud import electronic_seal as seal_crud  # 使用别名导入所有CRUD函数
+from ..core.config import ELECTRONIC_SEAL_ROOT, SEAL_APPLICATION_ROOT, settings
+from ..crud import electronic_seal as seal_crud
 from ..database.database import get_db
 from ..models.user import User
+from ..models.electronic_seal import ElectronicSeal, SealApplication
 from ..schemas.electronic_seal import (
     ElectronicSealCreate, ElectronicSealOut, ElectronicSealUpdate,
     SealApplicationCreate, SealApplicationOut, SealApplicationSimpleOut,
     SealApplicationReview, SealLocationLog, PaginatedResponse,
 )
+from ..utils.storage_manager import get_upload_credential, get_file_preview_url, get_file_download_url, cleanup_local_file
 
-# 引入获取当前用户的依赖
 from .deps import get_current_active_user
 
 router = APIRouter(
@@ -56,21 +60,50 @@ def check_seal_approval_permission(user: User):
 # =================================================================
 # 电子印章管理 (Admin)
 # =================================================================
-@router.post("/seals", response_model=ElectronicSealOut, status_code=status.HTTP_201_CREATED)
+@router.post("/seals", status_code=status.HTTP_201_CREATED)
 async def create_electronic_seal(
         name: str = Form(..., description="印章名称"),
-        file: UploadFile = File(..., description="印章图片文件（支持png/jpg格式）"),
+        file: Optional[UploadFile] = File(None, description="印章图片（LOCAL 模式必填）"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_active_user)
 ):
-    """【管理员】创建电子印章（需上传印章图片）"""
+    """【管理员】创建电子印章（COS 模式返回 STS 凭证，LOCAL 模式接收文件）"""
     check_admin_permission(current_user)
+
+    if settings.STORAGE_TYPE == "COS":
+        if not file:
+            raise HTTPException(400, "COS 模式需要获取文件名")
+        now = datetime.now()
+        path_prefix = f"seals/{now.year}/{now.month:02d}"
+        cred = get_upload_credential(file.filename or "seal.png", path_prefix)
+        db_seal = ElectronicSeal(
+            name=name,
+            image_path=cred["key"],
+            image_cos_key=cred["key"],
+            file_size=0,
+            is_active=True,
+            uploaded_by=current_user.id,
+        )
+        db.add(db_seal)
+        db.commit()
+        db.refresh(db_seal)
+        return {
+            "type": "COS",
+            "credentials": cred["credentials"],
+            "bucket": cred["bucket"],
+            "region": cred["region"],
+            "key": cred["key"],
+            "seal_id": db_seal.id,
+        }
+
+    # LOCAL 模式
+    if not file:
+        raise HTTPException(400, "LOCAL 模式需要上传文件")
     seal_in = ElectronicSealCreate(name=name)
     try:
-        # 直接使用 current_user.id
         return await seal_crud.create_electronic_seal(db, seal_in, file, current_user.id)
     except RuntimeError as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/seals", response_model=List[ElectronicSealOut])
@@ -104,22 +137,29 @@ async def get_seal_image(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_active_user)
 ):
-    """获取印章图片（用于前端可视化）"""
+    """获取印章图片（LOCAL 返回文件流，COS 重定向到签名 URL）"""
+    from types import SimpleNamespace
+
     seal = seal_crud.get_electronic_seal_by_id(db, seal_id)
     if not seal:
         raise HTTPException(status_code=404, detail="印章不存在")
 
-    full_path = os.path.join(ELECTRONIC_SEAL_ROOT, seal.image_path)
-    if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="印章图片文件不存在")
+    # ElectronicSeal 使用 image_path 而非 file_path
+    record = SimpleNamespace(
+        file_path=seal.image_path,
+        file_name=seal.name,
+        file_type="image/png",
+        cos_key=getattr(seal, 'image_cos_key', None),
+    )
+    result = get_file_preview_url(record, root_dir=ELECTRONIC_SEAL_ROOT)
+    if result["type"] == "ERROR":
+        raise HTTPException(status_code=404, detail=result["message"])
+    elif result["type"] == "COS":
+        return RedirectResponse(url=result["url"])
 
     return FileResponse(
-        full_path,
-        # 强制添加 CORS 标头
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET",
-        }
+        result["file_path"],
+        headers={"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET"}
     )
 
 
@@ -160,21 +200,155 @@ def delete_electronic_seal(
 # =================================================================
 # 用印申请 (User/Admin)
 # =================================================================
-@router.post("/applications", response_model=SealApplicationOut, status_code=status.HTTP_201_CREATED)
+def _seal_app_word_convert_and_cleanup(save_path: str, cos_key: str, application_id: int):
+    """
+    后台任务：Word→PDF 转换 → 上传 PDF 到 COS 预览缓存 → 更新 DB → 清理本地文件
+    """
+    from ..crud.attachment import convert_word_to_pdf
+    from ..database.database import SessionLocal
+    try:
+        pdf_path = convert_word_to_pdf(save_path)
+        if not pdf_path:
+            print(f"[SealAppConvert] Word 转 PDF 失败: {save_path}")
+            return
+
+        if settings.STORAGE_TYPE == "COS":
+            from ..utils.storage_manager import _get_cos_client
+            stem, _ = os.path.splitext(cos_key)
+            pdf_cos_key = f"preview_cache/{stem}.pdf"
+            _get_cos_client().upload_file(
+                Bucket=settings.COS_BUCKET,
+                Key=pdf_cos_key,
+                LocalFilePath=pdf_path,
+            )
+            # 更新 DB 中的预览 PDF key
+            db = SessionLocal()
+            try:
+                app = db.query(SealApplication).filter(SealApplication.id == application_id).first()
+                if app:
+                    app.preview_pdf_cos_key = pdf_cos_key
+                    db.commit()
+            except Exception as e:
+                db.rollback()
+                print(f"[SealAppConvert] DB 更新失败: {e}")
+            finally:
+                db.close()
+
+        # 清理本地文件及空文件夹
+        if os.path.exists(save_path):
+            cleanup_local_file(save_path, SEAL_APPLICATION_ROOT)
+        if os.path.exists(pdf_path):
+            cleanup_local_file(pdf_path, SEAL_APPLICATION_ROOT)
+    except Exception as e:
+        print(f"[SealAppConvert] 处理失败: {e}")
+
+
+@router.post("/applications", status_code=status.HTTP_201_CREATED)
 async def create_seal_application(
         background_tasks: BackgroundTasks,
         seal_id: int = Form(..., description="申请使用的印章ID"),
         apply_reason: Optional[str] = Form(None, description="用印原因"),
-        file: UploadFile = File(..., description="待盖章文件（Word/PDF）"),
+        file: Optional[UploadFile] = File(None, description="待盖章文件（LOCAL 模式必填）"),
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_active_user)  # 替换了 applicant_id
+        current_user: User = Depends(get_current_active_user)
 ):
-    """【用户】创建用印申请，上传原始文件（Word 文档转为后台异步转换）"""
+    """
+    【用户】创建用印申请
+    - COS 模式 + Word 文件：本地保存 → 上传 COS → 后台转 PDF 底图 → 清理
+    - COS 模式 + 非 Word 文件：STS 前端直传 COS
+    - LOCAL 模式：接收文件并后台转 PDF
+    """
     application_in = SealApplicationCreate(seal_id=seal_id, apply_reason=apply_reason)
+
+    if not file:
+        raise HTTPException(400, "需要上传文件")
+
+    file_name = file.filename or "document.pdf"
+
+    if settings.STORAGE_TYPE == "COS":
+        now = datetime.now()
+        path_prefix = f"seal_applications/{now.year}/{now.month:02d}"
+
+        # 判断是否为 Word 文件（需要转 PDF 底图）
+        is_word = file.content_type in [
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ] or file_name.lower().endswith(('.doc', '.docx'))
+
+        if is_word:
+            # === Word 文件：本地保存 → 上传 COS → 后台转换 PDF → 清理 ===
+            unique_name = f"{uuid.uuid4().hex}{os.path.splitext(file_name)[1]}"
+            relative_path = os.path.join("seal_applications", str(now.year), f"{now.month:02d}", unique_name)
+            save_path = os.path.join(SEAL_APPLICATION_ROOT, relative_path)
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            with open(save_path, "wb") as f:
+                shutil.copyfileobj(file.file, f)
+
+            cos_key = relative_path.replace("\\", "/")
+
+            # 上传原始文件到 COS
+            from ..utils.storage_manager import _get_cos_client
+            _get_cos_client().upload_file(
+                Bucket=settings.COS_BUCKET,
+                Key=cos_key,
+                LocalFilePath=save_path,
+            )
+
+            # 创建数据库记录
+            db_app = SealApplication(
+                applicant_id=current_user.id,
+                seal_id=seal_id,
+                original_file_name=file_name,
+                original_file_path=relative_path,
+                original_cos_key=cos_key,
+                file_type=file.content_type or "application/octet-stream",
+                apply_reason=apply_reason,
+                status="待审核",
+            )
+            db.add(db_app)
+            db.commit()
+            db.refresh(db_app)
+
+            # 后台转换 PDF 底图 → 上传 COS → 更新 DB → 清理
+            background_tasks.add_task(
+                _seal_app_word_convert_and_cleanup,
+                save_path=save_path,
+                cos_key=cos_key,
+                application_id=db_app.id,
+            )
+
+            return db_app
+
+        else:
+            # === 非 Word 文件：STS 前端直传 COS ===
+            cred = get_upload_credential(file_name, path_prefix)
+            db_app = SealApplication(
+                applicant_id=current_user.id,
+                seal_id=seal_id,
+                original_file_name=file_name,
+                original_file_path=cred["key"],
+                original_cos_key=cred["key"],
+                file_type=file.content_type or "application/octet-stream",
+                apply_reason=apply_reason,
+                status="待审核",
+            )
+            db.add(db_app)
+            db.commit()
+            db.refresh(db_app)
+
+            return {
+                "type": "COS",
+                "credentials": cred["credentials"],
+                "bucket": cred["bucket"],
+                "region": cred["region"],
+                "key": cred["key"],
+                "application_id": db_app.id,
+            }
+
+    # LOCAL 模式
     try:
         application = await seal_crud.create_seal_application(db, application_in, file, current_user.id)
 
-        # 如果是 Word 文档，触发后台异步转换
         if application.file_type in [
             "application/msword",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -183,10 +357,7 @@ async def create_seal_application(
 
         return application
     except (ValueError, RuntimeError) as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/applications", response_model=PaginatedResponse[SealApplicationSimpleOut])
@@ -241,22 +412,35 @@ async def preview_application_pdf(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_active_user)
 ):
-    """【管理员/用户】预览用于盖章的PDF底图 (Word转换后的文件)"""
+    """【管理员/用户】预览用于盖章的PDF底图 (支持LOCAL和COS)"""
+    from types import SimpleNamespace
+
     application = seal_crud.get_seal_application_by_id(db, application_id)
-    if not application or not application.preview_pdf_path:
+    if not application:
+        raise HTTPException(status_code=404, detail="用印申请不存在")
+    if not application.preview_pdf_path and not getattr(application, 'preview_pdf_cos_key', None):
         raise HTTPException(status_code=404, detail="文件不存在或未完成转换")
 
-    # 安全检查 (越权访问拦截)
+    # 安全检查
     if current_user.role not in ["admin", "owner"] and not (
             current_user.permissions and current_user.permissions.get('can_approve_seal')):
         if application.applicant_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权预览该文件")
+            raise HTTPException(status_code=403, detail="无权预览该文件")
 
-    file_path = os.path.join(SEAL_APPLICATION_ROOT, application.preview_pdf_path)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="预览文件已丢失")
+    # SealApplication 使用 preview_pdf_path 而非 file_path，映射为统一命名
+    record = SimpleNamespace(
+        file_path=application.preview_pdf_path,
+        file_name=application.original_file_name,
+        file_type="application/pdf",
+        cos_key=getattr(application, 'preview_pdf_cos_key', None),
+    )
+    result = get_file_preview_url(record, root_dir=SEAL_APPLICATION_ROOT)
+    if result["type"] == "ERROR":
+        raise HTTPException(status_code=404, detail=result["message"])
+    elif result["type"] == "COS":
+        return RedirectResponse(url=result["url"])
 
-    return FileResponse(file_path, media_type="application/pdf")
+    return FileResponse(result["file_path"], media_type="application/pdf")
 
 
 @router.get("/applications/{application_id}/download_original")
@@ -265,22 +449,36 @@ async def download_original_file(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_active_user)
 ):
-    """【用户】下载用户上传的原始文件"""
+    """【用户】下载原始文件（LOCAL/COS 双模式）"""
+    from types import SimpleNamespace
+
     application = seal_crud.get_seal_application_by_id(db, application_id)
-    if not application or not application.original_file_path:
-        raise HTTPException(status_code=404, detail="原始文件不存在")
+    if not application:
+        raise HTTPException(status_code=404, detail="用印申请不存在")
 
     # 安全检查
     if current_user.role not in ["admin", "owner"] and not (
             current_user.permissions and current_user.permissions.get('can_approve_seal')):
         if application.applicant_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权下载该文件")
+            raise HTTPException(status_code=403, detail="无权下载该文件")
 
-    file_path = os.path.join(SEAL_APPLICATION_ROOT, application.original_file_path)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="原始文件已丢失")
+    record = SimpleNamespace(
+        file_path=application.original_file_path,
+        file_name=application.original_file_name,
+        file_type=application.file_type,
+        cos_key=getattr(application, 'original_cos_key', None),
+    )
+    result = get_file_download_url(record, root_dir=SEAL_APPLICATION_ROOT)
+    if result["type"] == "ERROR":
+        raise HTTPException(status_code=404, detail=result["message"])
+    elif result["type"] == "COS":
+        return RedirectResponse(url=result["url"])
 
-    return FileResponse(file_path, filename=application.original_file_name, media_type=application.file_type)
+    return FileResponse(
+        result["file_path"],
+        filename=application.original_file_name,
+        media_type=application.file_type
+    )
 
 
 @router.delete("/applications/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -334,33 +532,71 @@ def review_seal_application(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.post("/applications/{application_id}/confirm", response_model=SealApplicationOut)
+@router.post("/applications/{application_id}/confirm")
 async def confirm_stamping_and_log(
         application_id: int,
-        stamped_file: UploadFile = File(..., description="盖章后的PDF文件"),
+        stamped_file: Optional[UploadFile] = File(None, description="盖章后的PDF文件"),
         log_data_json: str = Form(..., description="盖章位置日志 (JSON 字符串)"),
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_active_user)  # 替换了 reviewer_id 和 role
+        current_user: User = Depends(get_current_active_user)
 ):
-    """【管理员/审批人】确认盖章完成，保存最终文件并记录坐标"""
+    """【管理员/审批人】确认盖章完成（LOCAL 接收文件，COS 记录 cos_key）"""
     check_seal_approval_permission(current_user)
     try:
-        # 1. 解析 JSON 字符串为 Pydantic 模型列表
         log_list_data = json.loads(log_data_json)
-        # 验证和转换数据
         log_data = [SealLocationLog(
             x=log['x'], y=log['y'],
             page_number=log['page_number'],
             width=log['width'], height=log['height']
         ) for log in log_list_data]
 
-        # 直接传入 current_user.id
+        # COS 模式
+        if settings.STORAGE_TYPE == "COS":
+            if not stamped_file:
+                raise HTTPException(400, "COS 模式需要获取文件名")
+            now = datetime.now()
+            path_prefix = f"seal_applications/{now.year}/{now.month:02d}"
+            cred = get_upload_credential(stamped_file.filename or "stamped.pdf", path_prefix)
+            application = seal_crud.get_seal_application_by_id(db, application_id)
+            if not application:
+                raise HTTPException(404, "申请不存在")
+            if application.status != "待审核":
+                raise HTTPException(400, f"当前状态 '{application.status}' 无法盖章确认")
+
+            application.stamped_file_cos_key = cred["key"]
+            application.status = "已通过"
+            application.reviewer_id = current_user.id
+            application.review_time = datetime.now()
+            # 记录审计日志
+            from ..models.electronic_seal import SealAuditLog
+            db.query(SealAuditLog).filter(SealAuditLog.application_id == application_id).delete()
+            for log in log_data:
+                db.add(SealAuditLog(
+                    application_id=application_id,
+                    page_number=log.page_number, x_coordinate=log.x, y_coordinate=log.y,
+                    seal_width=log.width, seal_height=log.height
+                ))
+            db.commit()
+            db.refresh(application)
+
+            return {
+                "type": "COS",
+                "credentials": cred["credentials"],
+                "bucket": cred["bucket"],
+                "region": cred["region"],
+                "key": cred["key"],
+                "application_id": application_id,
+            }
+
+        # LOCAL 模式
+        if not stamped_file:
+            raise HTTPException(400, "LOCAL 模式需要上传盖章文件")
         return await seal_crud.confirm_stamping(db, application_id, stamped_file, log_data, current_user.id)
 
     except json.JSONDecodeError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="盖章日志数据格式错误，应为 JSON 字符串")
+        raise HTTPException(status_code=400, detail="盖章日志数据格式错误")
     except (ValueError, RuntimeError) as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/applications/{application_id}/download_stamped")
@@ -369,33 +605,39 @@ async def download_sealed_file(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_active_user)
 ):
-    """下载盖章后的文件"""
+    """下载盖章后的文件（LOCAL/COS 双模式）"""
+    from types import SimpleNamespace
+
     application = seal_crud.get_seal_application_by_id(db, application_id)
-    if not application or not application.stamped_file_path:
+    if not application:
+        raise HTTPException(status_code=404, detail="用印申请不存在")
+
+    if not application.stamped_file_path and not getattr(application, 'stamped_file_cos_key', None):
         raise HTTPException(status_code=404, detail="盖章后的文件不存在")
 
-    # 安全检查 (越权访问拦截)
+    # 安全检查
     if current_user.role not in ["admin", "owner"] and not (
             current_user.permissions and current_user.permissions.get('can_approve_seal')):
         if application.applicant_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权下载该文件")
+            raise HTTPException(status_code=403, detail="无权下载该文件")
 
-    file_path = os.path.join(SEAL_APPLICATION_ROOT, application.stamped_file_path)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="盖章文件已丢失")
+    record = SimpleNamespace(
+        file_path=application.stamped_file_path,
+        file_name=application.original_file_name,
+        file_type="application/pdf",
+        cos_key=getattr(application, 'stamped_file_cos_key', None),
+    )
+    result = get_file_download_url(record, root_dir=SEAL_APPLICATION_ROOT)
+    if result["type"] == "ERROR":
+        raise HTTPException(status_code=404, detail=result["message"])
+    elif result["type"] == "COS":
+        return RedirectResponse(url=result["url"])
 
-    # 文件名使用 original_file_name 加上前缀
-    # 移除原文件可能的后缀，确保下载为 .pdf
     filename_base = application.original_file_name
     for suffix in ['.docx', '.doc', '.pdf']:
         if filename_base.lower().endswith(suffix):
             filename_base = filename_base[:-len(suffix)]
             break
-
     filename = f"已盖章_{filename_base}.pdf"
 
-    return FileResponse(
-        file_path,
-        filename=filename,
-        media_type='application/pdf'
-    )
+    return FileResponse(result["file_path"], filename=filename, media_type='application/pdf')

@@ -6,9 +6,11 @@ import re
 import shutil
 import stat
 import threading
+import tempfile
 import time
 import uuid
 from datetime import datetime, date
+from types import SimpleNamespace
 from typing import List, Optional
 
 # 引入 PDF 处理库
@@ -16,7 +18,7 @@ from PyPDF2 import PdfReader, PdfWriter, Transformation, PdfMerger
 from PyPDF2.generic import RectangleObject, AnnotationBuilder
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, BackgroundTasks
 from fastapi.responses import PlainTextResponse
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from reportlab.lib import colors
 # 引入 ReportLab 用于生成目录页
 from reportlab.lib.pagesizes import A4
@@ -29,7 +31,9 @@ from sqlalchemy import or_, case as sql_case  # 引入 sql_case 用于保持搜�
 from sqlalchemy.orm import Session, joinedload
 
 from ..api.deps import get_current_user
-from ..core.config import ELECTRONIC_VOLUME_ROOT, PDF_VOLUME_ROOT, get_volume_storage_prefix
+from ..core.config import settings, ELECTRONIC_VOLUME_ROOT, PDF_VOLUME_ROOT, get_volume_storage_prefix
+# 引入存储抽象层
+from ..utils.storage_manager import get_file_download_url, get_file_preview_url, cleanup_local_file
 # 引入本模块的 CRUD 和 Schema
 from ..crud import electronic_volume_crud as crud
 from ..crud.attachment import convert_word_to_pdf  # 复用现有的Word转PDF工具
@@ -574,6 +578,27 @@ def delete_volume(
         pdf_case_dir = os.path.join(PDF_VOLUME_ROOT, f"case_{volume.case_id}")
         _try_remove_empty_parent(pdf_case_dir)
 
+    # COS 模式：删除卷内所有文件及合并 PDF 的 COS 对象
+    if settings.STORAGE_TYPE == "COS":
+        from ..utils.storage_manager import _get_cos_client
+        cos_client = _get_cos_client()
+        for f in (volume.files or []):
+            cos_key = getattr(f, 'cos_key', None)
+            if cos_key:
+                try:
+                    cos_client.delete_object(Bucket=settings.COS_BUCKET, Key=cos_key)
+                    stem, _ = os.path.splitext(cos_key)
+                    cache_key = f"preview_cache/{stem}.pdf"
+                    cos_client.delete_object(Bucket=settings.COS_BUCKET, Key=cache_key)
+                except Exception as e:
+                    print(f"[Delete] COS 文件删除失败 ({cos_key}): {e}")
+        vol_cos_key = getattr(volume, 'cos_key', None)
+        if vol_cos_key:
+            try:
+                cos_client.delete_object(Bucket=settings.COS_BUCKET, Key=vol_cos_key)
+            except Exception as e:
+                print(f"[Delete] COS 合并PDF删除失败 ({vol_cos_key}): {e}")
+
     # 2. 从 Meilisearch 中移除卷内所有文件索引（在数据库删除前拿到文件 ID）
     try:
         file_ids = [f.id for f in (volume.files or [])]
@@ -588,7 +613,6 @@ def delete_volume(
     return
 
 
-# ==========================================
 # 2. 卷内文件 (VolumeFile) 接口
 # ==========================================
 
@@ -596,11 +620,41 @@ def delete_volume(
 # 后台任务函数
 # ==========================================
 
-def background_ocr_task(file_id: int, file_path: str, file_type: str):
+def background_word_convert_and_cleanup(save_path: str, cos_key: Optional[str] = None):
+    """
+    后台任务：Word→PDF 转换 → 上传 PDF 到 COS（预览缓存） → 清理本地文件
+    """
+    try:
+        pdf_path = convert_word_to_pdf(save_path)
+        if pdf_path and cos_key and settings.STORAGE_TYPE == "COS":
+            from ..utils.storage_manager import _get_cos_client
+            stem, _ = os.path.splitext(cos_key)
+            pdf_cos_key = f"preview_cache/{stem}.pdf"
+            _get_cos_client().upload_file(
+                Bucket=settings.COS_BUCKET,
+                Key=pdf_cos_key,
+                LocalFilePath=pdf_path,
+            )
+            # 清理本地 Word 和 PDF（级联删除空文件夹）
+            cleanup_local_file(save_path, ELECTRONIC_VOLUME_ROOT)
+            if pdf_path:
+                cleanup_local_file(pdf_path, ELECTRONIC_VOLUME_ROOT)
+            print(f"[WordConvert] 转换 + COS 上传完成，已清理本地文件")
+        elif pdf_path:
+            cleanup_local_file(pdf_path, ELECTRONIC_VOLUME_ROOT)
+            print(f"[WordConvert] LOCAL 模式转换完成，已清理临时 PDF")
+    except Exception as e:
+        print(f"[WordConvert] 处理失败: {e}")
+
+
+def background_ocr_task(file_id: int, file_path: str, file_type: str, cos_key: Optional[str] = None):
     """
     后台 OCR 任务：对上传文件执行智能文本提取并写入数据库
     """
     print(f"[OCR Task] 开始处理 file_id={file_id}, path={file_path}, type={file_type}")
+
+    # 标记是否需要清理本地文件（COS 模式下 OCR 结束后删除）
+    ocr_temp_dir = None
 
     # 先更新状态为 processing
     db = SessionLocal()
@@ -612,9 +666,39 @@ def background_ocr_task(file_id: int, file_path: str, file_type: str):
     finally:
         db.close()
 
-    # === .doc 文件等待 Word→PDF 转换完成 ===
+    # === 如果本地文件不存在，从 COS 下载到临时目录 ===
     real_path = file_path
-    if file_path.lower().endswith('.doc') and not file_path.lower().endswith('.docx'):
+    if not os.path.exists(file_path) and cos_key and settings.STORAGE_TYPE == "COS":
+        ocr_temp_dir = tempfile.mkdtemp(prefix="ocr_")
+        try:
+            from ..utils.storage_manager import _get_cos_client
+            tmp_file = os.path.join(ocr_temp_dir, os.path.basename(file_path))
+            _get_cos_client().download_file(
+                Bucket=settings.COS_BUCKET,
+                Key=cos_key,
+                DestFilePath=tmp_file,
+            )
+            real_path = tmp_file
+            print(f"[OCR Task] 从 COS 下载到临时文件: {tmp_file}")
+            if cos_key.lower().endswith(('.doc', '.docx')):
+                stem, _ = os.path.splitext(cos_key)
+                pdf_cos_key = f"preview_cache/{stem}.pdf"
+                try:
+                    tmp_pdf = os.path.join(ocr_temp_dir, f"{os.path.splitext(os.path.basename(file_path))[0]}.pdf")
+                    _get_cos_client().download_file(
+                        Bucket=settings.COS_BUCKET,
+                        Key=pdf_cos_key,
+                        DestFilePath=tmp_pdf,
+                    )
+                    real_path = tmp_pdf
+                    file_type = "application/pdf"
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"[OCR Task] COS 下载失败: {e}")
+
+    # === .doc 文件等待 Word→PDF 转换完成 ===
+    if ocr_temp_dir is None and file_path.lower().endswith('.doc') and not file_path.lower().endswith('.docx'):
         pdf_path = os.path.splitext(file_path)[0] + ".pdf"
         max_retries = 15  # 最多等 30 秒
         for i in range(max_retries):
@@ -685,6 +769,17 @@ def background_ocr_task(file_id: int, file_path: str, file_type: str):
     finally:
         db.close()
 
+    # === OCR 完成后清理本地文件 ===
+    if settings.STORAGE_TYPE == "COS" and ocr_temp_dir is None:
+        # 非临时文件且 COS 模式：删除本地上传的原文件及空文件夹
+        if os.path.exists(file_path):
+            cleanup_local_file(file_path, ELECTRONIC_VOLUME_ROOT)
+            print(f"[OCR Task] 已清理本地文件: {file_path}")
+    if ocr_temp_dir:
+        # 清理从 COS 下载的临时目录
+        shutil.rmtree(ocr_temp_dir, ignore_errors=True)
+        print(f"[OCR Task] 已清理临时目录")
+
 @router.post("/files", response_model=schemas.VolumeFileOut)
 async def upload_volume_file(
         volume_id: int = Form(..., description="所属卷宗ID"),
@@ -725,21 +820,25 @@ async def upload_volume_file(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"文件保存失败: {e}")
 
-    # ===  如果是Word文档，异步生成PDF ===
-    # 这样在预览和合并时可以直接使用
-    if file.content_type in [
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    ] or file.filename.lower().endswith(('.doc', '.docx')):
-        threading.Thread(
-            target=convert_word_to_pdf,
-            args=(save_path,),  # 传入绝对路径，生成的pdf会在同目录
-            daemon=True
-        ).start()
+    # 计算 COS 对象键（Word→PDF 任务和 COS 上传都需要）
+    relative_path = os.path.join(storage_prefix, unique_name)
+    cos_key = f"electronic_volumes/{relative_path.replace(chr(92), '/')}" if settings.STORAGE_TYPE == "COS" else None
+
+    # === 如果是Word文档，后台转换 PDF + 上传 COS + 清理本地文件 ===
+    is_word = (
+        file.content_type in [
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ] or file.filename.lower().endswith(('.doc', '.docx'))
+    )
+    if is_word:
+        background_tasks.add_task(
+            background_word_convert_and_cleanup,
+            save_path=save_path,
+            cos_key=cos_key,
+        )
 
     # 3. 构造 Create Schema
-    # 存储相对路径
-    relative_path = os.path.join(storage_prefix, unique_name)
     file_size = os.path.getsize(save_path)
 
     # 解析 tags
@@ -764,6 +863,23 @@ async def upload_volume_file(
 
     # 4. 写入数据库
     new_file = crud.create_volume_file(db, file_in, current_user.id)
+
+    # COS 模式：上传文件到云存储并记录 cos_key
+    if settings.STORAGE_TYPE == "COS":
+        try:
+            from ..utils.storage_manager import _get_cos_client
+            _get_cos_client().upload_file(
+                Bucket=settings.COS_BUCKET,
+                Key=cos_key,
+                LocalFilePath=save_path,
+            )
+            db.query(VolumeFile).filter(VolumeFile.id == new_file.id).update({"cos_key": cos_key})
+            db.commit()
+            db.refresh(new_file)
+        except Exception as e:
+            print(f"[Upload] COS 上传失败: {e}")
+    # ========================================
+
     # 内容变更，旧的合并文件失效
     crud.invalidate_volume_merge_status(db, volume_id)
 
@@ -793,13 +909,17 @@ async def upload_volume_file(
         # 超过 10MB 的文件不自动 OCR，标记为 skipped，用户可手动触发
         crud.update_volume_file_ocr_status(db, new_file.id, "skipped")
         print(f"[Upload] 文件过大 ({file_size} bytes)，跳过自动 OCR，file_id={new_file.id}")
+        # COS 模式 + 非 Word 大文件：无后台任务，直接清理本地
+        if settings.STORAGE_TYPE == "COS" and not is_word:
+            cleanup_local_file(save_path, ELECTRONIC_VOLUME_ROOT)
     else:
         # 添加到后台队列，不阻塞当前 Return
         background_tasks.add_task(
             background_ocr_task,
             file_id=new_file.id,
             file_path=full_disk_path,
-            file_type=file.content_type
+            file_type=file.content_type,
+            cos_key=cos_key,
         )
     # ============================================================
 
@@ -878,7 +998,8 @@ def trigger_ocr_for_file(
         background_ocr_task,
         file_id=file_obj.id,
         file_path=full_disk_path,
-        file_type=file_obj.file_type
+        file_type=file_obj.file_type,
+        cos_key=getattr(file_obj, 'cos_key', None),
     )
 
     return {"message": "OCR 任务已提交", "file_id": file_id}
@@ -1053,15 +1174,36 @@ def delete_volume_file(
     volume = crud.get_volume_by_id(db, file_obj.volume_id)
     check_volume_write_permission(db, current_user, volume.case_id, volume.id)
 
-    # 物理删除文件（带重试，处理 Windows 文件锁）
+    # 物理删除本地文件（带重试，处理 Windows 文件锁）
     full_path = os.path.join(ELECTRONIC_VOLUME_ROOT, file_obj.file_path)
     if os.path.exists(full_path):
         _force_delete_file_with_retry(full_path)
+        _try_remove_empty_parent(os.path.dirname(full_path))
 
     # 同时尝试删除可能存在的预览PDF副本
     pdf_path_temp = os.path.splitext(full_path)[0] + ".pdf"
     if os.path.exists(pdf_path_temp):
         _force_delete_file_with_retry(pdf_path_temp)
+        _try_remove_empty_parent(os.path.dirname(pdf_path_temp))
+
+    # COS 模式：同步删除云存储文件
+    cos_key = getattr(file_obj, 'cos_key', None)
+    if cos_key and settings.STORAGE_TYPE == "COS":
+        try:
+            from ..utils.storage_manager import _get_cos_client
+            _get_cos_client().delete_object(
+                Bucket=settings.COS_BUCKET,
+                Key=cos_key,
+            )
+            # 也尝试删除预览缓存
+            stem, _ = os.path.splitext(cos_key)
+            cache_key = f"preview_cache/{stem}.pdf"
+            _get_cos_client().delete_object(
+                Bucket=settings.COS_BUCKET,
+                Key=cache_key,
+            )
+        except Exception as e:
+            print(f"[Delete] COS 删除失败: {e}")
 
     # 获取 volume_id (在删除 DB 记录前)
     vol_id = file_obj.volume_id
@@ -1110,20 +1252,31 @@ def download_volume_file(
     if volume:
         check_volume_read_permission(db, current_user, volume.case_id, volume.id)
 
-    full_path = os.path.join(ELECTRONIC_VOLUME_ROOT, file_obj.file_path)
-    if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="文件实体已丢失")
-
-    # 简单的文件名编码处理
-    from urllib.parse import quote
-    encoded_name = quote(file_obj.file_name)
-
-    return FileResponse(
-        full_path,
-        filename=file_obj.file_name,
-        media_type=file_obj.file_type or "application/octet-stream",
-        headers={"Content-Disposition": f"attachment; filename*=utf-8''{encoded_name}"}
+    # 使用存储抽象层获取下载链接
+    record = SimpleNamespace(
+        file_path=file_obj.file_path,
+        file_name=file_obj.file_name,
+        file_type=file_obj.file_type,
+        cos_key=getattr(file_obj, 'cos_key', None),
     )
+    result = get_file_download_url(record, root_dir=ELECTRONIC_VOLUME_ROOT)
+
+    if result["type"] == "LOCAL":
+        full_path = result["file_path"]
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail="文件实体已丢失")
+        from urllib.parse import quote
+        encoded_name = quote(file_obj.file_name)
+        return FileResponse(
+            full_path,
+            filename=file_obj.file_name,
+            media_type=file_obj.file_type or "application/octet-stream",
+            headers={"Content-Disposition": f"attachment; filename*=utf-8''{encoded_name}"}
+        )
+    elif result["type"] == "COS":
+        return RedirectResponse(url=result["url"])
+    else:
+        raise HTTPException(status_code=404, detail=result.get("message", "文件不可用"))
 
 
 @router.get("/files/{file_id}/preview")
@@ -1144,32 +1297,42 @@ def preview_volume_file(
     if volume:
         check_volume_read_permission(db, current_user, volume.case_id, volume.id)
 
-    full_path = os.path.join(ELECTRONIC_VOLUME_ROOT, file_obj.file_path)
-    if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="文件在服务器上已丢失")
+    # 使用存储抽象层获取预览
+    record = SimpleNamespace(
+        file_path=file_obj.file_path,
+        file_name=file_obj.file_name,
+        file_type=file_obj.file_type,
+        cos_key=getattr(file_obj, 'cos_key', None),
+    )
+    result = get_file_preview_url(record, root_dir=ELECTRONIC_VOLUME_ROOT)
 
-    # 1. 优先直接支持的类型 (图片, PDF)
-    supported_types = {
-        "image/jpeg", "image/png", "image/gif", "image/bmp", "image/webp",
-        "application/pdf"
-    }
+    if result["type"] == "LOCAL":
+        return FileResponse(path=result["file_path"], media_type="application/pdf"
+                            if result["file_path"].lower().endswith('.pdf')
+                            else str(file_obj.file_type or "application/octet-stream"))
+    elif result["type"] == "COS":
+        return RedirectResponse(url=result["url"])
+    else:
+        # 回退到原有本地预览逻辑
+        full_path = os.path.join(ELECTRONIC_VOLUME_ROOT, file_obj.file_path)
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail="文件在服务器上已丢失")
 
-    # 2. Word文档特殊处理
-    if file_obj.file_type in [
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    ] or full_path.lower().endswith(('.doc', '.docx')):
-        # 预测PDF路径 (同目录下同名的pdf)
-        name, _ = os.path.splitext(full_path)
-        pdf_path = f"{name}.pdf"
+        supported_types = {
+            "image/jpeg", "image/png", "image/gif", "image/bmp", "image/webp",
+            "application/pdf"
+        }
 
-        # 检查PDF是否存在
-        if os.path.exists(pdf_path):
-            return FileResponse(path=pdf_path, media_type="application/pdf")
-
-        # 若无效（上传时转换失败或尚未完成），尝试实时转换
-        # 注意：这里调用会阻塞请求，如果是大文件可能会稍慢
-        converted_pdf = convert_word_to_pdf(full_path)
+        # Word文档特殊处理
+        if file_obj.file_type in [
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ] or full_path.lower().endswith(('.doc', '.docx')):
+            name, _ = os.path.splitext(full_path)
+            pdf_path = f"{name}.pdf"
+            if os.path.exists(pdf_path):
+                return FileResponse(path=pdf_path, media_type="application/pdf")
+            converted_pdf = convert_word_to_pdf(full_path)
         if converted_pdf:
             return FileResponse(path=converted_pdf, media_type="application/pdf")
         else:
@@ -1414,8 +1577,40 @@ def _process_merge(db, volume, files, output_path):
     ready_files = []
     for f_obj in files:
         abs_path = os.path.join(ELECTRONIC_VOLUME_ROOT, f_obj.file_path)
-        if not os.path.exists(abs_path):
-            continue
+        cos_key = getattr(f_obj, 'cos_key', None)
+
+        # 本地文件不存在且 COS 模式 → 从 COS 下载到临时目录
+        if not os.path.exists(abs_path) and cos_key and settings.STORAGE_TYPE == "COS":
+            try:
+                from ..utils.storage_manager import _get_cos_client
+                merge_tmp_dir = tempfile.mkdtemp(prefix="merge_")
+                tmp_path = os.path.join(merge_tmp_dir, os.path.basename(f_obj.file_path))
+                _get_cos_client().download_file(
+                    Bucket=settings.COS_BUCKET,
+                    Key=cos_key,
+                    DestFilePath=tmp_path,
+                )
+                abs_path = tmp_path
+                temp_files.append(merge_tmp_dir)
+                # 尝试下载预览 PDF（Word 文件优先使用已转换的 PDF）
+                if cos_key.lower().endswith(('.doc', '.docx')):
+                    stem, _ = os.path.splitext(cos_key)
+                    pdf_cos_key = f"preview_cache/{stem}.pdf"
+                    try:
+                        tmp_pdf = os.path.join(merge_tmp_dir, f"{os.path.splitext(os.path.basename(tmp_path))[0]}.pdf")
+                        _get_cos_client().download_file(
+                            Bucket=settings.COS_BUCKET,
+                            Key=pdf_cos_key,
+                            DestFilePath=tmp_pdf,
+                        )
+                        abs_path = tmp_pdf
+                    except Exception:
+                        pass
+            except Exception as e:
+                print(f"[Merge] COS 下载失败，跳过文件: {e}")
+                continue
+        elif not os.path.exists(abs_path):
+            continue  # 本地和 COS 都无文件，跳过
 
         pdf_path = None
         # 判断类型并转换为 PDF（原有逻辑不变）
@@ -1575,7 +1770,10 @@ def _process_merge(db, volume, files, output_path):
     for p in temp_files:
         if os.path.exists(p):
             try:
-                os.remove(p)
+                if os.path.isdir(p):
+                    shutil.rmtree(p, ignore_errors=True)
+                else:
+                    os.remove(p)
             except:
                 pass
 
@@ -1605,6 +1803,22 @@ def background_merge_task(volume_id: int):
         # 成功后更新数据库
         relative_path = os.path.join(storage_prefix, merged_filename)
         crud.update_merged_file_path(db, volume_id, relative_path)
+
+        # COS 模式：上传合并后的 PDF 到云存储
+        if settings.STORAGE_TYPE == "COS":
+            try:
+                from ..utils.storage_manager import _get_cos_client
+                cos_client = _get_cos_client()
+                cos_key = f"pdf_volumes/{relative_path.replace(chr(92), '/')}"
+                cos_client.upload_file(
+                    Bucket=settings.COS_BUCKET,
+                    Key=cos_key,
+                    LocalFilePath=merged_path,
+                )
+                volume.cos_key = cos_key
+                db.commit()
+            except Exception as e:
+                print(f"[Merge Task] COS 上传失败: {e}")
 
     except Exception as e:
         print(f"[Merge Task] 合并失败: {e}")
@@ -1657,21 +1871,32 @@ def download_merged_volume(
     if not volume.merged_file_path:
         raise HTTPException(status_code=404, detail="该卷宗尚未执行合并操作，或合并文件不存在")
 
-    # 路径拼接使用 PDF_VOLUME_ROOT
-    full_path = os.path.join(PDF_VOLUME_ROOT, volume.merged_file_path)
-    if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="合并文件实体已丢失，请重新执行合并")
-
-    filename = f"{volume.name}_全卷.pdf"
-    from urllib.parse import quote
-    encoded_name = quote(filename)
-
-    return FileResponse(
-        full_path,
-        filename=filename,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename*=utf-8''{encoded_name}"}
+    # 使用存储抽象层获取下载链接
+    record = SimpleNamespace(
+        file_path=volume.merged_file_path,
+        file_name=f"{volume.name}_全卷.pdf",
+        file_type="application/pdf",
+        cos_key=getattr(volume, 'cos_key', None),
     )
+    result = get_file_download_url(record, root_dir=PDF_VOLUME_ROOT)
+
+    if result["type"] == "LOCAL":
+        full_path = result["file_path"]
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail="合并文件实体已丢失，请重新执行合并")
+        filename = f"{volume.name}_全卷.pdf"
+        from urllib.parse import quote
+        encoded_name = quote(filename)
+        return FileResponse(
+            full_path,
+            filename=filename,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename*=utf-8''{encoded_name}"}
+        )
+    elif result["type"] == "COS":
+        return RedirectResponse(url=result["url"])
+    else:
+        raise HTTPException(status_code=404, detail=result.get("message", "文件不可用"))
 
 
 @router.get("/{volume_id}/preview_merged")
@@ -1680,9 +1905,7 @@ def preview_merged_volume(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    """
-    预览已合并的 PDF 电子卷宗
-    """
+    """预览已合并的 PDF 电子卷宗"""
     volume = crud.get_volume_by_id(db, volume_id)
     if not volume:
         raise HTTPException(status_code=404, detail="卷宗不存在")
@@ -1692,17 +1915,24 @@ def preview_merged_volume(
     if not volume.merged_file_path:
         raise HTTPException(status_code=404, detail="该卷宗尚未执行合并操作")
 
-    # 路径拼接使用 PDF_VOLUME_ROOT
-    full_path = os.path.join(PDF_VOLUME_ROOT, volume.merged_file_path)
-
-    if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="合并文件实体已丢失，请重新执行合并")
-
-    # 直接返回文件，不带 attachment header，浏览器/前端可直接渲染
-    return FileResponse(
-        full_path,
-        media_type="application/pdf"
+    # 使用存储抽象层获取预览
+    record = SimpleNamespace(
+        file_path=volume.merged_file_path,
+        file_name=f"{volume.name}_全卷.pdf",
+        file_type="application/pdf",
+        cos_key=getattr(volume, 'cos_key', None),
     )
+    result = get_file_preview_url(record, root_dir=PDF_VOLUME_ROOT)
+
+    if result["type"] == "LOCAL":
+        full_path = result["file_path"]
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail="合并文件实体已丢失，请重新执行合并")
+        return FileResponse(path=full_path, media_type="application/pdf")
+    elif result["type"] == "COS":
+        return RedirectResponse(url=result["url"])
+    else:
+        raise HTTPException(status_code=404, detail=result.get("message", "文件不可用"))
 
 
 @router.get("/{volume_id}/ocr_text")

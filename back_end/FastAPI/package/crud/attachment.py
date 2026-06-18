@@ -11,7 +11,7 @@ from fastapi import UploadFile
 from ..models.attachment import CaseAttachment
 from ..models.case import Case
 from ..schemas.attachment import AttachmentCreate
-from ..core.config import CASE_ATTACHMENT_ROOT
+from ..core.config import CASE_ATTACHMENT_ROOT, settings
 
 
 def _generate_file_path(case_id: int, db: Session) -> str:
@@ -150,19 +150,26 @@ def delete_attachment_by_id(db: Session, attachment_id: int) -> bool:
 
     full_path = os.path.join(CASE_ATTACHMENT_ROOT, attachment.file_path)
     try:
-        if os.path.exists(full_path):
-            os.remove(full_path)
+        from ..utils.storage_manager import cleanup_local_file
 
-            # 检查并删除转换生成的PDF（针对Word文件）
-            if full_path.lower().endswith(('.doc', '.docx')):
-                pdf_path = os.path.splitext(full_path)[0] + '.pdf'
-                if os.path.exists(pdf_path):
-                    os.remove(pdf_path)
+        # 删除本地文件及级联空文件夹
+        cleanup_local_file(full_path, CASE_ATTACHMENT_ROOT)
+        if full_path.lower().endswith(('.doc', '.docx')):
+            pdf_path = os.path.splitext(full_path)[0] + '.pdf'
+            cleanup_local_file(pdf_path, CASE_ATTACHMENT_ROOT)
 
-        # 删除文件后检查并删除空目录
-        dir_path = os.path.dirname(full_path)
-        if os.path.isdir(dir_path) and not os.listdir(dir_path):
-            os.rmdir(dir_path)
+        # COS 模式：删除 COS 对象
+        cos_key = getattr(attachment, 'cos_key', None)
+        if cos_key and settings.STORAGE_TYPE == "COS":
+            try:
+                from ..utils.storage_manager import _get_cos_client
+                _get_cos_client().delete_object(Bucket=settings.COS_BUCKET, Key=cos_key)
+                stem, _ = os.path.splitext(cos_key)
+                cache_key = f"preview_cache/{stem}.pdf"
+                _get_cos_client().delete_object(Bucket=settings.COS_BUCKET, Key=cache_key)
+            except Exception as e:
+                print(f"[Delete] COS 删除失败: {e}")
+
         db.delete(attachment)
         db.commit()
         return True
