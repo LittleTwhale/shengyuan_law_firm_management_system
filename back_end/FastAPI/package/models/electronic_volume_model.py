@@ -53,6 +53,10 @@ class CaseVolume(Base):
     # 3. 关联到创建人
     creator = relationship("User", back_populates="created_standalone_volumes")
 
+    @property
+    def creator_name(self):
+        return self.creator.real_name if self.creator else None
+
 
 class VolumeFile(Base):
     """

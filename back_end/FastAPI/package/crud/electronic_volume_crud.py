@@ -138,7 +138,8 @@ def get_volume_by_id(db: Session, volume_id: int) -> Optional[CaseVolume]:
     """根据ID获取卷宗详情（包含文件列表）"""
     return db.query(CaseVolume) \
         .options(
-        joinedload(CaseVolume.files).joinedload(VolumeFile.uploader)
+        joinedload(CaseVolume.files).joinedload(VolumeFile.uploader),
+        joinedload(CaseVolume.creator)
     ) \
         .filter(CaseVolume.id == volume_id) \
         .first()

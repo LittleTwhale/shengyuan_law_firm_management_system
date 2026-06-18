@@ -147,6 +147,7 @@ class CaseVolumeOut(CaseVolumeBase):
     case_description: Optional[str] = None
     category: Optional[str] = None
     created_by: Optional[int] = None
+    creator_name: Optional[str] = None
 
     # 包含卷内文件列表
     files: List[VolumeFileOut] = []
@@ -191,6 +192,7 @@ class CaseVolumeListOut(CaseVolumeBase):
     case_description: Optional[str] = None
     category: Optional[str] = None
     created_by: Optional[int] = None
+    creator_name: Optional[str] = None
 
     # 文件数量（通过子查询预加载，避免 N+1）
     file_count: int = 0

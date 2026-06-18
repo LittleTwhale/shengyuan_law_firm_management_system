@@ -25,6 +25,9 @@
           <span v-if="volumeInfo.client_phone" class="info-item">
             <el-icon><Phone /></el-icon> {{ volumeInfo.client_phone }}
           </span>
+          <span v-if="volumeInfo.creator_name" class="info-item">
+            <el-icon><Avatar /></el-icon> 创建人：{{ volumeInfo.creator_name }}
+          </span>
           <span v-if="volumeInfo.main_lawyer_name" class="info-item">
             <el-icon><Avatar /></el-icon> 主办律师：{{ volumeInfo.main_lawyer_name }}
           </span>

@@ -60,9 +60,18 @@
               </template>
             </el-table-column>
 
-            <el-table-column label="大小" width="80" align="center">
+            <el-table-column label="大小" width="110" align="center">
               <template #default="{ row }">
                 <span style="color: #909399; font-size: 12px">{{ formatFileSize(row.size) }}</span>
+                <el-tooltip
+                  v-if="row.size > 10 * 1024 * 1024"
+                  content="超过10MB，上传后不会自动OCR识别，可在文件列表中手动触发"
+                  placement="top"
+                >
+                  <el-icon style="color: #e6a23c; margin-left: 4px; vertical-align: middle; cursor: help"
+                    ><WarningFilled
+                  /></el-icon>
+                </el-tooltip>
               </template>
             </el-table-column>
 
@@ -183,7 +192,7 @@
 
 <script setup>
 import { ref, inject } from 'vue'
-import { UploadFilled, Loading, Delete, Check, Warning, Document } from '@element-plus/icons-vue'
+import { UploadFilled, Loading, Delete, Check, Warning, WarningFilled, Document } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 
