@@ -136,7 +136,7 @@
         <div class="tab-content">
           <div class="overview-cards">
             <el-row :gutter="20">
-              <el-col :span="8">
+              <el-col :xs="24" :sm="12" :md="8">
                 <el-card shadow="hover" class="stat-card">
                   <div class="stat-icon" style="background-color: #e8f3ff; color: #165dff">
                     <el-icon><DataLine /></el-icon>
@@ -149,7 +149,7 @@
                   </div>
                 </el-card>
               </el-col>
-              <el-col :span="8">
+              <el-col :xs="24" :sm="12" :md="8">
                 <el-card shadow="hover" class="stat-card action-card" @click="openNoticeForm()">
                   <div class="stat-icon" style="background-color: #e6f8ea; color: #13ce66">
                     <el-icon><Plus /></el-icon>
@@ -181,79 +181,166 @@
             <el-button type="primary" @click="fetchAnnouncements" plain>刷新列表</el-button>
           </div>
 
-          <el-table :data="announcementsList" border stripe v-loading="noticeLoading">
-            <el-table-column prop="id" label="ID" width="60" align="center" />
-            <el-table-column prop="type" label="类型" width="120">
-              <template #default="{ row }">
-                <el-tag
-                  :type="
-                    row.type === 'update_log'
-                      ? 'success'
-                      : row.type === 'case_review'
-                        ? 'danger'
-                        : 'info'
-                  "
-                >
-                  {{
-                    row.type === 'update_log'
-                      ? '更新日志'
-                      : row.type === 'case_review'
-                        ? '审核驳回'
-                        : '系统公告'
-                  }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="标题" min-width="200" show-overflow-tooltip>
-              <template #default="{ row }">
-                <span
-                  v-if="row.type === 'case_review' && row.related_case_id"
-                  class="case-link-title"
-                  @click="goToCase(row.related_case_id)"
-                >
-                  {{ row.title }}
-                  <el-icon style="margin-left: 4px; font-size: 13px"><Link /></el-icon>
-                </span>
-                <span v-else>{{ row.title }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="version" label="绑定版本" width="100" />
-            <el-table-column prop="publisher_name" label="发布人" width="100" />
+          <!-- ========== 桌面端：表格视图 ========== -->
+          <div v-show="!isMobile">
+            <el-table :data="announcementsList" border stripe v-loading="noticeLoading">
+              <el-table-column prop="id" label="ID" width="60" align="center" />
+              <el-table-column prop="type" label="类型" width="120">
+                <template #default="{ row }">
+                  <el-tag
+                    :type="
+                      row.type === 'update_log'
+                        ? 'success'
+                        : row.type === 'case_review'
+                          ? 'danger'
+                          : 'info'
+                    "
+                  >
+                    {{
+                      row.type === 'update_log'
+                        ? '更新日志'
+                        : row.type === 'case_review'
+                          ? '审核驳回'
+                          : '系统公告'
+                    }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="标题" min-width="200" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <span
+                    v-if="row.type === 'case_review' && row.related_case_id"
+                    class="case-link-title"
+                    @click="goToCase(row.related_case_id)"
+                  >
+                    {{ row.title }}
+                    <el-icon style="margin-left: 4px; font-size: 13px"><Link /></el-icon>
+                  </span>
+                  <span v-else>{{ row.title }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="version" label="绑定版本" width="100" />
+              <el-table-column prop="publisher_name" label="发布人" width="100" />
 
-            <el-table-column label="阅读情况" width="120" align="center">
-              <template #default="{ row }">
-                <el-button link type="primary" @click="openReadStatusDialog(row)"
-                  >查看明细</el-button
-                >
-              </template>
-            </el-table-column>
+              <el-table-column label="阅读情况" width="120" align="center">
+                <template #default="{ row }">
+                  <el-button link type="primary" @click="openReadStatusDialog(row)"
+                    >查看明细</el-button
+                  >
+                </template>
+              </el-table-column>
 
-            <el-table-column label="发布状态" width="100" align="center">
-              <template #default="{ row }">
+              <el-table-column label="发布状态" width="100" align="center">
+                <template #default="{ row }">
+                  <el-switch
+                    v-model="row.is_active"
+                    @change="toggleNoticeStatus(row)"
+                    style="--el-switch-on-color: #13ce66"
+                  />
+                </template>
+              </el-table-column>
+
+              <el-table-column label="发布时间" prop="created_at" width="180" />
+
+              <el-table-column label="操作" width="180" align="center" fixed="right">
+                <template #default="{ row }">
+                  <el-button link type="info" size="small" @click="openPreviewDialog(row)"
+                    >预览</el-button
+                  >
+                  <el-button link type="primary" size="small" @click="openNoticeForm(row)"
+                    >编辑</el-button
+                  >
+                  <el-button link type="danger" size="small" @click="deleteNotice(row.id)"
+                    >删除</el-button
+                  >
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+
+          <!-- ========== 移动端：卡片列表视图 ========== -->
+          <div v-show="isMobile" class="notice-card-list" v-loading="noticeLoading">
+            <div v-for="item in announcementsList" :key="item.id" class="notice-card">
+              <!-- 卡片头部：类型标签 + 发布状态开关 -->
+              <div class="notice-card-header">
+                <div class="notice-card-header-left">
+                  <el-tag
+                    :type="
+                      item.type === 'update_log'
+                        ? 'success'
+                        : item.type === 'case_review'
+                          ? 'danger'
+                          : 'info'
+                    "
+                    size="small"
+                  >
+                    {{
+                      item.type === 'update_log'
+                        ? '更新日志'
+                        : item.type === 'case_review'
+                          ? '审核驳回'
+                          : '系统公告'
+                    }}
+                  </el-tag>
+                  <span class="notice-card-id">#{{ item.id }}</span>
+                </div>
                 <el-switch
-                  v-model="row.is_active"
-                  @change="toggleNoticeStatus(row)"
+                  v-model="item.is_active"
+                  @change="toggleNoticeStatus(item)"
                   style="--el-switch-on-color: #13ce66"
+                  size="small"
                 />
-              </template>
-            </el-table-column>
+              </div>
 
-            <el-table-column label="发布时间" prop="created_at" width="180" />
+              <!-- 卡片标题 -->
+              <div class="notice-card-title">
+                <span
+                  v-if="item.type === 'case_review' && item.related_case_id"
+                  class="case-link-title"
+                  @click="goToCase(item.related_case_id)"
+                >
+                  {{ item.title }}
+                  <el-icon style="margin-left: 4px; font-size: 12px"><Link /></el-icon>
+                </span>
+                <span v-else>{{ item.title }}</span>
+              </div>
 
-            <el-table-column label="操作" width="180" align="center" fixed="right">
-              <template #default="{ row }">
-                <el-button link type="info" size="small" @click="openPreviewDialog(row)"
+              <!-- 卡片元数据 -->
+              <div class="notice-card-meta">
+                <span class="meta-item">
+                  <span class="meta-label">发布人：</span>{{ item.publisher_name || '-' }}
+                </span>
+                <span v-if="item.version" class="meta-item">
+                  <span class="meta-label">版本：</span>v{{ item.version }}
+                </span>
+                <span class="meta-item">
+                  <span class="meta-label">时间：</span>{{ item.created_at || '-' }}
+                </span>
+              </div>
+
+              <!-- 卡片操作按钮 -->
+              <div class="notice-card-actions">
+                <el-button size="small" type="primary" plain @click="openPreviewDialog(item)"
                   >预览</el-button
                 >
-                <el-button link type="primary" size="small" @click="openNoticeForm(row)"
+                <el-button size="small" type="warning" plain @click="openNoticeForm(item)"
                   >编辑</el-button
                 >
-                <el-button link type="danger" size="small" @click="deleteNotice(row.id)"
+                <el-button size="small" type="danger" plain @click="openReadStatusDialog(item)"
+                  >明细</el-button
+                >
+                <el-button size="small" type="danger" @click="deleteNotice(item.id)"
                   >删除</el-button
                 >
-              </template>
-            </el-table-column>
-          </el-table>
+              </div>
+            </div>
+
+            <!-- 空状态 -->
+            <el-empty
+              v-if="!announcementsList.length && !noticeLoading"
+              description="暂无公告数据"
+            />
+          </div>
 
           <div
             class="pagination-wrapper"
@@ -264,7 +351,8 @@
               v-model:page-size="noticePageSize"
               :total="noticeTotal"
               :page-sizes="[10, 20, 50]"
-              layout="total, sizes, prev, pager, next"
+              :layout="isMobile ? 'prev, pager, next' : 'total, sizes, prev, pager, next'"
+              :pager-count="isMobile ? 5 : 7"
               @size-change="handleNoticeSizeChange"
               @current-change="handleNoticeCurrentChange"
             />
@@ -357,7 +445,7 @@
         </div>
       </el-tab-pane>
       <el-tab-pane label="服务器资源监控" name="monitor">
-          <ServerMonitor v-if="activeTab === 'monitor'" />
+        <ServerMonitor v-if="activeTab === 'monitor'" />
       </el-tab-pane>
     </el-tabs>
 
@@ -370,7 +458,7 @@
     <el-dialog
       v-model="readStatusVisible"
       title="公告阅读情况明细"
-      width="700px"
+      :width="isMobile ? '95%' : '700px'"
       center
       destroy-on-close
     >
@@ -407,7 +495,12 @@
       </div>
     </el-dialog>
 
-    <el-dialog v-model="previewVisible" title="公告预览 (用户视角)" width="750px" center>
+    <el-dialog
+      v-model="previewVisible"
+      title="公告预览 (用户视角)"
+      :width="isMobile ? '95%' : '750px'"
+      center
+    >
       <div class="preview-container" v-loading="previewLoading">
         <h2 class="preview-title">{{ previewData?.title }}</h2>
         <div class="preview-meta">
@@ -431,7 +524,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -469,6 +562,24 @@ const currentNotice = ref(null)
 const noticePage = ref(1)
 const noticePageSize = ref(10)
 const noticeTotal = ref(0)
+
+// =====================================
+// 移动端响应式适配
+// =====================================
+const isMobile = ref(false)
+const checkDeviceType = () => {
+  isMobile.value = window.innerWidth <= 768
+}
+const handleResize = () => {
+  isMobile.value = window.innerWidth <= 768
+}
+onMounted(() => {
+  checkDeviceType()
+  window.addEventListener('resize', handleResize)
+})
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+})
 
 // =====================================
 // 权限与用户列表逻辑
@@ -698,7 +809,7 @@ const clearCache = async () => {
     )
     await request.post('/system/clear-user-cache')
     ElMessage.success('缓存已强制清空')
-    fetchCacheStats()
+    await fetchCacheStats()
   } catch (e) {
     if (e !== 'cancel') ElMessage.error('清空缓存失败')
   }
@@ -748,7 +859,6 @@ const exportLog = async () => {
   }
 }
 
-
 // 监听 Tab 切换，按需加载数据
 watch(activeTab, (newTab) => {
   if (newTab === 'ops_management') {
@@ -763,7 +873,6 @@ watch(activeTab, (newTab) => {
     fetchCacheStats()
   }
 })
-
 
 onMounted(() => {
   fetchUsers()
@@ -924,7 +1033,6 @@ onMounted(() => {
   margin: 10px 0;
 }
 
-
 /* 审核驳回公告标题 — 可点击跳转至案件详情 */
 .case-link-title {
   color: #165dff;
@@ -936,5 +1044,100 @@ onMounted(() => {
 .case-link-title:hover {
   color: #0a3bb5;
   text-decoration: underline;
+}
+
+/* =====================================
+   移动端：公告卡片列表样式
+   ===================================== */
+.notice-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notice-card {
+  background: #fff;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  padding: 14px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.2s;
+}
+.notice-card:active {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.notice-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.notice-card-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.notice-card-id {
+  font-size: 12px;
+  color: #909399;
+}
+
+.notice-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 10px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.notice-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #606266;
+}
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+}
+.meta-label {
+  color: #909399;
+  margin-right: 2px;
+}
+
+.notice-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-top: 1px solid #f0f0f0;
+  padding-top: 12px;
+}
+.notice-card-actions .el-button {
+  flex: 1;
+  min-width: 0;
+}
+
+/* =====================================
+   全局移动端适配样式
+   ===================================== */
+@media (max-width: 768px) {
+  .system-settings-page {
+    padding: 10px;
+  }
+  .header h2 {
+    font-size: 18px;
+  }
+  .settings-tabs :deep(.el-tabs__nav-wrap) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* 站点公告分页：移动端隐藏 size 切换 */
+  .pagination-wrapper :deep(.el-pagination__sizes) {
+    display: none !important;
+  }
 }
 </style>
