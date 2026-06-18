@@ -226,7 +226,7 @@
                         v-html="DOMPurify.sanitize(row.file_name)"
                       ></span>
                       <el-tag
-                        v-if="row.ocr_content"
+                        v-if="row.ocr_status === 'completed'"
                         type="success"
                         size="small"
                         effect="plain"
@@ -310,7 +310,7 @@
                       >识别文字</el-button
                     >
                     <el-button
-                      v-if="row.ocr_content"
+                      v-if="row.ocr_status === 'completed'"
                       link
                       type="success"
                       size="small"
@@ -364,7 +364,7 @@
                               v-html="DOMPurify.sanitize(row.file_name)"
                             ></span>
                             <el-tag
-                              v-if="row.ocr_content"
+                              v-if="row.ocr_status === 'completed'"
                               type="success"
                               size="small"
                               effect="plain"
@@ -453,7 +453,7 @@
                             >下载</el-button
                           >
                           <el-button
-                            v-if="row.ocr_content"
+                            v-if="row.ocr_status === 'completed'"
                             link
                             type="success"
                             size="small"
@@ -748,7 +748,7 @@ const maxSortOrder = computed(() => {
 })
 // 当前卷宗内是否存在有OCR内容的文件
 const hasOcrInVolume = computed(() => {
-  return fileList.value.some((f) => f.ocr_content)
+  return fileList.value.some((f) => f.ocr_status === 'completed')
 })
 const groupedFiles = computed(() => {
   const groups = {}

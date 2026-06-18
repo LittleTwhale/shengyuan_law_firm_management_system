@@ -99,6 +99,25 @@ class VolumeFileOut(VolumeFileBase):
         from_attributes = True
 
 
+class VolumeFileBriefOut(VolumeFileBase):
+    """
+    文件简要信息（不含 OCR 全文），用于卷宗详情初始加载，
+    避免 OCR 大字段拖慢首次响应速度。
+    """
+    id: int
+    volume_id: int
+    file_path: str
+    file_size: int
+    file_type: Optional[str]
+    uploaded_by: Optional[int]
+    created_at: datetime
+    ocr_status: Optional[str] = 'pending'
+    uploader_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 # ---------------------------------------------------------
 # 案件卷宗 (CaseVolume) Schemas
 # ---------------------------------------------------------
@@ -149,10 +168,41 @@ class CaseVolumeOut(CaseVolumeBase):
     created_by: Optional[int] = None
     creator_name: Optional[str] = None
 
-    # 包含卷内文件列表
+    # 包含卷内文件列表（含 OCR 全文）
     files: List[VolumeFileOut] = []
 
     # 包含案件简要信息 (用于列表显示，独立卷宗时为 None)
+    case: Optional[CaseSimpleInfo] = None
+
+    class Config:
+        from_attributes = True
+
+
+class CaseVolumeDetailOut(CaseVolumeBase):
+    """
+    卷宗详情专用 Schema（文件列表不含 OCR 全文），
+    用于详情页初始加载，减轻网络传输压力。
+    """
+    id: int
+    case_id: Optional[int] = None
+    merged_file_path: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+    # 独立卷宗扩展字段
+    is_standalone: Optional[int] = 0
+    client_name: Optional[str] = None
+    client_phone: Optional[str] = None
+    main_lawyer_name: Optional[str] = None
+    case_description: Optional[str] = None
+    category: Optional[str] = None
+    created_by: Optional[int] = None
+    creator_name: Optional[str] = None
+
+    # 文件列表（不含 OCR 全文）
+    files: List[VolumeFileBriefOut] = []
+
+    # 包含案件简要信息
     case: Optional[CaseSimpleInfo] = None
 
     class Config:

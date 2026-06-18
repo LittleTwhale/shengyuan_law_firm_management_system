@@ -3,7 +3,7 @@ import os
 from typing import List, Optional, Tuple
 
 from sqlalchemy import or_, and_, func, Text
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, defer
 
 from ..core.config import PDF_VOLUME_ROOT
 from ..models.case import Case, CaseParty
@@ -135,14 +135,19 @@ def create_volume(db: Session, volume_in: CaseVolumeCreate, current_user_id: int
 
 
 def get_volume_by_id(db: Session, volume_id: int) -> Optional[CaseVolume]:
-    """根据ID获取卷宗详情（包含文件列表）"""
+    """根据ID获取卷宗详情（包含文件列表，不含 OCR 全文）"""
     return db.query(CaseVolume) \
         .options(
-        joinedload(CaseVolume.files).joinedload(VolumeFile.uploader),
+        joinedload(CaseVolume.files).defer(VolumeFile.ocr_content).joinedload(VolumeFile.uploader),
         joinedload(CaseVolume.creator)
     ) \
         .filter(CaseVolume.id == volume_id) \
         .first()
+
+
+def get_volume_basic(db: Session, volume_id: int) -> Optional[CaseVolume]:
+    """轻量查询卷宗基本信息（仅用于权限检查，不加载关联数据）"""
+    return db.query(CaseVolume).filter(CaseVolume.id == volume_id).first()
 
 
 def invalidate_volume_merge_status(db: Session, volume_id: int):
@@ -150,6 +155,7 @@ def invalidate_volume_merge_status(db: Session, volume_id: int):
     使卷宗的合并状态失效：
     1. 物理删除已生成的 PDF 文件
     2. 将数据库 merged_file_path 置为 None
+    3. 更新卷宗修改时间（无论是否有合并文件，文件变动都应更新）
     """
     volume = db.query(CaseVolume).filter(CaseVolume.id == volume_id).first()
     if not volume:
@@ -167,8 +173,12 @@ def invalidate_volume_merge_status(db: Session, volume_id: int):
 
         # 2. 数据库重置
         volume.merged_file_path = None
-        db.commit()
-        db.refresh(volume)
+
+    # 3. 无论是否有合并文件，都更新修改时间
+    # 设置任何字段以触发 SQLAlchemy 脏检查 + MySQL ON UPDATE CURRENT_TIMESTAMP
+    volume.updated_at = func.now()
+    db.commit()
+    db.refresh(volume)
 
 def get_multi_volumes(
         db: Session,

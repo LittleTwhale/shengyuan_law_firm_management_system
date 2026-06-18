@@ -374,13 +374,13 @@ def list_volumes_by_case(
     return crud.get_volumes_by_case(db, case_id, current_user)
 
 
-@router.get("/{volume_id}", response_model=schemas.CaseVolumeOut)
+@router.get("/{volume_id}", response_model=schemas.CaseVolumeDetailOut)
 def get_volume_detail(
         volume_id: int,
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    """获取卷宗详情（包含卷内文件列表）"""
+    """获取卷宗详情（包含卷内文件列表，不含 OCR 全文以加快加载速度）"""
     volume = crud.get_volume_by_id(db, volume_id)
     if not volume:
         raise HTTPException(status_code=404, detail="卷宗不存在")
@@ -447,7 +447,7 @@ def list_files_in_volume(
     - ocr_keyword:  搜索OCR识别全文
     - 两者可组合（AND 逻辑：文件必须同时匹配两个条件）
     """
-    volume = crud.get_volume_by_id(db, volume_id)
+    volume = crud.get_volume_basic(db, volume_id)
     if not volume:
         raise HTTPException(status_code=404, detail="卷宗不存在")
 

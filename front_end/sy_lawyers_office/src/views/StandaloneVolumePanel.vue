@@ -187,7 +187,7 @@
                     v-html="DOMPurify.sanitize(row.file_name)"
                   ></span>
                   <el-tag
-                    v-if="row.ocr_content"
+                    v-if="row.ocr_status === 'completed'"
                     type="success"
                     size="small"
                     effect="plain"
@@ -269,7 +269,7 @@
                   >识别文字</el-button
                 >
                 <el-button
-                  v-if="row.ocr_content"
+                  v-if="row.ocr_status === 'completed'"
                   link
                   type="success"
                   size="small"
@@ -324,7 +324,7 @@
                           v-html="DOMPurify.sanitize(row.file_name)"
                         ></span>
                         <el-tag
-                          v-if="row.ocr_content"
+                          v-if="row.ocr_status === 'completed'"
                           type="success"
                           size="small"
                           effect="plain"
@@ -393,7 +393,7 @@
                         >下载</el-button
                       >
                       <el-button
-                        v-if="row.ocr_content"
+                        v-if="row.ocr_status === 'completed'"
                         link
                         type="success"
                         size="small"
@@ -717,7 +717,7 @@ const maxSortOrder = computed(() => {
 
 // 当前卷宗内是否存在有OCR内容的文件
 const hasOcrInVolume = computed(() => {
-  return fileList.value.some((f) => f.ocr_content)
+  return fileList.value.some((f) => f.ocr_status === 'completed')
 })
 
 const groupedFiles = computed(() => {
@@ -742,8 +742,19 @@ watch(groupedFiles, (val) => {
 
 // 初始化
 onMounted(async () => {
-  await fetchPermissions()
-  await refreshVolume()
+  // 先获取用户信息，然后并行加载卷宗数据
+  const userId = localStorage.getItem('user_id')
+  let userInfo = null
+  if (userId) {
+    try {
+      const userRes = await request.get(`/user/profile/info?user_id=${userId}`)
+      userInfo = userRes.data
+    } catch (err) {
+      console.error('获取用户信息失败:', err)
+    }
+  }
+  // 一次性加载卷宗并判断权限
+  await refreshVolume(userInfo)
 })
 
 onBeforeUnmount(() => {
@@ -751,31 +762,8 @@ onBeforeUnmount(() => {
   if (ocrPollingTimer) clearInterval(ocrPollingTimer)
 })
 
-// 权限
-const fetchPermissions = async () => {
-  const userId = localStorage.getItem('user_id')
-  if (!userId) return
-  try {
-    const userRes = await request.get(`/user/profile/info?user_id=${userId}`)
-    const userInfo = userRes.data
-    const isSuper =
-      userInfo.role === 'owner' || (userInfo.permissions && userInfo.permissions.volume_manage)
-    if (isSuper) {
-      canEdit.value = true
-      return
-    }
-    // 加载卷宗详情判断创建者
-    const volRes = await request.get(`/electronic_volumes/${volumeId.value}`)
-    volumeInfo.value = volRes.data
-    canEdit.value = volRes.data.created_by === Number(userId)
-  } catch (err) {
-    console.error('权限获取失败', err)
-    canEdit.value = false
-  }
-}
-
-// 刷新
-const refreshVolume = async () => {
+// 刷新（可选的 userInfo 用于权限判断，避免重复请求卷宗详情）
+const refreshVolume = async (userInfo) => {
   if (!volumeId.value) return
   globalLoading.value = true
   try {
@@ -785,6 +773,12 @@ const refreshVolume = async () => {
     fileList.value.sort((a, b) => a.sort_order - b.sort_order)
     metaKeyword.value = ''
     ocrKeyword.value = ''
+    // 权限判断：超级管理员 或 创建者本人
+    if (userInfo) {
+      const isSuper =
+        userInfo.role === 'owner' || (userInfo.permissions && userInfo.permissions.volume_manage)
+      canEdit.value = isSuper || res.data.created_by === Number(userInfo.id)
+    }
   } catch (err) {
     console.error(err)
     ElMessage.error('加载卷宗失败')
