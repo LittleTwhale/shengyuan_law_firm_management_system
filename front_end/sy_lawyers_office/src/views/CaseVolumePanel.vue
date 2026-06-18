@@ -302,6 +302,14 @@
                       >下载</el-button
                     >
                     <el-button
+                      v-if="row.ocr_status === 'skipped'"
+                      link
+                      type="warning"
+                      size="small"
+                      @click="handleTriggerOcr(row)"
+                      >识别文字</el-button
+                    >
+                    <el-button
                       v-if="row.ocr_content"
                       link
                       type="success"
@@ -607,7 +615,7 @@
           v-else-if="previewUrl && previewType === 'image'"
           :src="previewUrl"
           class="preview-img"
-        />
+          alt="预览图片"/>
         <div v-else class="preview-error">无法预览此文件，请下载查看</div>
       </div>
     </el-dialog>
@@ -671,6 +679,7 @@ const fileSearchLoading = ref(false)
 
 // 轮询计时器引用
 let mergePollingTimer = null
+let ocrPollingTimer = null
 
 // --- 卷宗 新建/编辑 State ---
 const volDialogVisible = ref(false)
@@ -717,6 +726,7 @@ onMounted(async () => {
 // 组件销毁前清理可能存在的轮询定时器，防止内存泄漏
 onBeforeUnmount(() => {
   if (mergePollingTimer) clearInterval(mergePollingTimer)
+  if (ocrPollingTimer) clearInterval(ocrPollingTimer)
 })
 
 // 监听 caseId 变化
@@ -1100,6 +1110,43 @@ const downloadBlob = async (url, filename) => {
 const handleDownload = async (row) => {
   const url = `/electronic_volumes/files/${row.id}/download`
   await downloadBlob(url, row.file_name)
+}
+
+// 手动触发被跳过的大文件 OCR 识别
+const handleTriggerOcr = async (row) => {
+  try {
+    await request.post(`/electronic_volumes/files/${row.id}/trigger_ocr`)
+    ElMessage.success('OCR 识别任务已提交，后台处理中')
+    // 立即更新按钮状态，防止重复点击
+    row.ocr_status = 'processing'
+    // 启动轮询等待 OCR 完成
+    ocrPollingTimer = startPollingFileOcrStatus(row.id)
+  } catch (err) {
+    ElMessage.error(err.response?.data?.detail || '触发 OCR 失败')
+  }
+}
+
+// 轮询单个文件的 OCR 状态
+const startPollingFileOcrStatus = (fileId) => {
+  const timer = setInterval(async () => {
+    try {
+      const res = await request.get(`/electronic_volumes/files/${fileId}`)
+      const status = res.data.ocr_status
+      if (status === 'completed') {
+        clearInterval(timer)
+        ElMessage.success('OCR 识别完成')
+        await refreshCurrentVolume()
+      } else if (status === 'failed') {
+        clearInterval(timer)
+        ElMessage.warning('OCR 识别未提取到有效内容')
+        await refreshCurrentVolume()
+      }
+    } catch (e) {
+      console.error('轮询 OCR 状态失败', e)
+      clearInterval(timer)
+    }
+  }, 2000)
+  return timer
 }
 
 // 导出OCR识别结果（纯文本文件）

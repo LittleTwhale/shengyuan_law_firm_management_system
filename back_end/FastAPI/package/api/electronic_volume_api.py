@@ -50,6 +50,9 @@ os.makedirs(PDF_VOLUME_ROOT, exist_ok=True)
 # OCR 并发控制信号量：限制同时只有 1 个 OCR 任务在跑，避免 CPU 过载
 ocr_semaphore = threading.Semaphore(1)
 
+# 上传后自动 OCR 的文件大小上限（10MB），超过此大小的文件不自动触发 OCR
+OCR_AUTO_SIZE_LIMIT = 10 * 1024 * 1024  # 10MB
+
 # 获取当前文件所在目录的上级目录作为基准
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FONT_PATH = os.path.join(BASE_DIR, "assets", "fonts", "SimHei.ttf") # 或者 NotoSans.ttf
@@ -400,6 +403,7 @@ def _build_file_item(item, meta_hit=None, ocr_hit=None):
         "tags": item.tags or [],
         "summary": item.summary or "",
         "ocr_content": item.ocr_content or "",
+        "ocr_status": item.ocr_status or "pending",
         "page_start": item.page_start,
         "page_end": item.page_end,
         "uploaded_by": item.uploaded_by,
@@ -598,6 +602,16 @@ def background_ocr_task(file_id: int, file_path: str, file_type: str):
     """
     print(f"[OCR Task] 开始处理 file_id={file_id}, path={file_path}, type={file_type}")
 
+    # 先更新状态为 processing
+    db = SessionLocal()
+    try:
+        db.query(VolumeFile).filter(VolumeFile.id == file_id).update({"ocr_status": "processing"})
+        db.commit()
+    except Exception as e:
+        print(f"[OCR Task] 更新状态为 processing 失败: {e}")
+    finally:
+        db.close()
+
     # === .doc 文件等待 Word→PDF 转换完成 ===
     real_path = file_path
     if file_path.lower().endswith('.doc') and not file_path.lower().endswith('.docx'):
@@ -638,6 +652,7 @@ def background_ocr_task(file_id: int, file_path: str, file_type: str):
         file_obj = db.query(VolumeFile).filter(VolumeFile.id == file_id).first()
         if file_obj:
             file_obj.ocr_content = content
+            file_obj.ocr_status = "completed" if content and content != "OCR失效" else "failed"
             db.commit()
             print(f"[OCR Task] 成功写入 ocr_content, file_id={file_id}, 字数={len(content)}")
             # ================= 同步到 Meilisearch =================
@@ -654,7 +669,8 @@ def background_ocr_task(file_id: int, file_path: str, file_type: str):
                     "category": file_obj.category,
                     "summary": file_obj.summary or "",
                     "tags": file_obj.tags or [],
-                    "ocr_content": content
+                    "ocr_content": content,
+                    "ocr_status": file_obj.ocr_status or "completed"
                 }
                 meili_client.index('volume_files').add_documents([document], primary_key='id')
                 print(f"[OCR Task] 成功同步至 Meilisearch, file_id={file_id}")
@@ -761,25 +777,31 @@ async def upload_volume_file(
             "category": new_file.category,
             "summary": new_file.summary or "",
             "tags": new_file.tags or [],
-            "ocr_content": ""
+            "ocr_content": "",
+            "ocr_status": new_file.ocr_status or "pending"
         }
         meili_client.index('volume_files').add_documents([document], primary_key='id')
     except Exception as e:
         print(f"Meilisearch 初始插入失败: {e}")
     # =========================================================================
 
-    # ================= 触发 OCR 任务 =================
+    # ================= 触发 OCR 任务（大文件跳过） =================
     # 获取文件的绝对路径用于 OCR 读取
     full_disk_path = os.path.join(ELECTRONIC_VOLUME_ROOT, relative_path)
 
-    # 添加到后台队列，不阻塞当前 Return
-    background_tasks.add_task(
-        background_ocr_task,
-        file_id=new_file.id,
-        file_path=full_disk_path,
-        file_type=file.content_type
-    )
-    # =======================================================
+    if file_size > OCR_AUTO_SIZE_LIMIT:
+        # 超过 10MB 的文件不自动 OCR，标记为 skipped，用户可手动触发
+        crud.update_volume_file_ocr_status(db, new_file.id, "skipped")
+        print(f"[Upload] 文件过大 ({file_size} bytes)，跳过自动 OCR，file_id={new_file.id}")
+    else:
+        # 添加到后台队列，不阻塞当前 Return
+        background_tasks.add_task(
+            background_ocr_task,
+            file_id=new_file.id,
+            file_path=full_disk_path,
+            file_type=file.content_type
+        )
+    # ============================================================
 
     return new_file
 
@@ -821,6 +843,46 @@ def update_volume_file(
         except Exception as e:
             print(f"Meilisearch 更新失败: {e}")
     return updated_file
+
+
+@router.post("/files/{file_id}/trigger_ocr", status_code=202)
+def trigger_ocr_for_file(
+        file_id: int,
+        background_tasks: BackgroundTasks = BackgroundTasks(),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """
+    手动触发指定文件的 OCR 识别（用于上传时被跳过大文件的补充识别）
+    - 仅当文件 ocr_status 非 'processing' 时允许触发
+    - OCR 结果异步写入数据库，前端需轮询或刷新查看结果
+    """
+    # 1. 查文件
+    file_obj = crud.get_file_by_id(db, file_id)
+    if not file_obj:
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    # 2. 权限校验
+    volume = crud.get_volume_by_id(db, file_obj.volume_id)
+    check_volume_write_permission(db, current_user, volume.case_id, volume.id)
+
+    # 3. 检查是否正在处理中
+    if file_obj.ocr_status == "processing":
+        raise HTTPException(status_code=409, detail="该文件正在OCR识别中，请稍候")
+
+    # 4. 重置状态并加入后台队列
+    crud.update_volume_file_ocr_status(db, file_id, "pending")
+    full_disk_path = os.path.join(ELECTRONIC_VOLUME_ROOT, file_obj.file_path)
+
+    background_tasks.add_task(
+        background_ocr_task,
+        file_id=file_obj.id,
+        file_path=full_disk_path,
+        file_type=file_obj.file_type
+    )
+
+    return {"message": "OCR 任务已提交", "file_id": file_id}
+
 
 @router.post("/files/batch_sort", status_code=200)
 def batch_update_sort(
@@ -1015,6 +1077,21 @@ def delete_volume_file(
     except Exception as e:
         print(f"Meilisearch 删除失败: {e}")
     return
+
+
+@router.get("/files/{file_id}", response_model=schemas.VolumeFileOut)
+def get_volume_file_detail(
+        file_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """获取单个文件详情（含 OCR 状态），用于前端轮询"""
+    file_obj = crud.get_file_by_id(db, file_id)
+    if not file_obj:
+        raise HTTPException(status_code=404, detail="文件不存在")
+    volume = crud.get_volume_by_id(db, file_obj.volume_id)
+    check_volume_read_permission(db, current_user, volume.case_id, volume.id)
+    return file_obj
 
 
 @router.get("/files/{file_id}/download")

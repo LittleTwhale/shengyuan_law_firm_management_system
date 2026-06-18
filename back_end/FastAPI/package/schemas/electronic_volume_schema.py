@@ -72,6 +72,7 @@ class VolumeFileUpdate(BaseModel):
     tags: Optional[List[str]] = None
     summary: Optional[str] = None
     ocr_content: Optional[str] = None
+    ocr_status: Optional[str] = None
     page_start: Optional[int] = None
     page_end: Optional[int] = None
 
@@ -89,6 +90,7 @@ class VolumeFileOut(VolumeFileBase):
     uploaded_by: Optional[int]
     created_at: datetime
     ocr_content: Optional[str] = None
+    ocr_status: Optional[str] = 'pending'
 
     # 用于前端展示上传者名称（需要在 CRUD 层 join 或 再次查询，或者前端根据 ID 匹配）
     uploader_name: Optional[str] = None

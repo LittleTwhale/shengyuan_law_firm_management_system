@@ -258,6 +258,14 @@
                   >下载</el-button
                 >
                 <el-button
+                  v-if="row.ocr_status === 'skipped'"
+                  link
+                  type="warning"
+                  size="small"
+                  @click="handleTriggerOcr(row)"
+                  >识别文字</el-button
+                >
+                <el-button
                   v-if="row.ocr_content"
                   link
                   type="success"
@@ -639,6 +647,7 @@ const ocrKeyword = ref('')
 const fileSearchLoading = ref(false)
 
 let mergePollingTimer = null
+let ocrPollingTimer = null
 
 // 文件分类选项
 const categoryOptions = ['证据材料', '法律文书', '起诉/答辩状', '笔录资料', '备考表', '其他材料']
@@ -736,6 +745,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   if (mergePollingTimer) clearInterval(mergePollingTimer)
+  if (ocrPollingTimer) clearInterval(ocrPollingTimer)
 })
 
 // 权限
@@ -997,6 +1007,41 @@ const downloadBlob = async (url, filename) => {
 const handleDownload = (row) =>
   downloadBlob(`/electronic_volumes/files/${row.id}/download`, row.file_name)
 
+// 手动触发被跳过的大文件 OCR 识别
+const handleTriggerOcr = async (row) => {
+  try {
+    await request.post(`/electronic_volumes/files/${row.id}/trigger_ocr`)
+    ElMessage.success('OCR 识别任务已提交，后台处理中')
+    row.ocr_status = 'processing'
+    ocrPollingTimer = startPollingFileOcrStatus(row.id)
+  } catch (err) {
+    ElMessage.error(err.response?.data?.detail || '触发 OCR 失败')
+  }
+}
+
+// 轮询单个文件的 OCR 状态
+const startPollingFileOcrStatus = (fileId) => {
+  const timer = setInterval(async () => {
+    try {
+      const res = await request.get(`/electronic_volumes/files/${fileId}`)
+      const status = res.data.ocr_status
+      if (status === 'completed') {
+        clearInterval(timer)
+        ElMessage.success('OCR 识别完成')
+        await refreshVolume()
+      } else if (status === 'failed') {
+        clearInterval(timer)
+        ElMessage.warning('OCR 识别未提取到有效内容')
+        await refreshVolume()
+      }
+    } catch (e) {
+      console.error('轮询 OCR 状态失败', e)
+      clearInterval(timer)
+    }
+  }, 2000)
+  return timer
+}
+
 // 导出OCR识别结果（纯文本文件）
 const handleExportOcr = (row) => {
   const baseName = row.file_name.replace(/\.[^/.]+$/, '')
@@ -1127,7 +1172,7 @@ const handleDeleteVolume = async () => {
     })
     await request.delete(`/electronic_volumes/${volumeId.value}`)
     ElMessage.success('删除成功')
-    router.push('/main/volumes')
+    await router.push('/main/volumes')
   } catch (err) {
     if (err !== 'cancel') console.error(err)
   }

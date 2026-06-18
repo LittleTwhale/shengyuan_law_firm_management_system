@@ -448,6 +448,16 @@ def search_files_with_count(
     return items, total
 
 
+def update_volume_file_ocr_status(db: Session, file_id: int, status: str) -> bool:
+    """更新文件的 OCR 状态"""
+    file_obj = db.query(VolumeFile).filter(VolumeFile.id == file_id).first()
+    if not file_obj:
+        return False
+    file_obj.ocr_status = status
+    db.commit()
+    return True
+
+
 def batch_update_sort_order(db: Session, sort_data: List[dict]):
     """
     批量更新排序

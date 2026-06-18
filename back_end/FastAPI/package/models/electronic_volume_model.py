@@ -84,6 +84,7 @@ class VolumeFile(Base):
     summary = Column(Text, nullable=True, comment="人工填写的摘要/备注")
     # 注意: MySQL中是longtext, SQLAlchemy中Text即可自动处理大文本
     ocr_content = Column(Text, nullable=True, comment="系统识别的全文文本")
+    ocr_status = Column(String(20), default='pending', comment="OCR状态: pending/processing/completed/skipped/failed")
 
     # 操作记录
     uploaded_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, comment="上传人ID")
