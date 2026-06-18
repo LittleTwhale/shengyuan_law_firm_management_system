@@ -843,7 +843,9 @@ def get_upcoming_events(
             date_conditions.extend([
                 between(BankCase.statute_of_limitations, today, target_date),
                 between(BankCase.execution_recovery_date, today, target_date),
-                between(BankCase.guarantee_due_date, today, target_date)
+                between(BankCase.guarantee_due_date, today, target_date),
+                between(BankCase.freeze_end_date, today, target_date),
+                between(BankCase.seizure_end_date, today, target_date),
             ])
     else:
         date_conditions = [
@@ -858,7 +860,9 @@ def get_upcoming_events(
             date_conditions.extend([
                 BankCase.statute_of_limitations >= today,
                 BankCase.execution_recovery_date >= today,
-                BankCase.guarantee_due_date >= today
+                BankCase.guarantee_due_date >= today,
+                BankCase.freeze_end_date >= today,
+                BankCase.seizure_end_date >= today,
             ])
 
     # 组装基础查询
@@ -894,6 +898,8 @@ def get_upcoming_events(
             check_points.append(("诉讼时效到期", case.bank_case_details.statute_of_limitations))
             check_points.append(("恢复执行时间", case.bank_case_details.execution_recovery_date))
             check_points.append(("保证到期", case.bank_case_details.guarantee_due_date))
+            check_points.append(("冻结到期", case.bank_case_details.freeze_end_date))
+            check_points.append(("查封到期", case.bank_case_details.seizure_end_date))
 
         # 动态获取当事人列表中的委托人名称
         clients = [p.name for p in case.parties if p.party_type and '委托' in p.party_type and p.name]
@@ -1113,7 +1119,8 @@ def export_cases_to_excel(
         "裁判摘要", "支持律师费金额", "被告支付律师费金额", "是否还清", "是否有二审/再审",
         "执行案号", "执行立案时间", "执行法官", "借款人工作单位", "是否为恢复执行", "收取执行材料时间",
         "执行材料提交法院时间", "执行本金金额", "执行律师费金额", "财产调查情况", "网络查控财产情况",
-        "承办人执行方案", "法院执行措施", "查封冻结时间", "拍卖程序", "拍卖变卖成交价",
+        "承办人执行方案", "法院执行措施", "查封冻结时间", "冻结开始日期", "冻结截止日期",
+        "查封开始日期", "查封截止日期", "拍卖程序", "拍卖变卖成交价",
         "执行和解内容", "执行和解到期日", "执行和解案件履行跟踪情况", "终本时间", "终本原因", "终结执行时间", "恢复执行时间", "还清时间",
         "执行回款总金额", "执行回款来源", "执行和解跟进及回款额", "扣划跟进及回款额", "调解案件履行跟踪情况"
     ]
@@ -1305,6 +1312,10 @@ def export_cases_to_excel(
                 bank.execution_plan if bank else "",
                 bank.court_execution_measures if bank else "",
                 format_date(bank.seizure_freeze_date if bank else None),
+                format_date(bank.freeze_start_date if bank else None),
+                format_date(bank.freeze_end_date if bank else None),
+                format_date(bank.seizure_start_date if bank else None),
+                format_date(bank.seizure_end_date if bank else None),
                 bank.auction_status if bank else "",
                 format_decimal(bank.auction_deal_price if bank else 0),
                 bank.execution_settlement_content if bank else "",

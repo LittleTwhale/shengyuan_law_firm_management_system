@@ -594,7 +594,7 @@ const getUrgencyColor = (days) => {
 
 const getEventTypeColor = (type) => {
   if (['开庭', '诉讼时效到期'].includes(type)) return 'danger'
-  if (['保全到期', '付款到期'].includes(type)) return 'warning'
+  if (['保全到期', '付款到期', '冻结到期', '查封到期'].includes(type)) return 'warning'
   return 'primary' // 自定义或其他默认蓝色
 }
 

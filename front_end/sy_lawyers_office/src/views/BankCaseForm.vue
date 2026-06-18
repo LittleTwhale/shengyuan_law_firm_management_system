@@ -1636,6 +1636,48 @@
         </el-col>
 
         <el-col :span="12">
+          <el-form-item label="冻结开始日期" prop="bank_case_details.freeze_start_date" label-width="150px">
+            <el-date-picker
+              v-model="formData.bank_case_details.freeze_start_date"
+              type="date"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="冻结截止日期" prop="bank_case_details.freeze_end_date" label-width="150px">
+            <el-date-picker
+              v-model="formData.bank_case_details.freeze_end_date"
+              type="date"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+
+        <el-col :span="12">
+          <el-form-item label="查封开始日期" prop="bank_case_details.seizure_start_date" label-width="150px">
+            <el-date-picker
+              v-model="formData.bank_case_details.seizure_start_date"
+              type="date"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="查封截止日期" prop="bank_case_details.seizure_end_date" label-width="150px">
+            <el-date-picker
+              v-model="formData.bank_case_details.seizure_end_date"
+              type="date"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+
+        <el-col :span="12">
           <el-form-item
             label="拍卖程序"
             prop="bank_case_details.auction_status"

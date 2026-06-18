@@ -388,6 +388,19 @@
           <el-descriptions-item label="法院执行措施" :span="2">
             <div class="case-detail-content">{{ details.court_execution_measures || '-' }}</div>
           </el-descriptions-item>
+
+          <el-descriptions-item label="冻结开始日期">
+            {{ formatDate(details.freeze_start_date) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="冻结截止日期">
+            {{ formatDate(details.freeze_end_date) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="查封开始日期">
+            {{ formatDate(details.seizure_start_date) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="查封截止日期">
+            {{ formatDate(details.seizure_end_date) }}
+          </el-descriptions-item>
         </el-descriptions>
 
         <el-divider content-position="left" class="section-divider execution"
@@ -538,6 +551,10 @@ const timelineEvents = computed(() => {
     { label: '保全开始日', date: cData.preservation_start, type: 'warning' },
     { label: '保全终止日', date: cData.preservation_end, type: 'warning' },
     { label: '查封冻结时间', date: dData.seizure_freeze_date, type: 'warning' },
+    { label: '冻结开始日期', date: dData.freeze_start_date, type: 'info' },
+    { label: '冻结截止日期', date: dData.freeze_end_date, type: 'warning' },
+    { label: '查封开始日期', date: dData.seizure_start_date, type: 'info' },
+    { label: '查封截止日期', date: dData.seizure_end_date, type: 'warning' },
 
     { label: '裁判时间', date: dData.judgment_date, type: 'success' },
     { label: '结案时间', date: cData.closing_date, type: 'success' },

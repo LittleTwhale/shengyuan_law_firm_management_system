@@ -161,7 +161,11 @@ class BankCase(Base):
     court_execution_measures = Column(Text, comment="法院执行措施")
 
     # 查封与冻结
-    seizure_freeze_date = Column(Date, comment="查封冻结时间")
+    seizure_freeze_date = Column(Date, comment="查封冻结时间(旧字段)")
+    freeze_start_date = Column(Date, comment="冻结开始日期")
+    freeze_end_date = Column(Date, comment="冻结截止日期")
+    seizure_start_date = Column(Date, comment="查封开始日期")
+    seizure_end_date = Column(Date, comment="查封截止日期")
 
     # 拍卖流程
     auction_status = Column(Text, comment="拍卖程序")

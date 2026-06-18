@@ -115,8 +115,16 @@ class BankCaseBase(BaseModel):
 
     # --- 查封与冻结 ---
 
-    # 查封冻结时间
+    # 查封冻结时间（旧字段）
     seizure_freeze_date: Optional[date] = None
+    # 冻结开始日期
+    freeze_start_date: Optional[date] = None
+    # 冻结截止日期
+    freeze_end_date: Optional[date] = None
+    # 查封开始日期
+    seizure_start_date: Optional[date] = None
+    # 查封截止日期
+    seizure_end_date: Optional[date] = None
 
     # --- 拍卖流程 ---
 

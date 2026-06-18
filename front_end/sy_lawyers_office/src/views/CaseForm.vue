@@ -248,6 +248,13 @@ const initialBankDetails = {
   network_control_status: null,
   execution_plan: null,
   court_execution_measures: null,
+
+  // --- 冻结与查封期限 ---
+  freeze_start_date: null,
+  freeze_end_date: null,
+  seizure_start_date: null,
+  seizure_end_date: null,
+
   auction_status: null,
   auction_deal_price: 0,
 
