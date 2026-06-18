@@ -212,6 +212,7 @@ class CaseCreate(BaseModel):
     case_source: Optional[str] = Field(None, description="案件来源")
     fee_method: Optional[str] = Field(None, description="收费方式")
     risk_ratio: Optional[str] = Field(None, description="风险比例")
+    claim_amount: Optional[str] = Field(None, description="诉讼标的额")
     case_income: Optional[Decimal] = Field(0, description="案件收入")
 
     # 诉讼相关
@@ -280,6 +281,7 @@ class CaseUpdate(BaseModel):
     case_source: Optional[str] = Field(None, description="案件来源 / Case source")
     fee_method: Optional[str] = Field(None, description="收费方式 / Fee method")
     risk_ratio: Optional[str] = Field(None, description="风险比例 / Risk ratio")
+    claim_amount: Optional[str] = Field(None, description="诉讼标的额 / Claim amount")
     case_income: Optional[Decimal] = Field(None, description="案件收入 / Case income")
 
     # 费用/支付相关 / Payment-related
@@ -351,6 +353,7 @@ class CaseOut(BaseModel):
     case_source: Optional[str] = Field(None, description="案件来源 / Case source")
     fee_method: Optional[str] = Field(None, description="收费方式 / Fee method")
     risk_ratio: Optional[str] = Field(None, description="风险比例 / Risk ratio")
+    claim_amount: Optional[str] = Field(None, description="诉讼标的额 / Claim amount")
     case_income: Optional[Decimal] = Field(0, description="案件收入 / Case income")
 
     # 诉讼相关

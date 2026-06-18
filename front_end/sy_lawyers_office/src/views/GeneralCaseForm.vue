@@ -149,7 +149,11 @@
                 </el-form-item>
               </el-col>
               <el-col :span="7">
-                <el-form-item label="证件号" label-width="70px" :rules="{ validator: validateIdNumber, trigger: 'blur' }">
+                <el-form-item
+                  label="证件号"
+                  label-width="70px"
+                  :rules="{ validator: validateIdNumber, trigger: 'blur' }"
+                >
                   <el-input v-model="item.id_number" placeholder="选填" :disabled="isRestricted" />
                 </el-form-item>
               </el-col>
@@ -238,7 +242,11 @@
                 </el-form-item>
               </el-col>
               <el-col :span="7">
-                <el-form-item label="证件号" label-width="70px" :rules="{ validator: validateIdNumber, trigger: 'blur' }">
+                <el-form-item
+                  label="证件号"
+                  label-width="70px"
+                  :rules="{ validator: validateIdNumber, trigger: 'blur' }"
+                >
                   <el-input v-model="item.id_number" placeholder="选填" :disabled="isRestricted" />
                 </el-form-item>
               </el-col>
@@ -318,7 +326,11 @@
                 </el-form-item>
               </el-col>
               <el-col :span="7">
-                <el-form-item label="证件号" label-width="70px" :rules="{ validator: validateIdNumber, trigger: 'blur' }">
+                <el-form-item
+                  label="证件号"
+                  label-width="70px"
+                  :rules="{ validator: validateIdNumber, trigger: 'blur' }"
+                >
                   <el-input v-model="item.id_number" placeholder="选填" :disabled="isRestricted" />
                 </el-form-item>
               </el-col>
@@ -407,7 +419,11 @@
                 </el-form-item>
               </el-col>
               <el-col :span="6">
-                <el-form-item label="证件号" label-width="70px" :rules="{ validator: validateIdNumber, trigger: 'blur' }">
+                <el-form-item
+                  label="证件号"
+                  label-width="70px"
+                  :rules="{ validator: validateIdNumber, trigger: 'blur' }"
+                >
                   <el-input v-model="item.id_number" placeholder="选填" :disabled="isRestricted" />
                 </el-form-item>
               </el-col>
@@ -638,6 +654,8 @@
       </el-col>
 
       <el-divider content-position="left">费用与标记</el-divider>
+
+      <!-- 第一行：三个核心金额/费用字段平分 24 栏 -->
       <el-col :span="8">
         <el-form-item label="收费方式" prop="fee_method">
           <el-select v-model="formData.fee_method" placeholder="请选择收费方式" style="width: 100%">
@@ -652,9 +670,21 @@
       </el-col>
       <el-col :span="8">
         <el-form-item label="风险比例" prop="risk_ratio">
-          <el-input v-model="formData.risk_ratio" />
+          <!-- 加上 style="width: 100%" 确保撑满 -->
+          <el-input v-model="formData.risk_ratio" placeholder="如20%" style="width: 100%" />
         </el-form-item>
       </el-col>
+      <el-col :span="8">
+        <el-form-item label="诉讼标的额" prop="claim_amount">
+          <el-input
+            v-model="formData.claim_amount"
+            placeholder="请输入诉讼标的额"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-col>
+
+      <!-- 第二行：收入、到期日与标记 -->
       <el-col :span="8">
         <el-form-item label="业务收入" prop="case_income">
           <el-input-number
@@ -675,7 +705,7 @@
           />
         </el-form-item>
       </el-col>
-      <el-col :span="16">
+      <el-col :span="20">
         <el-form-item label="标记">
           <el-checkbox v-model="formData.is_major">是否重大</el-checkbox>
           <el-checkbox v-model="formData.has_paper_file">是否纸质卷宗</el-checkbox>

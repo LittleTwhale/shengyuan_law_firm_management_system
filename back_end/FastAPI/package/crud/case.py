@@ -1102,7 +1102,7 @@ def export_cases_to_excel(
         "其他当事人", "其他当事人联系电话", "其他当事人证件号"
     ]
     base_headers_part2 = [
-        "案件来源", "收费方式", "风险比例", "案件收入",
+        "案件来源", "收费方式", "风险比例", "诉讼标的额", "案件收入",
         "付款到期日", "案由", "介入阶段", "代理权限", "审理法院", "侦查机关", "检察院", "二审检察机关", "开庭时间",
         "立案日", "结案时间",
         "案件地点", "案件详情", "主办律师", "助理律师", "第二助理律师", "执行主办律师", "执行助理律师", "审核状态",
@@ -1243,7 +1243,7 @@ def export_cases_to_excel(
 
         base_data_part1 = [case.case_id, case.case_number, format_date(case.commission_date), case.case_category]
         base_data_part2 = [
-            case.case_source or "", case.fee_method or "", case.risk_ratio or "", format_decimal(case.case_income),
+            case.case_source or "", case.fee_method or "", case.risk_ratio or "", case.claim_amount or "", format_decimal(case.case_income),
             format_date(case.payment_due_date), case.cause or "", case.stage or "", case.agency_power or "",
             case.court or "", case.investigative_agency or "", case.procuratorate or "",
             case.second_instance_procuratorate or "", format_date(case.hearing_date), format_date(case.filing_date),

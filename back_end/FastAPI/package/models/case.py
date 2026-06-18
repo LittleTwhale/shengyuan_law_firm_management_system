@@ -17,6 +17,7 @@ class Case(Base):
     case_source = Column(String(100), nullable=True, comment="案件来源")
     fee_method = Column(String(50), nullable=True, comment="收费方式")
     risk_ratio = Column(String(50), nullable=True, comment="风险比例")
+    claim_amount = Column(String(100), nullable=True, comment="诉讼标的额")
     case_income = Column(DECIMAL(10,2), default=0, comment="案件收入")
 
     payment_due_date = Column(Date, nullable=True, comment="付款到期日")

@@ -78,6 +78,7 @@
         caseData.case_income ? `${caseData.case_income} 元` : '-'
       }}</el-descriptions-item>
       <el-descriptions-item label="风险比例">{{ caseData.risk_ratio || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="诉讼标的额">{{ caseData.claim_amount || '-' }}</el-descriptions-item>
       <el-descriptions-item label="付款到期日">{{
         formatDate(caseData.payment_due_date)
       }}</el-descriptions-item>

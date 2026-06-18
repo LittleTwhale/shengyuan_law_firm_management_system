@@ -318,6 +318,7 @@ const getInitialFormData = () => ({
   // 费用
   fee_method: null,
   risk_ratio: null,
+  claim_amount: null,
   case_income: 0,
   payment_due_date: null,
 
