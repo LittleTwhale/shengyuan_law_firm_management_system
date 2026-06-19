@@ -181,6 +181,22 @@ def update_electronic_seal_status(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
+@router.patch("/seals/{seal_id}/size")
+def update_seal_size(
+    seal_id: int,
+    file_size: int = Query(..., description="文件大小（KB）"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """STS 上传完成后回写印章文件大小（KB）"""
+    seal = seal_crud.get_electronic_seal_by_id(db, seal_id)
+    if not seal:
+        raise HTTPException(status_code=404, detail="印章不存在")
+    seal.file_size = file_size
+    db.commit()
+    return {"ok": True}
+
+
 @router.delete("/seals/{seal_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_electronic_seal(
         seal_id: int,

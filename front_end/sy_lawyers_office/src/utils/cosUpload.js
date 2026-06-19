@@ -47,7 +47,7 @@ export function uploadToCOS(file, stsResponse, onProgress) {
           console.error('[COS Upload] 上传失败:', err)
           resolve({ success: false, error: err.message || 'COS 上传失败' })
         } else {
-          resolve({ success: true })
+          resolve({ success: true, file_size: file.size })
         }
       }
     )

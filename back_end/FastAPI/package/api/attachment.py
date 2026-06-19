@@ -1,9 +1,10 @@
 # api/attachment.py
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
+
 
 from ..database.database import get_db
 from ..models.attachment import CaseAttachment
@@ -194,6 +195,22 @@ def get_case_attachments(
         )
 
     return get_attachments_by_case_id(db, case_id)
+
+
+@router.patch("/{attachment_id}/size")
+def update_attachment_size(
+    attachment_id: int,
+    file_size: int = Query(..., description="文件大小（字节）"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """STS 上传完成后回写文件大小"""
+    attachment = db.query(CaseAttachment).filter(CaseAttachment.attachment_id == attachment_id).first()
+    if not attachment:
+        raise HTTPException(status_code=404, detail="附件不存在")
+    attachment.file_size = file_size
+    db.commit()
+    return {"ok": True}
 
 
 @router.delete("/{attachment_id}", status_code=status.HTTP_204_NO_CONTENT)

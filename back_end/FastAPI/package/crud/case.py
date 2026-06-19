@@ -17,9 +17,11 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from ..models.case import Case, CaseParty, BankCase
 from ..models.electronic_volume_model import CaseVolume, VolumeFile
 from ..models.finance_model import CaseFinance
+from ..models.attachment import CaseAttachment
 from ..models.user import UserSchedule
 from ..schemas.case import CaseCreate, CaseUpdate
 from ..schemas.case import CaseExportQuery
+from ..core.config import CASE_ATTACHMENT_ROOT, settings
 
 
 def get_case_by_id(db: Session, case_id: int) -> Optional[Case]:
@@ -683,6 +685,34 @@ def delete_case(db: Session, case_id: int) -> bool:
 
         # C. 删除卷册记录
         db.delete(volume)
+
+    # =========================================================
+    # 1.5 清理附件 (数据库记录 + 本地文件 + COS 对象)
+    # =========================================================
+    attachments = db.query(CaseAttachment).filter(CaseAttachment.case_id == case_id).all()
+    for attachment in attachments:
+        # 删除本地文件及级联空文件夹
+        full_path = os.path.join(CASE_ATTACHMENT_ROOT, attachment.file_path)
+        from ..utils.storage_manager import cleanup_local_file
+        cleanup_local_file(full_path, CASE_ATTACHMENT_ROOT)
+        # Word 文档同步删除 PDF 预览缓存
+        if full_path.lower().endswith(('.doc', '.docx')):
+            pdf_path = os.path.splitext(full_path)[0] + '.pdf'
+            cleanup_local_file(pdf_path, CASE_ATTACHMENT_ROOT)
+
+        # COS 模式：删除 COS 对象及 PDF 预览缓存
+        cos_key = getattr(attachment, 'cos_key', None)
+        if cos_key and settings.STORAGE_TYPE == "COS":
+            try:
+                from ..utils.storage_manager import _get_cos_client
+                _get_cos_client().delete_object(Bucket=settings.COS_BUCKET, Key=cos_key)
+                stem, _ = os.path.splitext(cos_key)
+                cache_key = f"preview_cache/{stem}.pdf"
+                _get_cos_client().delete_object(Bucket=settings.COS_BUCKET, Key=cache_key)
+            except Exception as e:
+                print(f"[DeleteCase] COS 附件删除失败: {e}")
+
+        db.delete(attachment)
 
     # =========================================================
     # 2. 清理财务数据

@@ -827,6 +827,10 @@ const handleSubmit = async () => {
               if (!result.success) {
                 throw new Error(result.error || 'COS 上传失败')
               }
+              // 回写文件大小（字节），静默失败不影响主流程
+              request.patch(`/attachments/${res.data.attachment_id}/size`, null, {
+                params: { file_size: result.file_size }
+              }).catch(() => {})
             }
             return res
           })

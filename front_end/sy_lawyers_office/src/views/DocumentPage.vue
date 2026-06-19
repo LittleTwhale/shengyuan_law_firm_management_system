@@ -497,6 +497,10 @@ const handleUploadSubmit = async () => {
       if (!result.success) {
         throw new Error(result.error || 'COS 上传失败')
       }
+      // 回写模板文件大小（KB），静默失败不影响主流程
+      request.patch(`/template/document/${res.data.template_id}/size`, null, {
+        params: { file_size: Math.round(result.file_size / 1024) }
+      }).catch(() => {})
     }
     ElNotification({
       title: '成功',

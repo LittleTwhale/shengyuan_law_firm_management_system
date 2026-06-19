@@ -784,6 +784,10 @@ const handleCreateSeal = async () => {
       if (!result.success) {
         throw new Error(result.error || 'COS 上传失败')
       }
+      // 回写印章文件大小（KB），静默失败不影响主流程
+      request.patch(`/electronic_seal/seals/${res.data.seal_id}/size`, null, {
+        params: { file_size: Math.round(result.file_size / 1024) }
+      }).catch(() => {})
     }
     ElMessage.success('印章上传成功')
     showCreateSealDialog.value = false

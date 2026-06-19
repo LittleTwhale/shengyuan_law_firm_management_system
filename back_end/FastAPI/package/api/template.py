@@ -229,6 +229,22 @@ def get_document_template(
         )
     return template
 
+@router.patch("/document/{template_id}/size")
+def update_template_size(
+    template_id: int,
+    file_size: int = Query(..., description="文件大小（KB）"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """STS 上传完成后回写模板文件大小（KB）"""
+    template = get_template_by_id(db, template_id)
+    if not template:
+        raise HTTPException(status_code=404, detail="模板不存在")
+    template.file_size = file_size
+    db.commit()
+    return {"ok": True}
+
+
 @router.delete("/document/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_document_template(
     template_id: int,
