@@ -267,6 +267,10 @@ def _cos_preview(
     # 优先使用 cos_key（数据库字段），否则回退到 file_path
     cos_key = getattr(file_record, "cos_key", None) or file_path
 
+    # 确保有文件名（DocumentTemplate 等模型无 file_name 字段，需从 cos_key 提取）
+    if not file_name:
+        file_name = os.path.basename(cos_key) or "download"
+
     if not is_word:
         # 非 Word 文件：直接返回签名 URL
         url = client.get_presigned_url(
