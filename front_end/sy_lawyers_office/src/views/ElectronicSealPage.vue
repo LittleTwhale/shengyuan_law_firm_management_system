@@ -105,7 +105,7 @@
           <el-table-column label="操作" width="300" fixed="right">
             <template #default="{ row }">
               <el-button
-                v-if="row.stamped_file_path"
+                v-if="row.stamped_file_path || row.stamped_file_cos_key"
                 size="small"
                 type="success"
                 @click="downloadStampedFile(row.id, row.original_file_name)"
@@ -227,7 +227,7 @@
           <el-table-column label="操作" width="280" fixed="right">
             <template #default="{ row }">
               <el-button
-                v-if="row.stamped_file_path"
+                v-if="row.stamped_file_path || row.stamped_file_cos_key"
                 size="small"
                 type="success"
                 @click="downloadStampedFile(row.id, row.original_file_name)"
@@ -871,7 +871,7 @@ const downloadStampedFile = async (id, fileName) => {
 }
 
 const deleteApplication = async (row, sourceTab = 'my_applications') => {
-  const fileType = row.stamped_file_path ? '已盖章文件' : '原始文件'
+  const fileType = (row.stamped_file_path || row.stamped_file_cos_key) ? '已盖章文件' : '原始文件'
   const confirmMsg = `确定要删除申请ID ${row.id} 及其所有附件（包含${fileType}）吗？此操作不可逆。`
 
   if (!confirm(confirmMsg)) return
@@ -933,16 +933,17 @@ const handleReject = async () => {
   }
 }
 
-// 轮询等待 Word → PDF 后台转换完成
+// 轮询等待 Word → PDF 后台转换完成（LOCAL 模式用 preview_pdf_path，COS 模式用 preview_pdf_cos_key）
 const waitForPreviewPdf = async (applicationId) => {
-  if (currentAuditRow.value?.preview_pdf_path) return
+  if (currentAuditRow.value?.preview_pdf_path || currentAuditRow.value?.preview_pdf_cos_key) return
   // 最多等待 60 秒，每 2 秒检查一次
   for (let i = 0; i < 30; i++) {
     await new Promise((resolve) => setTimeout(resolve, 2000))
     try {
       const res = await request.get(`/electronic_seal/applications/${applicationId}`)
-      if (res.data.preview_pdf_path) {
+      if (res.data.preview_pdf_path || res.data.preview_pdf_cos_key) {
         currentAuditRow.value.preview_pdf_path = res.data.preview_pdf_path
+        currentAuditRow.value.preview_pdf_cos_key = res.data.preview_pdf_cos_key
         return
       }
     } catch (e) {
