@@ -786,7 +786,7 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
                     "auction_deal_price": parse_decimal(row_data.get("拍卖变卖成交价")),
                     "execution_settlement_content": str(row_data.get("执行和解内容", "")).strip() or None,
                     "execution_settlement_due_date": parse_date(row_data.get("执行和解到期日")),
-                    "execution_settlement_tracking": str(row_data.get("执行和解案件履行跟踪情况", "")).strip() or None,
+                    "execution_settlement_tracking": (row_data.get("执行和解案件履行跟踪情况") or "").strip() or None,
                     "procedure_termination_date": parse_date(row_data.get("终本时间")),
                     "termination_reason": str(row_data.get("终本原因", "")).strip() or None,
                     "execution_conclusion_date": parse_date(row_data.get("终结执行时间")),
@@ -992,12 +992,89 @@ async def batch_sync_excel(
     try:
         contents = await file.read()
         wb = load_workbook(filename=BytesIO(contents), data_only=True)
-        # 默认处理第一个 Sheet (常规业务或银行案件)
-        ws = wb.active
+        # 按优先级查找业务数据 Sheet（避免取到「当事人明细」等子表）
+        if "银行案件" in wb.sheetnames:
+            ws = wb["银行案件"]
+        elif "常规业务" in wb.sheetnames:
+            ws = wb["常规业务"]
+        elif "业务列表" in wb.sheetnames:
+            ws = wb["业务列表"]
+        else:
+            ws = wb.active
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"文件读取失败: {str(e)}")
 
     headers = [str(cell.value).strip() for cell in ws[1]]
+
+    # 校验关键列是否存在，防止取错 Sheet 导致 0 条处理
+    if "业务号" not in headers:
+        raise HTTPException(
+            status_code=400,
+            detail=f"工作表「{ws.title}」中未找到「业务号」列，请使用系统导出的 Excel 文件"
+        )
+
+    # ---- 解析「当事人明细」Sheet，构建 parties_dict ----
+    parties_dict = {}
+    ws_parties = None
+    try:
+        ws_parties = wb["当事人明细"]
+    except KeyError:
+        pass
+
+    if ws_parties is not None:
+        party_headers = [str(c.value).strip() if c.value else "" for c in ws_parties[1]]
+
+        # 构建字段名 → 列索引的映射（支持灵活列名匹配）
+        col_map = {}
+        for i, h in enumerate(party_headers):
+            if h == "关联业务号":
+                col_map["case_number"] = i
+            elif h in ("当事人名称", "姓名/名称"):
+                col_map["name"] = i
+            elif h in ("类型", "当事人类型"):
+                col_map["party_type"] = i
+            elif h == "身份证号/统一社会信用代码":
+                col_map["id_number"] = i
+            elif h == "联系电话":
+                col_map["phone"] = i
+            elif h == "联系地址":
+                col_map["address"] = i
+            elif h == "法定代表人":
+                col_map["legal_representative"] = i
+
+        # 没有关联业务号列则无法处理（仅打印提示，不阻塞同步）
+        if "case_number" in col_map:
+            def clean_str(val):
+                """清理 Excel 中的空值，返回 None"""
+                if val is None:
+                    return None
+                s = str(val).strip()
+                if s.lower() in ("none", "nan", "null", ""):
+                    return None
+                return s
+
+            for row in ws_parties.iter_rows(min_row=2, values_only=True):
+                case_num = clean_str(row[col_map["case_number"]])
+                if not case_num:
+                    continue
+
+                party_data = {
+                    "party_type": clean_str(row[col_map["party_type"]]) if "party_type" in col_map else None,
+                    "name": clean_str(row[col_map["name"]]) if "name" in col_map else None,
+                    "id_number": clean_str(row[col_map["id_number"]]) if "id_number" in col_map else None,
+                    "phone": clean_str(row[col_map["phone"]]) if "phone" in col_map else None,
+                    "address": clean_str(row[col_map["address"]]) if "address" in col_map else None,
+                    "legal_representative": clean_str(row[col_map["legal_representative"]]) if "legal_representative" in col_map else None,
+                }
+
+                # 跳过 party_type 或 name 为空的行（两者均为数据库 NOT NULL 字段）
+                if not party_data["party_type"] or not party_data["name"]:
+                    continue
+
+                if case_num not in parties_dict:
+                    parties_dict[case_num] = []
+                parties_dict[case_num].append(party_data)
+    # ----------------------------------------------------------------
 
     def parse_date(val):
         if not val or str(val).lower() in ["none", "nan", ""]: return None
@@ -1047,6 +1124,9 @@ async def batch_sync_excel(
         case_id = row_data.get("业务ID")
         case_number = str(row_data.get("业务号", "")).strip()
 
+        # 获取该业务号在当事人明细中对应的当事人列表
+        current_excel_parties = parties_dict.get(case_number, [])
+
         if not case_number or case_number.lower() in ["none", "nan", ""]:
             continue
 
@@ -1062,7 +1142,10 @@ async def batch_sync_excel(
             # 2. 查找现有案件
             existing_case = None
             if case_id:
-                existing_case = db.query(Case).filter(Case.case_id == case_id).first()
+                existing_case = db.query(Case).filter(Case.case_id == case_id, Case.is_deleted == False).first()
+            # 按 case_id 没找到时，尝试用 case_number 兜底（兼容不含「业务ID」列的 Excel）
+            if not existing_case and case_number:
+                existing_case = db.query(Case).filter(Case.case_number == case_number, Case.is_deleted == False).first()
 
             # 3. 准备基础字段数据 (加入解析后的律师ID)
             case_update_dict = {
@@ -1170,7 +1253,7 @@ async def batch_sync_excel(
                     "auction_deal_price": parse_decimal(row_data.get("拍卖变卖成交价")),
                     "execution_settlement_content": row_data.get("执行和解内容"),
                     "execution_settlement_due_date": parse_date(row_data.get("执行和解到期日")),
-                    "execution_settlement_tracking": str(row_data.get("执行和解案件履行跟踪情况", "")).strip() or None,
+                    "execution_settlement_tracking": (row_data.get("执行和解案件履行跟踪情况") or "").strip() or None,
                     "procedure_termination_date": parse_date(row_data.get("终本时间")),
                     "termination_reason": row_data.get("终本原因"),
                     "execution_conclusion_date": parse_date(row_data.get("终结执行时间")),
@@ -1195,15 +1278,30 @@ async def batch_sync_excel(
                     else:
                         new_bank = BankCase(case_id=existing_case.case_id, **bank_data)
                         db.add(new_bank)
+
+                # --- 当事人同步：全量覆盖（先删后插） ---
+                if current_excel_parties:
+                    db.query(CaseParty).filter(CaseParty.case_id == existing_case.case_id).delete()
+                    for p in current_excel_parties:
+                        db.add(CaseParty(case_id=existing_case.case_id, **p))
+                # -----------------------------------------
+
                 update_count += 1
             else:
-                # 新增逻辑 (注意：此处暂不处理当事人，建议当事人仍通过专项 Sheet 导入)
-                new_case = Case(case_number=case_number, **case_update_dict)
+                # 新增案件
+                new_case = Case(case_number=case_number, review_status="待审核", **case_update_dict)
                 db.add(new_case)
                 db.flush()
                 if bank_data:
                     new_bank = BankCase(case_id=new_case.case_id, **bank_data)
                     db.add(new_bank)
+
+                # --- 新案件当事人插入 ---
+                if current_excel_parties:
+                    for p in current_excel_parties:
+                        db.add(CaseParty(case_id=new_case.case_id, **p))
+                # -------------------------
+
                 success_count += 1
 
             db.commit()

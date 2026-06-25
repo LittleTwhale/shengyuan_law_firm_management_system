@@ -711,7 +711,7 @@
           <el-form-item label="案件状态" prop="bank_case_details.case_status" label-width="120px">
             <el-select
               v-model="formData.bank_case_details.case_status"
-              placeholder="请选择案 件状态"
+              placeholder="请选择案件状态"
               filterable
               clearable
               style="width: 100%"

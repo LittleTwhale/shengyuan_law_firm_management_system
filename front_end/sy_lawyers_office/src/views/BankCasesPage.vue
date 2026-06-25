@@ -476,7 +476,7 @@
             <h4>线下修改信息</h4>
             <p>
               在 Excel 中批量修改案件字段。<strong>注意：请勿修改“业务ID”列</strong>，系统依赖该 ID
-              识别现有案件。
+              识别现有案件。如需同步当事人信息，请在<strong>「当事人明细」</strong>工作表中编辑。
             </p>
           </div>
         </div>
@@ -494,7 +494,7 @@
           <ul class="warning-list">
             <li>该操作具有<strong>覆盖性</strong>，请务必核实数据后再上传。</li>
             <li><strong>严禁修改业务ID</strong>，否则将导致同步失败或创建重复案件。</li>
-            <li>当前版本<strong>不支持</strong>通过此接口修改当事人及相关律师信息。</li>
+            <li>当前版本基于「当事人明细」Sheet 支持<strong>当事人全量同步</strong>（先删除后重新插入）。</li>
             <li>若“业务ID”为空，系统将基于“业务号”尝试新建案件。</li>
           </ul>
         </el-alert>
