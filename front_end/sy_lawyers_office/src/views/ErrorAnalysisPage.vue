@@ -483,14 +483,30 @@ function onDetailClosed() {
   }
 }
 
-// ── 复制分析结果 ──
+// ── 复制分析结果（Clipboard API 优先，失败回退 execCommand） ──
 async function copyResult() {
-  if (detailData.value?.analysis_result) {
+  const text = detailData.value?.analysis_result
+  if (!text) return
+
+  try {
+    // 方案一：Clipboard API（需 HTTPS / localhost）
+    await navigator.clipboard.writeText(text)
+    ElMessage.success('已复制到剪贴板')
+  } catch {
+    // 方案二：textarea + execCommand 回退（兼容所有环境）
     try {
-      await navigator.clipboard.writeText(detailData.value.analysis_result)
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      textarea.style.left = '-9999px'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
       ElMessage.success('已复制到剪贴板')
     } catch {
-      ElMessage.error('复制失败')
+      ElMessage.error('复制失败，请手动选中文本复制')
     }
   }
 }

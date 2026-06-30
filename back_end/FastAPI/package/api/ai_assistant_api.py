@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..database.database import get_db
 from ..models.user import User
-from ..models.case import Case, CaseParty
+from ..models.case import Case, CaseParty, BankCase
 from ..models.electronic_volume_model import CaseVolume, VolumeFile
 from ..models.finance_model import CaseFinance
 from ..models.attachment import CaseAttachment
@@ -27,9 +27,16 @@ from ..utils.llm_client import (
     analyze_case_stream as llm_analyze_stream,
     chat_about_case as llm_chat,
     search_relevant_provisions as llm_rag_search,
+    diagnose_excel_errors as llm_diagnose_excel,
 )
 from ..utils.ocr_helper import perform_smart_extraction
 from ..crud.case import list_cases_by_user_role, count_cases_by_user_role
+from ..crud.error_analysis_crud import (
+    create_error_analysis,
+    update_analysis_result,
+    mark_analysis_failed,
+    mark_analysis_processing,
+)
 
 # 使用 shengyuan_app 作为父 logger，确保日志进入统一日志系统
 logger = logging.getLogger("shengyuan_app.ai_assistant")
@@ -56,6 +63,47 @@ def _filter_party(p: CaseParty) -> dict:
 
 def _filter_parties(parties: List[CaseParty]) -> list:
     return [_filter_party(p) for p in parties]
+
+
+# =================================================================
+#  辅助函数：提取模型字段定义（用于 Excel 错误诊断）
+# =================================================================
+
+def _extract_model_fields() -> dict:
+    """
+    从 SQLAlchemy 模型中自动提取字段定义，供 AI 诊断 Excel 错误时参考。
+    这样当模型字段发生变化时，诊断逻辑无需手动同步更新。
+    特别地，会检测 Enum 类型的字段并提取其允许值列表。
+    同时附带 models/case.py 的完整源码，让 AI 能精确看到 String 长度、Enum 取值等所有定义细节。
+    """
+    from sqlalchemy import Enum as SAEnum
+    import os
+
+    model_fields = {}
+    for model_class, class_name in [(Case, "Case"), (BankCase, "BankCase"), (CaseParty, "CaseParty")]:
+        fields = {}
+        for column in model_class.__table__.columns:
+            field_def = {
+                "type": str(column.type),
+                "comment": column.comment or "",
+                "nullable": column.nullable,
+            }
+            # 检测枚举类型，提取允许的枚举值列表（如 agency_power 的取值：'特别代理', '一般代理', ''）
+            if isinstance(column.type, SAEnum):
+                field_def["enums"] = list(column.type.enums)
+            fields[column.name] = field_def
+        model_fields[class_name] = fields
+
+    # 附带 models/case.py 的完整源代码
+    model_file = os.path.join(os.path.dirname(__file__), '..', 'models', 'case.py')
+    try:
+        with open(model_file, 'r', encoding='utf-8') as f:
+            model_fields['_source_code'] = f.read()
+    except Exception as e:
+        logger.warning("读取 models/case.py 源码失败: %s", e)
+        model_fields['_source_code'] = None
+
+    return model_fields
 
 
 # =================================================================
@@ -741,4 +789,111 @@ async def chat_about_case(
         "case_id": case_id,
         "reply": reply,
         "messages": updated_history,
+    }
+
+
+# =================================================================
+#  Excel 导入/同步错误诊断端点（异步模式）
+# =================================================================
+
+async def _run_excel_diagnosis_background(
+    record_id: int,
+    errors_list: list,
+    model_fields: dict,
+    source: str,
+):
+    """
+    后台执行 Excel 错误诊断（由 asyncio.create_task 调度）
+    不阻塞主请求，诊断完成后自动更新数据库记录。
+    """
+    from ..database.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        # 标记为"分析中"
+        mark_analysis_processing(db, record_id)
+
+        logger.info("开始后台诊断 Excel 错误（ID: %d, 来源: %s, 错误数: %d）",
+                     record_id, source, len(errors_list))
+
+        # 调用 DeepSeek 进行诊断
+        diagnosis = await llm_diagnose_excel(
+            errors=errors_list,
+            model_fields=model_fields,
+            source=source,
+        )
+
+        # 更新分析结果
+        update_analysis_result(db, record_id, diagnosis)
+        logger.info("Excel 错误诊断完成（ID: %d）", record_id)
+
+    except Exception as e:
+        logger.error("Excel 错误诊断失败（ID: %d）: %s", record_id, e)
+        try:
+            mark_analysis_failed(db, record_id, str(e)[:500])
+        except Exception:
+            pass
+    finally:
+        db.close()
+
+
+@router.post("/diagnose_excel_errors")
+async def diagnose_excel_errors(
+    errors: str = Form(..., description="JSON 格式的错误列表"),
+    source: str = Form("import", description="操作来源: import 或 sync"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    诊断 Excel 批量导入/同步时产生的错误（异步）
+
+    接收错误信息，自动读取数据库模型字段定义，
+    立即创建分析记录并返回 analysis_id，后台异步调用 DeepSeek 进行分析。
+    前端可通过 GET /error-analyses/{id} 轮询获取结果。
+
+    诊断结果会自动保存到「错误分析」记录中，可在「错误分析报告」页面查看历史。
+    """
+    # 解析 JSON 参数
+    try:
+        errors_list = json.loads(errors)
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail=f"参数 JSON 解析失败: {e}")
+
+    if not errors_list:
+        raise HTTPException(status_code=400, detail="错误列表为空，无需诊断")
+
+    # 提取数据库模型字段定义（自动从 SQLAlchemy 模型读取）
+    model_fields = _extract_model_fields()
+
+    # 构建错误摘要（写入 ErrorAnalysis 表用）
+    source_label = "导入" if source == "import" else "同步"
+    error_summary = f"Excel{source_label}错误: 共 {len(errors_list)} 条"
+    error_type = f"Excel{source.capitalize()}Error"
+
+    analysis_data = {
+        "error_type": error_type,
+        "error_message": error_summary[:1000],
+        "request_method": "POST",
+        "request_path": f"/cases/{'import' if source == 'import' else 'batch_sync_excel'}",
+        "user_accounts": current_user.accounts,
+        "user_real_name": current_user.real_name,
+        "analysis_status": "pending",
+    }
+
+    # 创建分析记录（写入 DB，供错误分析页面查阅 + 前端轮询）
+    record = create_error_analysis(db, analysis_data)
+    logger.info("创建 Excel 错误诊断记录 ID=%d（来源: %s, 错误数: %d）",
+                record.id, source, len(errors_list))
+
+    # 启动后台任务异步执行 DeepSeek 分析，不阻塞当前请求
+    asyncio.create_task(
+        _run_excel_diagnosis_background(record.id, errors_list, model_fields, source)
+    )
+
+    # 立即返回（analysis_status = pending，前端将轮询等待完成）
+    return {
+        "analysis_id": record.id,
+        "analysis_result": None,
+        "analysis_status": "pending",
+        "error_type": error_type,
     }

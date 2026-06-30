@@ -21,6 +21,7 @@ from ..core.config import (
 from ..utils.llm_prompts import (
     SYSTEM_PROMPT,
     CHAT_SYSTEM_PROMPT,
+    EXCEL_ERROR_DIAGNOSE_PROMPT,
     DATE_LABELS,
     BANK_FIELDS,
     FINANCE_FIELDS,
@@ -795,6 +796,126 @@ async def chat_about_case(
     content = result["choices"][0]["message"]["content"]
     usage = result.get("usage", {})
     logger.info("DeepSeek 对话响应成功（输入 %d tokens, 输出 %d tokens）",
+                usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0))
+
+    return content.strip()
+
+
+# =================================================================
+#  Excel 导入/同步错误诊断
+# =================================================================
+
+async def diagnose_excel_errors(
+    errors: list,
+    model_fields: dict,
+    source: str = "import",
+    model: str = MODEL_NAME,
+    max_tokens: int = 4000,
+    temperature: float = 0.1,
+) -> str:
+    """
+    调用 DeepSeek 诊断 Excel 批量导入/同步时产生的错误
+
+    Args:
+        errors: 错误列表，每项为 {"case_number": "xxx", "reason": "xxx"} 或 str
+        model_fields: 数据库模型字段定义字典
+        source: "import" 或 "sync"
+        model: 模型名称
+        max_tokens: 最大输出 token 数
+        temperature: 生成温度（诊断需低温度，保证确定性）
+
+    Returns:
+        Markdown 格式的诊断报告
+    """
+    if not DEEPSEEK_API_KEY:
+        raise ValueError("DeepSeek API Key 未配置")
+
+    # 构建用户消息
+    parts = []
+
+    # 1. 错误列表
+    parts.append("## 错误列表")
+    parts.append(f"共 {len(errors)} 个错误：\n")
+    for i, err in enumerate(errors, 1):
+        if isinstance(err, dict):
+            parts.append(f"{i}. 业务号: {err.get('case_number', '未知')} - 原因: {err.get('reason', '未知')}")
+        else:
+            parts.append(f"{i}. {err}")
+
+    # 2. 数据库模型字段定义 — 优先使用完整的模型源码（最准确）
+    source_code = model_fields.get('_source_code')
+    if source_code:
+        parts.append("\n## 数据库模型源代码（models/case.py）")
+        parts.append("该文件定义了 Case、BankCase、CaseParty 三个模型的所有字段约束：")
+        parts.append(f"```python\n{source_code}\n```")
+    else:
+        parts.append("\n## 数据库模型字段定义（源码未获取到，使用降级表格）")
+        for model_name, fields in model_fields.items():
+            if model_name.startswith('_'):
+                continue
+            parts.append(f"\n### {model_name}")
+            parts.append("| 字段名 | 类型 | 说明 | 必填 |")
+            parts.append("|--------|------|------|------|")
+            for field_name, field_info in fields.items():
+                comment = field_info.get('comment', '')[:60]
+                col_type = field_info.get('type', '')
+                nullable = "否" if not field_info.get('nullable', True) else "是"
+
+                # 枚举类型：在类型列中显式标注所有允许的取值
+                enums = field_info.get('enums')
+                if enums:
+                    enum_items = []
+                    for v in enums:
+                        if v == '':
+                            enum_items.append("空字符串")
+                        else:
+                            enum_items.append(f"`{v}`")
+                    parts.append(f"| `{field_name}` | **ENUM** ({', '.join(enum_items)}) | {comment} | {nullable} |")
+                else:
+                    parts.append(f"| `{field_name}` | {col_type} | {comment} | {nullable} |")
+
+    parts.append(f"\n## 操作来源")
+    parts.append(f"{'批量导入' if source == 'import' else '批量同步'}")
+
+    user_message = "\n".join(parts)
+
+    # 构建 API 请求
+    url = f"{DEEPSEEK_BASE_URL.rstrip('/')}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": EXCEL_ERROR_DIAGNOSE_PROMPT},
+            {"role": "user", "content": user_message},
+        ],
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": False,
+    }
+
+    logger.info("调用 DeepSeek 诊断 Excel 错误（错误数: %d）", len(errors))
+
+    try:
+        async with _LLM_SEMAPHORE:
+            response = await _retry_with_backoff(_post_llm_request, url, headers, payload)
+    except httpx.TimeoutException:
+        logger.error("DeepSeek 诊断请求超时")
+        raise RuntimeError(f"DeepSeek API 请求超时（{REQUEST_TIMEOUT}秒）")
+    except httpx.ConnectError:
+        logger.error("无法连接到 DeepSeek API")
+        raise ConnectionError("无法连接到 DeepSeek API")
+    except httpx.HTTPStatusError as e:
+        logger.error("DeepSeek 诊断 HTTP 错误: %d", e.response.status_code)
+        raise RuntimeError(f"DeepSeek API 返回 HTTP {e.response.status_code}")
+
+    response.raise_for_status()
+    result = response.json()
+    content = result["choices"][0]["message"]["content"]
+    usage = result.get("usage", {})
+    logger.info("诊断完成（输入 %d tokens, 输出 %d tokens）",
                 usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0))
 
     return content.strip()

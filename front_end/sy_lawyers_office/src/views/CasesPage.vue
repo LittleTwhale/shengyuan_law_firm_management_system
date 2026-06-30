@@ -355,6 +355,7 @@
       </template>
     </el-dialog>
 
+
     <el-dialog
       title="上传附件"
       v-model="uploadDialogVisible"
@@ -537,6 +538,7 @@ import { uploadToCOS } from '@/utils/cosUpload'
 import { ElMessage, ElNotification } from 'element-plus'
 import CaseForm from './CaseForm.vue' // 引入抽离的CaseForm组件
 import { useRouter } from 'vue-router'
+import { handleErrorAnalysis } from '@/utils/errorAnalysisNotify'
 import {
   Check,
   Document,
@@ -1290,6 +1292,12 @@ const handleImport = async () => {
       message: `成功导入 ${response.data.imported_cases} 条，失败 ${response.data.failed_cases?.length || 0} 条`,
       type: response.data.failed_cases?.length ? 'warning' : 'success',
     })
+
+    // 🚀 自动触发 AI 错误诊断（如果有失败记录）
+    if (response.data.failed_cases && response.data.failed_cases.length > 0) {
+      // 延迟片刻，避免与导入完成通知重叠
+      setTimeout(() => triggerImportDiagnosis(response.data.failed_cases), 1000)
+    }
   } catch (error) {
     console.error('导入失败:', error)
     ElMessage.error({
@@ -1304,6 +1312,27 @@ const handleImport = async () => {
       progress.value = 0
       fileList.value = []
     }, 3000)
+  }
+}
+
+// 🚀 自动触发 AI 错误诊断（异步模式——后台分析，前端轮询，全局弹窗）
+// 即使此时切换到其他页面，轮询和弹窗也不受影响
+async function triggerImportDiagnosis(errors) {
+  try {
+    const formData = new FormData()
+    formData.append('errors', JSON.stringify(errors))
+    formData.append('source', 'import')
+
+    const res = await request.post('/ai/diagnose_excel_errors', formData, {
+      timeout: 30000,
+    })
+
+    // 交给 handleErrorAnalysis 处理：
+    // ElMessage 提示 → 轮询 GET /error-analyses/{id} → 完成后全局 ElMessageBox.alert 弹窗
+    handleErrorAnalysis(res.data)
+  } catch (error) {
+    console.error('AI 错误诊断失败:', error)
+    // 诊断失败不弹对话框（静默失败）
   }
 }
 
@@ -1927,5 +1956,142 @@ const handleDownloadApproval = async (row) => {
     padding-left: 16px;
     padding-right: 16px;
   }
+}
+
+/* ── AI 错误诊断对话框 ── */
+.diagnosis-dialog :deep(.el-dialog__body) {
+  max-height: 65vh;
+  overflow-y: auto;
+}
+
+.diagnosis-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  gap: 16px;
+  color: #165dff;
+}
+
+.diagnosis-loading .is-loading {
+  animation: diagnosis-spin 1.4s ease-in-out infinite;
+}
+
+@keyframes diagnosis-spin {
+  0%, 100% { opacity: 1; transform: rotate(0deg); }
+  50% { opacity: 0.5; transform: rotate(180deg); }
+}
+
+.diagnosis-loading p {
+  color: #606266;
+  font-size: 14px;
+  margin: 0;
+}
+
+.diagnosis-error {
+  padding: 20px;
+}
+
+.diagnosis-content {
+  padding: 4px 0;
+}
+
+.diagnosis-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.diagnosis-source {
+  font-size: 12px;
+  color: #909399;
+}
+
+/* ── 诊断结果 Markdown 样式（复用 ErrorAnalysisPage 风格） ── */
+.analysis-result {
+  background: linear-gradient(135deg, #f5f9ff 0%, #fafcff 100%);
+  border: 1px solid #d6e4f0;
+  border-radius: 10px;
+  padding: 20px 24px;
+  line-height: 1.9;
+  font-size: 14px;
+  color: #2b3a4a;
+}
+.analysis-result :deep(h1),
+.analysis-result :deep(h2),
+.analysis-result :deep(h3),
+.analysis-result :deep(h4) {
+  margin-top: 18px;
+  margin-bottom: 10px;
+  color: #165dff;
+  font-weight: 600;
+}
+.analysis-result :deep(h1) { font-size: 19px; }
+.analysis-result :deep(h2) {
+  font-size: 17px;
+  border-bottom: 1px solid #e5edf5;
+  padding-bottom: 6px;
+}
+.analysis-result :deep(h3) { font-size: 15px; }
+.analysis-result :deep(p) { margin: 10px 0; }
+.analysis-result :deep(ul),
+.analysis-result :deep(ol) {
+  padding-left: 22px;
+  margin: 10px 0;
+}
+.analysis-result :deep(li) { margin: 6px 0; }
+.analysis-result :deep(li::marker) { color: #165dff; }
+.analysis-result :deep(code) {
+  background: #e8f0fe;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  color: #165dff;
+}
+.analysis-result :deep(pre) {
+  background: #1e1e2e;
+  border-radius: 8px;
+  padding: 16px 18px;
+  overflow-x: auto;
+  margin: 14px 0;
+}
+.analysis-result :deep(pre code) {
+  background: transparent;
+  color: #cdd6f4;
+  padding: 0;
+  font-size: 13px;
+}
+.analysis-result :deep(blockquote) {
+  border-left: 4px solid #165dff;
+  background: #f0f5ff;
+  padding: 10px 14px;
+  margin: 14px 0;
+  color: #4e5969;
+  border-radius: 0 6px 6px 0;
+  font-size: 13px;
+}
+.analysis-result :deep(table) {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 14px 0;
+  font-size: 13px;
+}
+.analysis-result :deep(th),
+.analysis-result :deep(td) {
+  border: 1px solid #d9e1ec;
+  padding: 10px 14px;
+  text-align: left;
+}
+.analysis-result :deep(th) {
+  background: #eaf2fa;
+  font-weight: 600;
+  color: #1d2129;
+}
+.analysis-result :deep(strong) {
+  color: #1d2129;
+  font-weight: 600;
 }
 </style>

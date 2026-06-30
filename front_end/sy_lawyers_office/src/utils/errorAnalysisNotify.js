@@ -93,7 +93,7 @@ function scheduleNext(analysisId, retries) {
  * @param {string} content   - Markdown 格式的分析结果
  * @param {string} errorType - 错误类型名称
  */
-function showAnalysisDialog(content, errorType) {
+export function showAnalysisDialog(content, errorType) {
   const html = renderMarkdown(content)
 
   ElMessageBox.alert(html, `${errorType} — 分析建议`, {
