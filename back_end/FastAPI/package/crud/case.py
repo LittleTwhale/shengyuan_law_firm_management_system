@@ -960,7 +960,13 @@ def get_upcoming_events(
                         "is_mine": is_mine,
                     })
 
-    # ================= 2. 获取用户自定义的日程 =================
+    # ================= 2. 自动清理：删除已过期的自定义日程 =================
+    db.query(UserSchedule).filter(UserSchedule.event_date < today).delete(
+        synchronize_session=False
+    )
+    db.commit()
+
+    # ================= 3. 获取用户自定义的日程 =================
     # 只有在筛选“全部”或“我的案件”时，才抓取当前用户的自定义日程
     if relation_filter in ["all", "mine"]:
         schedules_query = db.query(UserSchedule).outerjoin(Case, UserSchedule.related_case_id == Case.case_id)
@@ -1032,7 +1038,7 @@ def get_upcoming_events(
                 "description": sched.description
             })
 
-    # ================= 3. 统一排序并分页返回 =================
+    # ================= 4. 统一排序并分页返回 =================
     events.sort(key=lambda x: x['days_remaining'])
 
     total = len(events)
