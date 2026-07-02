@@ -33,15 +33,17 @@ def list_my_analyses(
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    获取当前用户触发的错误分析记录列表（分页，按时间倒序）
-    - 管理员/owner 可以查看所有记录（加 ?scope=admin 参数）
+    获取错误分析记录列表（分页，按时间倒序）
+    - 管理员/owner 查看所有用户的记录
     - 普通用户只能查看自己的记录
     """
     user_accounts = current_user.accounts
+    is_admin = current_user.role in ("admin", "owner")
 
+    # 管理员查看全部记录，普通用户只查自己的
     total, items = get_analyses(
         db=db,
-        user_accounts=user_accounts,
+        user_accounts=None if is_admin else user_accounts,
         analysis_status=analysis_status,
         skip=skip,
         limit=limit,

@@ -42,7 +42,12 @@
         </el-radio-button>
       </el-radio-group>
 
-      <el-button type="primary" :icon="Refresh" size="small" @click="fetchData" circle />
+      <div class="filter-bar-right">
+        <el-tag v-if="isAdmin" type="warning" size="small" effect="dark" class="admin-badge">
+          <el-icon><View /></el-icon> 管理员 — 查看全部记录
+        </el-tag>
+        <el-button type="primary" :icon="Refresh" size="small" @click="fetchData" circle />
+      </div>
     </div>
 
     <!-- 加载状态 -->
@@ -93,9 +98,16 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="错误消息" min-width="280">
+          <el-table-column label="错误消息" min-width="250">
             <template #default="{ row }">
               <span class="error-msg-text">{{ row.error_message }}</span>
+            </template>
+          </el-table-column>
+
+          <!-- 触发用户（管理员可见） -->
+          <el-table-column v-if="isAdmin" label="触发用户" width="120" align="center">
+            <template #default="{ row }">
+              <span class="user-name-text">{{ row.user_real_name || '匿名' }}</span>
             </template>
           </el-table-column>
 
@@ -134,7 +146,10 @@
             <el-tag :type="statusTagType(item.analysis_status)" size="small" effect="dark">
               {{ statusLabel(item.analysis_status) }}
             </el-tag>
-            <span class="card-time">{{ formatTime(item.created_at) }}</span>
+            <div class="card-header-right">
+              <span v-if="isAdmin" class="card-user">{{ item.user_real_name || '匿名' }}</span>
+              <span class="card-time">{{ formatTime(item.created_at) }}</span>
+            </div>
           </div>
 
           <div class="card-body">
@@ -322,6 +337,7 @@ import {
   Warning,
   List,
   MagicStick,
+  View,
 } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -342,6 +358,9 @@ const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const statusFilter = ref('')
+
+// ── 管理员标记 ──
+const isAdmin = ref(localStorage.getItem('role') === 'admin' || localStorage.getItem('role') === 'owner')
 
 // ── 详情对话框 ──
 const detailVisible = ref(false)
@@ -619,6 +638,17 @@ onMounted(() => {
   border: 1px solid #f0f1f3;
 }
 
+/* ── 筛选栏右侧（管理员标记 + 刷新按钮） ── */
+.filter-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.admin-badge {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 /* ── 加载状态 ── */
 .loading-container {
   padding: 40px 20px;
@@ -676,6 +706,12 @@ onMounted(() => {
   color: #909399;
   font-size: 12px;
 }
+/* 触发用户姓名（表格列） */
+.user-name-text {
+  color: #4e5969;
+  font-size: 13px;
+  font-weight: 500;
+}
 
 /* ── 移动端卡片 ── */
 .mobile-cards {
@@ -712,6 +748,20 @@ onMounted(() => {
 .card-time {
   font-size: 12px;
   color: #909399;
+}
+.card-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-user {
+  font-size: 12px;
+  color: #165dff;
+  font-weight: 500;
+  background: #ecf5ff;
+  padding: 0 8px;
+  border-radius: 4px;
+  line-height: 22px;
 }
 
 .card-body {
