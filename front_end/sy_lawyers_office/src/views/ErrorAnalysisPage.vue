@@ -193,7 +193,7 @@
     <el-dialog
       v-model="detailVisible"
       :title="detailData ? `${detailData.error_type} 分析详情` : '加载中...'"
-      width="800px"
+      :width="isMobile ? '95%' : '800px'"
       class="detail-dialog"
       :destroy-on-close="true"
       :close-on-click-modal="false"
@@ -1038,22 +1038,137 @@ onMounted(() => {
     white-space: nowrap;
   }
   .detail-dialog :deep(.el-dialog) {
-    width: 95% !important;
-    margin: 10px auto;
+    width: 92% !important;
+    max-width: 420px;
+    margin: 8px auto;
     border-radius: 10px;
   }
-  .detail-dialog :deep(.el-dialog__body) {
-    padding: 16px;
-    max-height: 60vh;
-  }
-  .traceback-block {
-    max-height: 250px;
-    font-size: 11px;
-  }
-  .analysis-result {
+  .detail-dialog :deep(.el-dialog__header) {
     padding: 14px 16px;
-    font-size: 13px;
   }
+  .detail-dialog :deep(.el-dialog__header .el-dialog__title) {
+    font-size: 15px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-all;
+  }
+  .detail-dialog :deep(.el-dialog__body) {
+    padding: 14px 16px;
+    max-height: 55vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .detail-dialog :deep(.el-dialog__footer) {
+    padding: 10px 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: stretch;
+  }
+  .detail-dialog :deep(.el-dialog__footer .el-button) {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* ── 详情描述信息表紧凑适配 ── */
+  .detail-meta {
+    margin-bottom: 16px;
+  }
+  .detail-meta :deep(.el-descriptions__cell) {
+    padding: 6px 10px !important;
+  }
+  .detail-meta :deep(.el-descriptions__label) {
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .detail-meta :deep(.el-descriptions__content) {
+    font-size: 12px;
+  }
+  .detail-meta .el-tag {
+    font-size: 11px;
+    padding: 0 6px;
+    height: 22px;
+    line-height: 22px;
+  }
+
+  /* ── 详情各节 ── */
+  .detail-section {
+    margin-bottom: 14px;
+  }
+  .section-title {
+    font-size: 14px;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+  }
+
+  .traceback-block {
+    max-height: 200px;
+    font-size: 11px;
+    padding: 10px 12px;
+  }
+
+  .analysis-result {
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .analysis-result :deep(h1) {
+    font-size: 16px;
+  }
+  .analysis-result :deep(h2) {
+    font-size: 15px;
+  }
+  .analysis-result :deep(h3) {
+    font-size: 14px;
+  }
+  .analysis-result :deep(pre) {
+    padding: 12px 14px;
+    font-size: 12px;
+    margin: 10px 0;
+    overflow-x: auto;
+  }
+  .analysis-result :deep(code) {
+    font-size: 12px;
+    padding: 1px 6px;
+    word-break: break-all;
+  }
+  .analysis-result :deep(table) {
+    font-size: 12px;
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .analysis-result :deep(th),
+  .analysis-result :deep(td) {
+    padding: 6px 10px;
+  }
+  .analysis-result :deep(blockquote) {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  .analysis-result :deep(ul),
+  .analysis-result :deep(ol) {
+    padding-left: 18px;
+  }
+
+  /* ── 状态区紧凑适配 ── */
+  .status-section {
+    padding: 8px 0;
+  }
+  .status-section :deep(.el-result) {
+    padding: 16px 0;
+  }
+  .status-section :deep(.el-result__title) {
+    font-size: 15px;
+  }
+  .status-section :deep(.el-result__sub-title) {
+    font-size: 13px;
+    margin-top: 6px;
+  }
+
   .pagination-bar :deep(.el-pagination) {
     flex-wrap: wrap;
     justify-content: center;
