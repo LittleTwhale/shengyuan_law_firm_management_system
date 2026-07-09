@@ -890,10 +890,16 @@
       <el-row :gutter="24">
         <el-col :span="12">
           <el-form-item label="贷款类型" prop="bank_case_details.loan_type" label-width="150px">
-            <el-input
+            <el-select
               v-model="formData.bank_case_details.loan_type"
-              placeholder="必填，如：普惠金融、信用贷等"
-            />
+              placeholder="请选择贷款类型"
+              style="width: 100%"
+            >
+              <el-option label="个贷" value="个贷" />
+              <el-option label="房贷" value="房贷" />
+              <el-option label="信用卡" value="信用卡" />
+              <el-option label="普惠" value="普惠" />
+            </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -1934,6 +1940,7 @@ const branchOptions = [
 const caseStatusOptions = [
   '写诉讼状中',
   '资料不足',
+  '退回案件',
   '移交法院排队立案',
   '诉讼立案',
   '已开庭',
@@ -1952,6 +1959,7 @@ const caseStatusOptions = [
   '拍卖抵押物',
   '终本',
   '恢复执行中',
+  '银行要求不起诉',
   '银行要求暂不起诉',
   '银行未交诉讼费撤诉',
   '被告已还清不起诉',

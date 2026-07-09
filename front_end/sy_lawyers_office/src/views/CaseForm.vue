@@ -372,7 +372,7 @@ const formRules = computed(() => {
 
     // 银行案件专属必填校验
     'bank_case_details.branch_name': [{ required: isBankCase, message: '必填', trigger: 'change' }],
-    'bank_case_details.loan_type': [{ required: isBankCase, message: '必填', trigger: 'blur' }],
+    'bank_case_details.loan_type': [{ required: isBankCase, message: '必填', trigger: 'change' }],
     'bank_case_details.loan_principal': [
       { required: isBankCase, message: '必填', trigger: 'blur' },
     ],

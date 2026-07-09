@@ -607,6 +607,7 @@ const selectedCaseStatus = ref(null) // 选中的案件状态
 const caseStatusOptions = [
   '写诉讼状中',
   '资料不足',
+  '退回案件',
   '移交法院排队立案',
   '诉讼立案',
   '已开庭',
@@ -625,6 +626,7 @@ const caseStatusOptions = [
   '拍卖抵押物',
   '终本',
   '恢复执行中',
+  '银行要求不起诉',
   '银行要求暂不起诉',
   '银行未交诉讼费撤诉',
   '被告已还清不起诉',
@@ -636,7 +638,7 @@ const caseStatusOptions = [
 // 根据案件状态返回 Tag 颜色类型
 const getStatusType = (status) => {
   if (!status) return 'info'
-  const dangerKeywords = ['撤诉', '资料不足', '暂不起诉']
+  const dangerKeywords = ['撤诉', '资料不足', '暂不起诉', '银行要求不起诉', '退回案件']
   const successKeywords = ['已裁判', '结案', '已还清', '和解']
   const warningKeywords = ['跟进', '查控', '扣划', '询价', '拍卖']
   const infoKeywords = ['终结', '终本']
