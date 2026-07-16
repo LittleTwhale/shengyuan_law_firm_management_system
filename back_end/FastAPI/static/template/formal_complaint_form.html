@@ -956,13 +956,25 @@
         return result;
     }
 
-    /** 按点分隔路径设置对象嵌套值 */
+    /** 按点分隔路径设置对象嵌套值（带类型冲突检测） */
     function setByPath(obj, path, value) {
         var parts = path.split('.');
         var current = obj;
         for (var i = 0; i < parts.length - 1; i++) {
             var key = parts[i];
             if (!(key in current) || typeof current[key] !== 'object' || current[key] === null) {
+                // 检测类型冲突：如果 key 已存在但不是对象（如字符串/数字），
+                // 则说明有路径冲突，跳过该字段避免覆盖已有值
+                if (key in current && current[key] !== null && current[key] !== undefined) {
+                    if (typeof console !== 'undefined' && console.warn) {
+                        console.warn(
+                            '[起诉状模板] setByPath 类型冲突: 路径 "' + path +
+                            '" 中 "' + key + '" 已存在且为 ' + (typeof current[key]) +
+                            ' 类型，无法创建子对象，已跳过'
+                        );
+                    }
+                    return; // 跳过整个字段，防止覆盖已有的非对象值
+                }
                 current[key] = {};
             }
             current = current[key];

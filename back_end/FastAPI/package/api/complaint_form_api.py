@@ -1,6 +1,6 @@
 """
 起诉状要素提取 API 路由
-接收用户上传的民事起诉状文件（PDF/Word/图片），通过 OCR + DeepSeek v4-pro
+接收用户上传的民事起诉状文件（PDF/Word/图片），通过 OCR + DeepSeek v4-flash
 提取关键字段，返回结构化 JSON 供前端填充到要素式模板中。
 """
 import asyncio
@@ -123,18 +123,16 @@ async def extract_complaint_form_fields(
                         perform_smart_extraction, tmp_path, ext
                     )
                 except Exception as ocr_err:
-                    logger.error("OCR 提取失败（文件: %s）: %s", safe_name, ocr_err)
-                    extracted = f"[OCR 提取失败: {str(ocr_err)}]"
+                    logger.error("OCR 提取失败（文件: %s），跳过该文件: %s", safe_name, ocr_err)
+                    continue  # OCR 失败直接跳过，避免错误信息污染 AI 输入
 
                 if extracted and len(extracted.strip()) > 10:
                     ocr_texts.append(
                         f"=== 文件: {f.filename} ===\n{extracted.strip()}"
                     )
                 else:
-                    logger.warning("文件 %s OCR 结果为空或过短", safe_name)
-                    ocr_texts.append(
-                        f"=== 文件: {f.filename} ===\n[未识别到有效文本内容]"
-                    )
+                    logger.warning("文件 %s OCR 结果为空或过短，跳过该文件", safe_name)
+                    # 跳过无有效内容的文件，避免无效文本浪费 token
 
         # tempfile 离开 with 块后自动清理
     except HTTPException:
@@ -170,7 +168,7 @@ async def extract_complaint_form_fields(
         len(combined_text),
     )
 
-    # ── 5. 调用 DeepSeek v4-pro 提取字段 ──
+    # ── 5. 调用 DeepSeek v4-flash 提取字段 ──
     try:
         fields = await extract_complaint_fields(combined_text)
     except ValueError as e:

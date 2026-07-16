@@ -214,8 +214,19 @@ function handleFileChange(file, newFileList) {
   fileList.value = newFileList
 }
 
+// ============ 进度动画定时器管理 ============
+/** 保存所有进度动画的 setTimeout ID，便于提取完成或重置时统一清理 */
+const progressTimers = ref([])
+
+/** 清除所有进度动画定时器 */
+function clearProgressTimers() {
+  progressTimers.value.forEach((id) => clearTimeout(id))
+  progressTimers.value = []
+}
+
 /** 模拟进度动画 */
 function startProgressAnimation() {
+  clearProgressTimers() // 先清理旧的定时器，防止重复累积
   extractProgress.value = 0
   extractStatusText.value = '正在上传文件并执行 OCR 识别...'
 
@@ -227,11 +238,12 @@ function startProgressAnimation() {
   ]
 
   steps.forEach((step) => {
-    setTimeout(() => {
+    const timerId = setTimeout(() => {
       if (!extracting.value) return
       extractProgress.value = step.progress
       extractStatusText.value = step.text
     }, step.delay)
+    progressTimers.value.push(timerId)
   })
 }
 
@@ -283,6 +295,7 @@ async function startExtraction() {
     ElMessage.error(errMsg)
   } finally {
     extracting.value = false
+    clearProgressTimers() // 确保提取完成后清理所有定时器
   }
 }
 
@@ -360,9 +373,9 @@ function exportHtml() {
 
   // 1) contenteditable span：文本内容已在 DOM 中，无需同步（原 input[type="text"] 已全部替换）
 
-  // 2) 多行文本域：将 value 写回 textContent
+  // 2) 多行文本域：将用户编辑的 value 同步到 DOM 子文本节点，确保 outerHTML 序列化时保留内容
   iframeDoc.querySelectorAll('textarea').forEach((el) => {
-    el.textContent = el.value
+    el.innerHTML = el.value
   })
 
   // 3) 单选框和复选框：checked 状态写回 checked 属性
@@ -414,6 +427,7 @@ function exportHtml() {
 
 /** 重置所有状态 */
 function resetAll() {
+  clearProgressTimers() // 清理所有进度动画定时器
   fileList.value = []
   privacyConfirmed.value = false
   extracting.value = false

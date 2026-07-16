@@ -1,6 +1,6 @@
 """
 起诉状要素提取器
-使用 DeepSeek v4-pro 模型从 OCR 文本中提取民事起诉状的关键字段，
+使用 DeepSeek v4-flash 模型从 OCR 文本中提取民事起诉状的关键字段，
 填充到要素式起诉状模板中。
 
 复用 llm_client 的全局信号量和重试机制，使用独立的模型常量和超时配置。
@@ -309,7 +309,7 @@ def _build_extraction_prompt(ocr_text: str) -> tuple:
 
 async def extract_complaint_fields(ocr_text: str) -> dict:
     """
-    调用 DeepSeek v4-pro 从 OCR 文本中提取起诉状字段
+    调用 DeepSeek v4-flash 从 OCR 文本中提取起诉状字段
 
     Args:
         ocr_text: OCR 识别后的文本内容（至少 20 个有效字符）
@@ -366,7 +366,7 @@ async def extract_complaint_fields(ocr_text: str) -> dict:
                 _do_request, max_retries=3, base_delay=1.0
             )
     except httpx.TimeoutException:
-        logger.error("DeepSeek v4-pro 提取请求超时（%d秒）", COMPLAINT_TIMEOUT)
+        logger.error("DeepSeek v4-flash 提取请求超时（%d秒）", COMPLAINT_TIMEOUT)
         raise RuntimeError(
             f"DeepSeek API 请求超时（{COMPLAINT_TIMEOUT}秒），请稍后重试"
         )
@@ -398,7 +398,7 @@ async def extract_complaint_fields(ocr_text: str) -> dict:
     content = result["choices"][0]["message"]["content"]
     usage = result.get("usage", {})
     logger.info(
-        "DeepSeek v4-pro 提取完成（输入 %d tokens, 输出 %d tokens）",
+        "DeepSeek v4-flash 提取完成（输入 %d tokens, 输出 %d tokens）",
         usage.get("prompt_tokens", 0),
         usage.get("completion_tokens", 0),
     )
