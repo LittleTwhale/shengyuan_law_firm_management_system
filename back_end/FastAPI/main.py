@@ -24,6 +24,7 @@ from .package.api.monitor import router as auth_monitor_router
 from .package.api.ai_assistant_api import router as auth_ai_router
 from .package.api.legal_kb_api import router as auth_legal_kb_router
 from .package.api.error_analysis_api import router as auth_error_analysis_router
+from .package.api.complaint_form_api import router as auth_complaint_form_router
 from .package.core.config import PARTY_IMAGE_ROOT, SECRET_KEY, ALGORITHM
 from .package.core.logger import logger
 from .package.core.user_cache import user_cache
@@ -227,7 +228,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 # 3. 静态文件挂载 (不受 /api 前缀影响)
 # =================================================================
 # 静态文件挂载
-app.mount("/templates", StaticFiles(directory="FastAPI/static/template"), name="templates")
+app.mount("/templates", StaticFiles(directory="FastAPI/static/template", html=True), name="templates")
 # 挂载党建图片目录
 app.mount("/static_resources/party_images", StaticFiles(directory=PARTY_IMAGE_ROOT), name="party_images")
 
@@ -292,6 +293,9 @@ api_router.include_router(auth_legal_kb_router)
 
 # 注册错误分析路由
 api_router.include_router(auth_error_analysis_router)
+
+# 注册起诉状要素提取路由
+api_router.include_router(auth_complaint_form_router)
 
 
 

@@ -86,6 +86,11 @@
           </template>
         </el-menu-item>
 
+        <el-menu-item index="/main/complaint-form">
+          <el-icon><EditPen /></el-icon>
+          <template #title><span>起诉状提取</span><el-tag size="small" type="warning" effect="dark" style="height: 18px; line-height: 16px; font-size: 11px; padding: 0 5px; border: none;">试运行</el-tag></template>
+        </el-menu-item>
+
         <el-menu-item index="/main/lawyers" v-if="role === 'owner' || role === 'admin'">
           <el-icon><User /></el-icon>
           <template #title><span>人员管理</span></template>
@@ -192,6 +197,11 @@
                 <el-tag size="small" type="warning" effect="dark" style="height: 18px; line-height: 16px; font-size: 11px; padding: 0 5px; border: none;">试运行</el-tag>
               </span>
             </template>
+          </el-menu-item>
+
+          <el-menu-item index="/main/complaint-form">
+            <el-icon><EditPen /></el-icon>
+            <template #title><span>起诉状提取</span><el-tag size="small" type="warning" effect="dark" style="height: 18px; line-height: 16px; font-size: 11px; padding: 0 5px; border: none;">试运行</el-tag></template>
           </el-menu-item>
 
           <el-menu-item index="/main/lawyers" v-if="role === 'owner' || role === 'admin'">
@@ -392,6 +402,7 @@ import {
   WarningFilled,
   MagicStick,
   Notebook,
+  EditPen,
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -410,6 +421,7 @@ const menuTitleMap = {
   '/main/volumes': '电子卷宗',
   '/main/legal-search': '法律知识库',
   '/main/ai-analysis': '智能分析',
+  '/main/complaint-form': '起诉状提取',
   '/main/lawyers': '人员管理',
   '/main/cases/bank_cases': '银行案件',
   '/main/finance': '财务管理',

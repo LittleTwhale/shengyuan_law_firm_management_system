@@ -20,6 +20,7 @@ import AnnouncementCenter from '@/views/AnnouncementCenter.vue'
 import AIAnalysisPage from '@/views/AIAnalysisPage.vue'
 import LegalSearchPage from '@/views/LegalSearchPage.vue'
 import ErrorAnalysisPage from '@/views/ErrorAnalysisPage.vue'
+import ComplaintFormPage from '@/views/ComplaintFormPage.vue'
 import { ElMessage } from 'element-plus'
 
 const routes = [
@@ -71,6 +72,11 @@ const routes = [
         path: 'error-analyses',
         component: ErrorAnalysisPage,
         meta: { title: '错误分析' },
+      },
+      {
+        path: 'complaint-form',
+        component: ComplaintFormPage,
+        meta: { title: '起诉状提取' },
       },
     ],
   },

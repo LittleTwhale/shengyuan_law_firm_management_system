@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>民事起诉状（金融借款合同纠纷）- 可打印分页版</title>
+    <style>
+        /* 全局初始化与盒模型预防溢出 */
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "SimSun", "Songti SC", serif; /* 法律文书标准宋体 */
+            line-height: 1.6;
+            color: #000;
+            background-color: #f4f4f5;
+            margin: 0;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 50px 60px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.05);
+            border-radius: 4px;
+        }
+
+        h1, h2 {
+            text-align: center;
+            margin: 0 0 12px 0;
+            font-weight: bold;
+            color: #000;
+        }
+        h1 { font-size: 26px; letter-spacing: 4px; }
+        h2 { font-size: 18px; margin-bottom: 30px; }
+
+        .instructions {
+            border: 1px solid #000;
+            padding: 18px;
+            margin-bottom: 30px;
+            font-size: 14px;
+            background-color: #fafafa;
+        }
+        .instructions p { margin: 6px 0; text-align: justify; }
+        .instructions strong { font-weight: bold; }
+
+        /* 表格分页优化 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+            font-size: 15px; /* 约等于法律文书五号字 */
+        }
+
+        th, td {
+            border: 1px solid #000;
+            padding: 10px 12px;
+            vertical-align: top;
+            text-align: left;
+        }
+
+        th.section-title {
+            text-align: center;
+            font-size: 16px;
+            font-weight: bold;
+            background-color: #f5f5f5;
+            letter-spacing: 3px;
+            padding: 12px;
+        }
+
+        .label-col {
+            width: 22%;
+            text-align: center;
+            vertical-align: middle;
+            font-weight: bold;
+            background-color: #fafafa;
+        }
+
+        /* 可编辑内联文本（替代原 input[type="text"]）— 支持自然换行和自适应宽度 */
+        span[contenteditable="true"] {
+            display: inline-block;
+            vertical-align: bottom;
+            border-bottom: 1px dotted #c0c4cc;
+            background: transparent;
+            font-family: inherit;
+            font-size: inherit;
+            padding: 1px 3px;
+            outline: none;
+            color: #000;
+            word-break: break-all;
+            line-height: 1.6;
+            transition: border-color 0.2s, background-color 0.2s;
+            /* 默认宽度：小字段不浪费空间，长字段自动扩展 */
+            min-width: 40px;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        span[contenteditable="true"]:focus {
+            border-bottom-color: #909399;
+            border-bottom-style: solid;
+            background: #fdfdfd;
+        }
+        span[contenteditable="true"]:hover:not(:focus) {
+            border-bottom-color: #909399;
+        }
+        /* 空内容时显示占位宽度 */
+        span[contenteditable="true"]:empty::after {
+            content: '\00a0\00a0\00a0\00a0';
+            color: transparent;
+        }
+        /* 短字段：年月日、百分比、条款号等 */
+        span[contenteditable="true"].short-input { min-width: 26px; max-width: 56px; text-align: center; }
+        /* 中字段：姓名、电话、职务、金额等 */
+        span[contenteditable="true"].medium-input { min-width: 60px; max-width: 100%; }
+        /* 长字段：地址、名称、统一社会信用代码等 */
+        span[contenteditable="true"].long-input { min-width: 120px; max-width: 100%; }
+
+        textarea {
+            width: 100%;
+            border: 1px solid #e0e0e0;
+            border-radius: 3px;
+            background: #fff;
+            font-family: inherit;
+            font-size: inherit;
+            padding: 6px 8px;
+            outline: none;
+            resize: none;          /* 禁止手动拖拽，由 JS 自动撑高 */
+            overflow: hidden;      /* 隐藏滚动条，高度自适应内容 */
+            min-height: 36px;
+            box-sizing: border-box;
+            margin-top: 5px;
+            transition: border-color 0.2s;
+            line-height: 1.6;
+        }
+        textarea:focus {
+            border-color: #909399;
+            background: #fdfdfd;
+        }
+
+        label { margin-right: 12px; cursor: pointer; display: inline-flex; align-items: center; }
+        input[type="checkbox"], input[type="radio"] { vertical-align: middle; margin-right: 4px; }
+
+        .flex-row { display: flex; align-items: flex-start; flex-wrap: wrap; margin-bottom: 6px; width: 100%; }
+        .flex-item { margin-right: 20px; display: inline-flex; align-items: baseline; flex-wrap: wrap; min-width: 0; }
+        .indent-block { padding-left: 20px; margin-bottom: 8px; }
+
+        .signature-section {
+            text-align: right;
+            margin-top: 50px;
+            font-size: 16px;
+            line-height: 2;
+        }
+
+        /* AI 填充标记样式 */
+        .ai-filled {
+            background-color: #fffde7 !important;
+            transition: background-color 0.3s;
+        }
+
+        /* ================= 核心打印与PDF分页控制 ================= */
+        @media print {
+            @page {
+                size: A4;
+                margin: 25mm 20mm 25mm 20mm; /* 标准A4公文页边距配置 */
+            }
+
+            body {
+                background-color: #ffffff;
+                padding: 0;
+                margin: 0;
+                font-size: 11pt; /* 严格匹配打印点阵 */
+            }
+
+            .container {
+                box-shadow: none;
+                padding: 0;
+                max-width: 100%;
+                background: transparent;
+            }
+
+            .instructions {
+                background-color: transparent !important;
+            }
+
+            th.section-title, .label-col {
+                background-color: transparent !important;
+            }
+
+            /* 打印时清除 AI 填充标记背景 */
+            .ai-filled {
+                background-color: transparent !important;
+            }
+
+            /* 打印时隐藏可编辑边框，融入文本 */
+            span[contenteditable="true"] {
+                border-bottom-color: transparent;
+                background: transparent;
+                padding: 0 1px;
+            }
+            /* 打印时 textarea 强制撑高显示全部内容，防止截断 */
+            textarea {
+                border: 1px solid #ccc;
+                background: transparent;
+                resize: none;
+                overflow: visible !important;   /* 打印时显示全部内容 */
+                height: auto !important;        /* 覆盖 JS 设置的高度，自动撑开 */
+                min-height: 0;
+                page-break-inside: avoid;       /* 尽量不跨页截断 */
+            }
+
+            /* 分页防截断核心规则 */
+            tr {
+                page-break-inside: avoid; /* 防止单行表格内容被跨页截断断成两半 */
+            }
+
+            th.section-title {
+                page-break-after: avoid; /* 防止标题行变成孤行遗留在前一页末尾 */
+            }
+
+            .signature-section {
+                page-break-inside: avoid; /* 确保落款和日期不会被分在两页 */
+            }
+
+            /* 允许大表格在行与行之间自然分页 */
+            table {
+                page-break-inside: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>民事起诉状</h1>
+    <h2>（金融借款合同纠纷）</h2>
+
+    <div class="instructions">
+        <strong>说明：</strong>
+        <p>为了方便您更好地参加诉讼，保护您的合法权利，请填写本表。</p>
+        <p>1. 起诉时需向人民法院提交证明您身份的材料，如身份证复印件、营业执照复印件等。</p>
+        <p>2. 本表所列内容是您提起诉讼以及人民法院查明案件事实所需，请务必如实填写。</p>
+        <p>3. 本表所涉内容系针对一般金融借款合同纠纷案件，有些内容可能与您的案件无关，您认为与案件无关的项目可以填"无"或不填；对于本表中勾选项可以在对应项打"√"；您认为另有重要内容需要列明的，可以在本表尾部或者另附页填写。</p>
+        <strong>★特别提示★</strong>
+        <p>《中华人民共和国民事诉讼法》第十三条第一款规定："民事诉讼应当遵循诚信原则。"</p>
+        <p>如果诉讼参加人违反上述规定，进行虚假诉讼、恶意诉讼，人民法院将视违法情形依法追究责任。</p>
+    </div>
+
+    <!-- 1. 当事人信息 -->
+    <table>
+        <thead>
+            <tr>
+                <th colspan="2" class="section-title">当事人信息</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- 原告（法人、非法人组织） -->
+            <tr>
+                <td class="label-col">原告<br>（法人、非法人组织）</td>
+                <td>
+                    <div class="flex-row">名称：<span contenteditable="true" class="long-input" data-field="plaintiff.company.name"></span></div>
+                    <div class="flex-row">
+                        <span class="flex-item">住所地(主要办事机构所在地)：<span contenteditable="true" data-field="plaintiff.company.address"></span></span>
+                        <span class="flex-item">注册地/登记地：<span contenteditable="true" data-field="plaintiff.company.registered_address"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">法定代表人/主要负责人：<span contenteditable="true" data-field="plaintiff.company.legal_representative"></span></span>
+                        <span class="flex-item">职务：<span contenteditable="true" data-field="plaintiff.company.representative_position"></span></span>
+                        <span class="flex-item">联系电话：<span contenteditable="true" data-field="plaintiff.company.representative_phone"></span></span>
+                    </div>
+                    <div class="flex-row">统一社会信用代码：<span contenteditable="true" class="long-input" data-field="plaintiff.company.uscc"></span></div>
+                    <div class="flex-row">
+                        类型：
+                        <label><input type="checkbox" data-field="plaintiff.company.entity_type" value="有限责任公司">有限责任公司</label>
+                        <label><input type="checkbox" data-field="plaintiff.company.entity_type" value="股份有限公司">股份有限公司</label>
+                        <label><input type="checkbox" data-field="plaintiff.company.entity_type" value="上市公司">上市公司</label>
+                        <label><input type="checkbox" data-field="plaintiff.company.entity_type" value="其他企业法人">其他企业法人</label><br>
+                        <label><input type="checkbox" data-field="plaintiff.company.entity_type" value="事业单位">事业单位</label>
+                        <label><input type="checkbox" data-field="plaintiff.company.entity_type" value="社会团体">社会团体</label>
+                        <label><input type="checkbox" data-field="plaintiff.company.entity_type" value="基金会">基金会</label>
+                        <label><input type="checkbox" data-field="plaintiff.company.entity_type" value="社会服务机构">社会服务机构</label><br>
+                        <label><input type="checkbox" data-field="plaintiff.company.entity_type" value="机关法人">机关法人</label>
+                        <label><input type="checkbox" data-field="plaintiff.company.entity_type" value="农村集体经济组织法人">农村集体经济组织法人</label>
+                        <label><input type="checkbox" data-field="plaintiff.company.entity_type" value="城镇农村的合作经济组织法人">城镇农村的合作经济组织法人</label>
+                        <label><input type="checkbox" data-field="plaintiff.company.entity_type" value="基层群众性自治组织法人">基层群众性自治组织法人</label><br>
+                        <label><input type="checkbox" data-field="plaintiff.company.entity_type" value="个人独资企业">个人独资企业</label>
+                        <label><input type="checkbox" data-field="plaintiff.company.entity_type" value="合伙企业">合伙企业</label>
+                        <label><input type="checkbox" data-field="plaintiff.company.entity_type" value="不具有法人资格的专业服务机构">不具有法人资格的专业服务机构</label>
+                        <label><input type="checkbox" data-field="plaintiff.company.entity_type" value="国有">国有 （<label><input type="checkbox" data-field="plaintiff.company.state_owned_detail" value="控股">控股</label> <label><input type="checkbox" data-field="plaintiff.company.state_owned_detail" value="参股">参股</label>）</label>
+                        <label><input type="checkbox" data-field="plaintiff.company.entity_type" value="民营">民营</label>
+                    </div>
+                </td>
+            </tr>
+            <!-- 原告(自然人) -->
+            <tr>
+                <td class="label-col">原告<br>(自然人)</td>
+                <td>
+                    <div class="flex-row">
+                        <span class="flex-item">姓名：<span contenteditable="true" data-field="plaintiff.individual.name"></span></span>
+                        <span class="flex-item">性别：<label><input type="radio" name="p_gender" data-field="plaintiff.individual.gender" value="男">男</label> <label><input type="radio" name="p_gender" data-field="plaintiff.individual.gender" value="女">女</label></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">出生日期：<span contenteditable="true" class="short-input" data-field="plaintiff.individual.birth_year"></span>年<span contenteditable="true" class="short-input" data-field="plaintiff.individual.birth_month"></span>月<span contenteditable="true" class="short-input" data-field="plaintiff.individual.birth_day"></span>日</span>
+                        <span class="flex-item">民族：<span contenteditable="true" data-field="plaintiff.individual.ethnicity"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">工作单位：<span contenteditable="true" data-field="plaintiff.individual.work_unit"></span></span>
+                        <span class="flex-item">职务：<span contenteditable="true" data-field="plaintiff.individual.position"></span></span>
+                        <span class="flex-item">联系电话：<span contenteditable="true" data-field="plaintiff.individual.phone"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">住所地(户籍所在地)：<span contenteditable="true" data-field="plaintiff.individual.address"></span></span>
+                        <span class="flex-item">经常居住地：<span contenteditable="true" data-field="plaintiff.individual.residence"></span></span>
+                    </div>
+                </td>
+            </tr>
+            <!-- 委托诉讼代理人 -->
+            <tr>
+                <td class="label-col">委托诉讼代理人</td>
+                <td>
+                    <div class="flex-row">
+                        <label><input type="radio" name="has_agent" data-field="has_agent" value="true">有</label>
+                    </div>
+                    <div class="indent-block">
+                        <div class="flex-row">姓名：<span contenteditable="true" data-field="agent.name"></span></div>
+                        <div class="flex-row">
+                            <span class="flex-item">单位：<span contenteditable="true" data-field="agent.unit"></span></span>
+                            <span class="flex-item">职务：<span contenteditable="true" data-field="agent.position"></span></span>
+                            <span class="flex-item">联系电话：<span contenteditable="true" data-field="agent.phone"></span></span>
+                        </div>
+                        <div class="flex-row">
+                            代理权限：<label><input type="radio" name="agent_auth" data-field="agent.authority" value="一般授权">一般授权</label> <label><input type="radio" name="agent_auth" data-field="agent.authority" value="特别授权">特别授权</label>
+                        </div>
+                    </div>
+                    <div class="flex-row">
+                        <label><input type="radio" name="has_agent" data-field="has_agent" value="false">无</label>
+                    </div>
+                </td>
+            </tr>
+            <!-- 送达地址 -->
+            <tr>
+                <td class="label-col">送达地址<br><small style="font-weight:normal; font-size:12px; color:#444;">(适用于案件一审、二审、再审所有后续程序)</small>及收件人、电话</td>
+                <td>
+                    <div class="flex-row">地址：<span contenteditable="true" class="long-input" data-field="delivery.address"></span></div>
+                    <div class="flex-row">
+                        <span class="flex-item">收件人：<span contenteditable="true" data-field="delivery.recipient"></span></span>
+                        <span class="flex-item">电话：<span contenteditable="true" data-field="delivery.phone"></span></span>
+                    </div>
+                </td>
+            </tr>
+            <!-- 是否接受电子送达 -->
+            <tr>
+                <td class="label-col">是否接受电子送达</td>
+                <td>
+                    <div class="flex-row">
+                        <label><input type="radio" name="electronic_service" data-field="electronic_service.accepted" value="是">是</label>
+                    </div>
+                    <div class="indent-block flex-row">
+                        方式：
+                        <label><input type="checkbox" data-field="electronic_service.methods" value="短信">短信</label>
+                        <label><input type="checkbox" data-field="electronic_service.methods" value="微信">微信</label>
+                        <label><input type="checkbox" data-field="electronic_service.methods" value="传真">传真</label>
+                        <label><input type="checkbox" data-field="electronic_service.methods" value="邮箱">邮箱</label>
+                        <label><input type="checkbox" data-field="electronic_service.methods" value="其他">其他</label>
+                    </div>
+                    <div class="flex-row">
+                        <label><input type="radio" name="electronic_service" data-field="electronic_service.accepted" value="否">否</label>
+                    </div>
+                </td>
+            </tr>
+            <!-- 被告（法人、非法人组织） -->
+            <tr>
+                <td class="label-col">被告<br>（法人、非法人组织）</td>
+                <td>
+                    <div class="flex-row">名称：<span contenteditable="true" class="long-input" data-field="defendant.company.name"></span></div>
+                    <div class="flex-row">
+                        <span class="flex-item">住所地(主要办事机构所在地)：<span contenteditable="true" data-field="defendant.company.address"></span></span>
+                        <span class="flex-item">注册地/登记地：<span contenteditable="true" data-field="defendant.company.registered_address"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">法定代表人/主要负责人：<span contenteditable="true" data-field="defendant.company.legal_representative"></span></span>
+                        <span class="flex-item">职务：<span contenteditable="true" data-field="defendant.company.representative_position"></span></span>
+                        <span class="flex-item">联系电话：<span contenteditable="true" data-field="defendant.company.representative_phone"></span></span>
+                    </div>
+                    <div class="flex-row">统一社会信用代码：<span contenteditable="true" class="long-input" data-field="defendant.company.uscc"></span></div>
+                    <div class="flex-row">
+                        类型：
+                        <label><input type="checkbox" data-field="defendant.company.entity_type" value="有限责任公司">有限责任公司</label>
+                        <label><input type="checkbox" data-field="defendant.company.entity_type" value="股份有限公司">股份有限公司</label>
+                        <label><input type="checkbox" data-field="defendant.company.entity_type" value="上市公司">上市公司</label>
+                        <label><input type="checkbox" data-field="defendant.company.entity_type" value="其他企业法人">其他企业法人</label><br>
+                        <label><input type="checkbox" data-field="defendant.company.entity_type" value="事业单位">事业单位</label>
+                        <label><input type="checkbox" data-field="defendant.company.entity_type" value="社会团体">社会团体</label>
+                        <label><input type="checkbox" data-field="defendant.company.entity_type" value="基金会">基金会</label>
+                        <label><input type="checkbox" data-field="defendant.company.entity_type" value="社会服务机构">社会服务机构</label><br>
+                        <label><input type="checkbox" data-field="defendant.company.entity_type" value="机关法人">机关法人</label>
+                        <label><input type="checkbox" data-field="defendant.company.entity_type" value="农村集体经济组织法人">农村集体经济组织法人</label>
+                        <label><input type="checkbox" data-field="defendant.company.entity_type" value="城镇农村的合作经济组织法人">城镇农村的合作经济组织法人</label>
+                        <label><input type="checkbox" data-field="defendant.company.entity_type" value="基层群众性自治组织法人">基层群众性自治组织法人</label><br>
+                        <label><input type="checkbox" data-field="defendant.company.entity_type" value="个人独资企业">个人独资企业</label>
+                        <label><input type="checkbox" data-field="defendant.company.entity_type" value="合伙企业">合伙企业</label>
+                        <label><input type="checkbox" data-field="defendant.company.entity_type" value="不具有法人资格的专业服务机构">不具有法人资格的专业服务机构</label>
+                        <label><input type="checkbox" data-field="defendant.company.entity_type" value="国有">国有 （<label><input type="checkbox" data-field="defendant.company.state_owned_detail" value="控股">控股</label> <label><input type="checkbox" data-field="defendant.company.state_owned_detail" value="参股">参股</label>）</label>
+                        <label><input type="checkbox" data-field="defendant.company.entity_type" value="民营">民营</label>
+                    </div>
+                </td>
+            </tr>
+            <!-- 被告(自然人) -->
+            <tr>
+                <td class="label-col">被告<br>(自然人)</td>
+                <td>
+                    <div class="flex-row">
+                        <span class="flex-item">姓名：<span contenteditable="true" data-field="defendant.individual.name"></span></span>
+                        <span class="flex-item">性别：<label><input type="radio" name="d_gender" data-field="defendant.individual.gender" value="男">男</label> <label><input type="radio" name="d_gender" data-field="defendant.individual.gender" value="女">女</label></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">出生日期：<span contenteditable="true" class="short-input" data-field="defendant.individual.birth_year"></span>年<span contenteditable="true" class="short-input" data-field="defendant.individual.birth_month"></span>月<span contenteditable="true" class="short-input" data-field="defendant.individual.birth_day"></span>日</span>
+                        <span class="flex-item">民族：<span contenteditable="true" data-field="defendant.individual.ethnicity"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">工作单位：<span contenteditable="true" data-field="defendant.individual.work_unit"></span></span>
+                        <span class="flex-item">职务：<span contenteditable="true" data-field="defendant.individual.position"></span></span>
+                        <span class="flex-item">联系电话：<span contenteditable="true" data-field="defendant.individual.phone"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">住所地(户籍所在地)：<span contenteditable="true" data-field="defendant.individual.address"></span></span>
+                        <span class="flex-item">经常居住地：<span contenteditable="true" data-field="defendant.individual.residence"></span></span>
+                    </div>
+                </td>
+            </tr>
+            <!-- 第三人（法人、非法人组织） -->
+            <tr>
+                <td class="label-col">第三人<br>（法人、非法人组织）</td>
+                <td>
+                    <div class="flex-row">名称：<span contenteditable="true" class="long-input" data-field="third_party.company.name"></span></div>
+                    <div class="flex-row">
+                        <span class="flex-item">住所地(主要办事机构所在地)：<span contenteditable="true" data-field="third_party.company.address"></span></span>
+                        <span class="flex-item">注册地/登记地：<span contenteditable="true" data-field="third_party.company.registered_address"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">法定代表人/主要负责人：<span contenteditable="true" data-field="third_party.company.legal_representative"></span></span>
+                        <span class="flex-item">职务：<span contenteditable="true" data-field="third_party.company.representative_position"></span></span>
+                        <span class="flex-item">联系电话：<span contenteditable="true" data-field="third_party.company.representative_phone"></span></span>
+                    </div>
+                    <div class="flex-row">统一社会信用代码：<span contenteditable="true" class="long-input" data-field="third_party.company.uscc"></span></div>
+                    <div class="flex-row">
+                        类型：
+                        <label><input type="checkbox" data-field="third_party.company.entity_type" value="有限责任公司">有限责任公司</label>
+                        <label><input type="checkbox" data-field="third_party.company.entity_type" value="股份有限公司">股份有限公司</label>
+                        <label><input type="checkbox" data-field="third_party.company.entity_type" value="上市公司">上市公司</label>
+                        <label><input type="checkbox" data-field="third_party.company.entity_type" value="其他企业法人">其他企业法人</label><br>
+                        <label><input type="checkbox" data-field="third_party.company.entity_type" value="事业单位">事业单位</label>
+                        <label><input type="checkbox" data-field="third_party.company.entity_type" value="社会团体">社会团体</label>
+                        <label><input type="checkbox" data-field="third_party.company.entity_type" value="基金会">基金会</label>
+                        <label><input type="checkbox" data-field="third_party.company.entity_type" value="社会服务机构">社会服务机构</label><br>
+                        <label><input type="checkbox" data-field="third_party.company.entity_type" value="机关法人">机关法人</label>
+                        <label><input type="checkbox" data-field="third_party.company.entity_type" value="农村集体经济组织法人">农村集体经济组织法人</label>
+                        <label><input type="checkbox" data-field="third_party.company.entity_type" value="城镇农村的合作经济组织法人">城镇农村的合作经济组织法人</label>
+                        <label><input type="checkbox" data-field="third_party.company.entity_type" value="基层群众性自治组织法人">基层群众性自治组织法人</label><br>
+                        <label><input type="checkbox" data-field="third_party.company.entity_type" value="个人独资企业">个人独资企业</label>
+                        <label><input type="checkbox" data-field="third_party.company.entity_type" value="合伙企业">合伙企业</label>
+                        <label><input type="checkbox" data-field="third_party.company.entity_type" value="不具有法人资格的专业服务机构">不具有法人资格的专业服务机构</label>
+                        <label><input type="checkbox" data-field="third_party.company.entity_type" value="国有">国有 （<label><input type="checkbox" data-field="third_party.company.state_owned_detail" value="控股">控股</label> <label><input type="checkbox" data-field="third_party.company.state_owned_detail" value="参股">参股</label>）</label>
+                        <label><input type="checkbox" data-field="third_party.company.entity_type" value="民营">民营</label>
+                    </div>
+                </td>
+            </tr>
+            <!-- 第三人(自然人) -->
+            <tr>
+                <td class="label-col">第三人<br>(自然人)</td>
+                <td>
+                    <div class="flex-row">
+                        <span class="flex-item">姓名：<span contenteditable="true" data-field="third_party.individual.name"></span></span>
+                        <span class="flex-item">性别：<label><input type="radio" name="t_gender" data-field="third_party.individual.gender" value="男">男</label> <label><input type="radio" name="t_gender" data-field="third_party.individual.gender" value="女">女</label></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">出生日期：<span contenteditable="true" class="short-input" data-field="third_party.individual.birth_year"></span>年<span contenteditable="true" class="short-input" data-field="third_party.individual.birth_month"></span>月<span contenteditable="true" class="short-input" data-field="third_party.individual.birth_day"></span>日</span>
+                        <span class="flex-item">民族：<span contenteditable="true" data-field="third_party.individual.ethnicity"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">工作单位：<span contenteditable="true" data-field="third_party.individual.work_unit"></span></span>
+                        <span class="flex-item">职务：<span contenteditable="true" data-field="third_party.individual.position"></span></span>
+                        <span class="flex-item">联系电话：<span contenteditable="true" data-field="third_party.individual.phone"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">住所地(户籍所在地)：<span contenteditable="true" data-field="third_party.individual.address"></span></span>
+                        <span class="flex-item">经常居住地：<span contenteditable="true" data-field="third_party.individual.residence"></span></span>
+                    </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- 2. 诉讼请求和依据 -->
+    <table>
+        <thead>
+            <tr>
+                <th colspan="2" class="section-title">诉讼请求和依据</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="label-col">1.本金</td>
+                <td>截至 <span contenteditable="true" class="short-input" data-field="claims.principal.year"></span>年<span contenteditable="true" class="short-input" data-field="claims.principal.month"></span>月<span contenteditable="true" class="short-input" data-field="claims.principal.day"></span>日止，尚欠本金 <span contenteditable="true" data-field="claims.principal.amount"></span> 元(人民币，下同；如外币需特别注明);</td>
+            </tr>
+            <tr>
+                <td class="label-col">2.利息(复利、罚息)</td>
+                <td>
+                    <div class="flex-row">截至 <span contenteditable="true" class="short-input" data-field="claims.interest.year"></span>年<span contenteditable="true" class="short-input" data-field="claims.interest.month"></span>月<span contenteditable="true" class="short-input" data-field="claims.interest.day"></span>日止，欠利息 <span contenteditable="true" data-field="claims.interest.interest_amount"></span> 元、复利 <span contenteditable="true" data-field="claims.interest.compound_interest"></span> 元、罚息(违约金) <span contenteditable="true" data-field="claims.interest.penalty"></span> 元；</div>
+                    <div class="flex-row" style="width:100%;">计算方式：<textarea data-field="claims.interest.calculation_method"></textarea></div>
+                    <div class="flex-row">是否请求支付至实际清偿之日止：<label><input type="radio" name="req_pay" data-field="claims.interest.request_until_paid" value="是">是</label> <label><input type="radio" name="req_pay" data-field="claims.interest.request_until_paid" value="否">否</label></div>
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">3.是否要求提前还款或解除合同</td>
+                <td>
+                    <label><input type="radio" name="early_pay" data-field="claims.early_repayment.requested" value="是">是</label> (<label><input type="checkbox" data-field="claims.early_repayment.types" value="提前还款(加速到期)">提前还款(加速到期)</label> / <label><input type="checkbox" data-field="claims.early_repayment.types" value="解除合同">解除合同</label>)<br>
+                    <label><input type="radio" name="early_pay" data-field="claims.early_repayment.requested" value="否">否</label>
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">4.是否主张担保权利</td>
+                <td>
+                    <label><input type="radio" name="claim_guarantee" data-field="claims.guarantee_rights.claimed" value="是">是</label> <span class="flex-item">内容：<span contenteditable="true" class="long-input" data-field="claims.guarantee_rights.content"></span></span><br>
+                    <label><input type="radio" name="claim_guarantee" data-field="claims.guarantee_rights.claimed" value="否">否</label>
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">5.是否主张实现债权的费用</td>
+                <td>
+                    <label><input type="radio" name="claim_expense" data-field="claims.realization_expenses.claimed" value="是">是</label> <span class="flex-item">明细：<span contenteditable="true" class="long-input" data-field="claims.realization_expenses.details"></span></span><br>
+                    <label><input type="radio" name="claim_expense" data-field="claims.realization_expenses.claimed" value="否">否</label>
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">6.其他请求</td>
+                <td><textarea data-field="claims.other_claims"></textarea></td>
+            </tr>
+            <tr>
+                <td class="label-col">7.标的总额</td>
+                <td><span contenteditable="true" data-field="claims.total_amount"></span> 元</td>
+            </tr>
+            <tr>
+                <td class="label-col">8.请求依据</td>
+                <td>
+                    <div class="flex-row" style="width:100%;">合同约定：<textarea data-field="claims.basis.contract"></textarea></div>
+                    <div class="flex-row" style="width:100%;">法律规定：<textarea data-field="claims.basis.law"></textarea></div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- 3. 约定管辖和诉讼保全 -->
+    <table>
+        <thead>
+            <tr>
+                <th colspan="2" class="section-title">约定管辖和诉讼保全</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="label-col">1.有无仲裁、法院管辖约定</td>
+                <td>
+                    <label><input type="radio" name="jurisdiction_clause" data-field="jurisdiction.has_clause" value="有">有</label> <span class="flex-item">合同条款及内容：<span contenteditable="true" class="long-input" data-field="jurisdiction.clause_content"></span></span><br>
+                    <label><input type="radio" name="jurisdiction_clause" data-field="jurisdiction.has_clause" value="无">无</label>
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">2.是否申请财产保全措施</td>
+                <td>
+                    <div class="flex-row">
+                        已经诉前保全：<label><input type="radio" name="pre_litigation_preservation" data-field="preservation.pre_litigation.done" value="是">是</label>
+                        <span class="flex-item">保全法院：<span contenteditable="true" data-field="preservation.pre_litigation.court"></span></span>
+                        <span class="flex-item">保全时间：<span contenteditable="true" data-field="preservation.pre_litigation.time"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <label><input type="radio" name="pre_litigation_preservation" data-field="preservation.pre_litigation.done" value="否">否</label>
+                    </div>
+                    <div style="border-top: 1px dashed #000; margin: 8px 0; width: 100%;"></div>
+                    <div class="flex-row">
+                        申请诉讼保全：<label><input type="radio" name="litigation_preservation" data-field="preservation.litigation.requested" value="是">是</label>
+                        <label><input type="radio" name="litigation_preservation" data-field="preservation.litigation.requested" value="否">否</label>
+                    </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- 4. 事实和理由 -->
+    <table>
+        <thead>
+            <tr>
+                <th colspan="2" class="section-title">事实和理由</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="label-col">1.合同签订情况</td>
+                <td><textarea placeholder="名称、编号、签订时间、地点等" data-field="facts.contract_signing"></textarea></td>
+            </tr>
+            <tr>
+                <td class="label-col">2.签订主体</td>
+                <td>
+                    <span class="flex-item">贷款人：<span contenteditable="true" data-field="facts.lender"></span></span>
+                    <span class="flex-item">借款人：<span contenteditable="true" data-field="facts.borrower"></span></span>
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">3.借款金额</td>
+                <td>约定：<span contenteditable="true" data-field="facts.loan_amount_agreed"></span> 元， 实际发放：<span contenteditable="true" data-field="facts.loan_amount_actual"></span> 元。</td>
+            </tr>
+            <tr>
+                <td class="label-col">4.借款期限</td>
+                <td>
+                    是否到期：<label><input type="radio" name="is_due" data-field="facts.loan_term.is_due" value="是">是</label> <label><input type="radio" name="is_due" data-field="facts.loan_term.is_due" value="否">否</label><br>
+                    约定期限：<span contenteditable="true" class="short-input" data-field="facts.loan_term.start_year"></span>年<span contenteditable="true" class="short-input" data-field="facts.loan_term.start_month"></span>月<span contenteditable="true" class="short-input" data-field="facts.loan_term.start_day"></span>日起至<span contenteditable="true" class="short-input" data-field="facts.loan_term.end_year"></span>年<span contenteditable="true" class="short-input" data-field="facts.loan_term.end_month"></span>月<span contenteditable="true" class="short-input" data-field="facts.loan_term.end_day"></span>日止
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">5.借款利率</td>
+                <td>
+                    <div class="flex-row">
+                        <label><input type="checkbox" data-field="facts.interest_rate.has_rate" value="true">利率</label> <span contenteditable="true" class="short-input" data-field="facts.interest_rate.rate"></span> %/年(季/月) (合同条款：第 <span contenteditable="true" class="short-input" data-field="facts.interest_rate.rate_clause"></span> 条)
+                    </div>
+                    <div class="flex-row">
+                        <label><input type="checkbox" data-field="facts.interest_rate.has_overdue_rate" value="true">逾期上浮</label> <span contenteditable="true" class="short-input" data-field="facts.interest_rate.overdue_rate"></span> %/年 (合同条款：第 <span contenteditable="true" class="short-input" data-field="facts.interest_rate.overdue_clause"></span> 条)
+                    </div>
+                    <div class="flex-row">
+                        <label><input type="checkbox" data-field="facts.interest_rate.has_compound_interest" value="true">复利</label> (合同条款：第 <span contenteditable="true" class="short-input" data-field="facts.interest_rate.compound_interest_clause"></span> 条)
+                    </div>
+                    <div class="flex-row">
+                        <label><input type="checkbox" data-field="facts.interest_rate.has_penalty" value="true">罚息（违约金）</label> <span contenteditable="true" class="short-input" data-field="facts.interest_rate.penalty_rate"></span> %/年 (合同条款：第 <span contenteditable="true" class="short-input" data-field="facts.interest_rate.penalty_clause"></span> 条)
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">6.借款发放时间</td>
+                <td>
+                    <span contenteditable="true" class="short-input" data-field="facts.loan_disbursement.year"></span>年<span contenteditable="true" class="short-input" data-field="facts.loan_disbursement.month"></span>月<span contenteditable="true" class="short-input" data-field="facts.loan_disbursement.day"></span>日，金额 <span contenteditable="true" data-field="facts.loan_disbursement.amount"></span> 元。
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">7.还款方式</td>
+                <td>
+                    <label><input type="checkbox" data-field="facts.repayment_method" value="等额本息">等额本息</label>
+                    <label><input type="checkbox" data-field="facts.repayment_method" value="等额本金">等额本金</label>
+                    <label><input type="checkbox" data-field="facts.repayment_method" value="到期一次性还本付息">到期一次性还本付息</label><br>
+                    <label><input type="checkbox" data-field="facts.repayment_method" value="按月计息、到期一次性还本">按月计息、到期一次性还本</label>
+                    <label><input type="checkbox" data-field="facts.repayment_method" value="按季计息、到期一次性还本">按季计息、到期一次性还本</label><br>
+                    <label><input type="checkbox" data-field="facts.repayment_method" value="按年计息、到期一次性还本">按年计息、到期一次性还本</label>
+                    <label><input type="checkbox" data-field="facts.repayment_method" value="其他">其他</label>
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">8.还款情况</td>
+                <td>
+                    已还本金：<span contenteditable="true" data-field="facts.repayment_status.principal_paid"></span> 元； 已还利息：<span contenteditable="true" data-field="facts.repayment_status.interest_paid"></span> 元，还息至 <span contenteditable="true" class="short-input" data-field="facts.repayment_status.interest_paid_to_year"></span>年<span contenteditable="true" class="short-input" data-field="facts.repayment_status.interest_paid_to_month"></span>月<span contenteditable="true" class="short-input" data-field="facts.repayment_status.interest_paid_to_day"></span>日。
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">9.是否存在逾期还款</td>
+                <td>
+                    <label><input type="radio" name="is_overdue" data-field="facts.is_overdue" value="是">是</label>
+                    <span class="flex-item">逾期时间：<span contenteditable="true" data-field="facts.overdue_period"></span> 至今已逾期</span><br>
+                    <label><input type="radio" name="is_overdue" data-field="facts.is_overdue" value="否">否</label>
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">10.是否签订物的担保(抵押、质押)合同</td>
+                <td>
+                    <label><input type="radio" name="has_property_guarantee" data-field="facts.has_property_guarantee" value="是">是</label>
+                    <span class="flex-item">签订时间：<span contenteditable="true" data-field="facts.property_guarantee_date"></span></span><br>
+                    <label><input type="radio" name="has_property_guarantee" data-field="facts.has_property_guarantee" value="否">否</label>
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">11.担保人、担保物</td>
+                <td>
+                    <span class="flex-item">担保人：<span contenteditable="true" data-field="facts.guarantor"></span></span>
+                    <span class="flex-item">担保物：<span contenteditable="true" data-field="facts.collateral"></span></span>
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">12.是否最高额担保(抵押、质押)</td>
+                <td>
+                    <label><input type="radio" name="is_max_amount_guarantee" data-field="facts.is_max_amount_guarantee" value="是">是</label>
+                    <label><input type="radio" name="is_max_amount_guarantee" data-field="facts.is_max_amount_guarantee" value="否">否</label><br>
+                    <span class="flex-item">担保债权的确定时间：<span contenteditable="true" data-field="facts.max_amount_determination_date"></span></span>
+                    <span class="flex-item">担保额度：<span contenteditable="true" data-field="facts.max_amount_limit"></span></span>
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">13.是否办理抵押、质押登记</td>
+                <td>
+                    <label><input type="radio" name="is_registered" data-field="facts.is_registered" value="是">是</label>
+                    (<label><input type="checkbox" data-field="facts.registration_types" value="正式登记">正式登记</label> / <label><input type="checkbox" data-field="facts.registration_types" value="预告登记">预告登记</label>)<br>
+                    <label><input type="radio" name="is_registered" data-field="facts.is_registered" value="否">否</label>
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">14.是否签订保证合同</td>
+                <td>
+                    <label><input type="radio" name="has_guarantee_contract" data-field="facts.has_guarantee_contract" value="是">是</label>
+                    <span class="flex-item">签订时间：<span contenteditable="true" data-field="facts.guarantee_contract_date"></span></span>
+                    <span class="flex-item">保证人：<span contenteditable="true" data-field="facts.guarantee_person"></span></span><br>
+                    <div class="flex-row" style="width:100%;">主要内容：<textarea data-field="facts.guarantee_contract_content"></textarea></div>
+                    <label><input type="radio" name="has_guarantee_contract" data-field="facts.has_guarantee_contract" value="否">否</label>
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">15.保证方式</td>
+                <td>
+                    <label><input type="checkbox" data-field="facts.guarantee_methods" value="一般保证">一般保证</label>
+                    <label><input type="checkbox" data-field="facts.guarantee_methods" value="连带责任保证">连带责任保证</label>
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">16.其他担保方式</td>
+                <td>
+                    <label><input type="radio" name="other_guarantee_method" data-field="facts.other_guarantee.exists" value="是">是</label>
+                    <span class="flex-item">形式：<span contenteditable="true" data-field="facts.other_guarantee.form"></span></span>
+                    <span class="flex-item">签订时间：<span contenteditable="true" data-field="facts.other_guarantee.date"></span></span><br>
+                    <label><input type="radio" name="other_guarantee_method" data-field="facts.other_guarantee.exists" value="否">否</label>
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">17.其他需要说明的内容</td>
+                <td><textarea rows="3" placeholder="可另附页" data-field="facts.other_notes"></textarea></td>
+            </tr>
+            <tr>
+                <td class="label-col">18.证据清单</td>
+                <td><textarea rows="3" placeholder="可另附页" data-field="facts.evidence_list"></textarea></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- 落款区域 -->
+    <div class="signature-section">
+        <p>具状人（签字、盖章）：<span contenteditable="true" data-field="signature.name"></span></p>
+        <p>日期：<span contenteditable="true" class="short-input" data-field="signature.year"></span> 年 <span contenteditable="true" class="short-input" data-field="signature.month"></span> 月 <span contenteditable="true" class="short-input" data-field="signature.day"></span> 日</p>
+    </div>
+</div>
+
+<!-- AI 自动填充脚本 -->
+<script>
+/**
+ * 民事起诉状要素式模板 — AI 提取结果自动填充脚本
+ *
+ * 使用方式：
+ *   1. 在页面中设置 window.__COMPLAINT_DATA__ = { ... JSON 数据 ... };
+ *   2. 调用 fillForm(window.__COMPLAINT_DATA__);
+ *   3. 或在 iframe 中加载本页面后，通过 postMessage 传入数据
+ *
+ * 字段命名规则（data-field 属性）：
+ *   - 点分隔路径，如 plaintiff.company.name
+ *   - 同级 checkbox 共享同一个 data-field，通过 value 属性区分
+ *   - radio 通过 value 属性匹配
+ */
+
+(function() {
+    'use strict';
+
+    /** 按点分隔路径从对象中获取嵌套值 */
+    function getByPath(obj, path) {
+        if (obj === null || obj === undefined) return null;
+        var parts = path.split('.');
+        var current = obj;
+        for (var i = 0; i < parts.length; i++) {
+            if (current === null || current === undefined) return null;
+            current = current[parts[i]];
+        }
+        return current;
+    }
+
+    /** 为元素添加 AI 填充高亮标记并在指定时间后移除 */
+    function highlightElement(el) {
+        el.classList.add('ai-filled');
+        // 3 秒后自动移除高亮
+        setTimeout(function() {
+            el.classList.remove('ai-filled');
+        }, 3000);
+    }
+
+    /** 填充单个元素 */
+    function fillElement(el, value) {
+        var tag = el.tagName.toLowerCase();
+        var type = (el.getAttribute('type') || 'text').toLowerCase();
+        var isContentEditable = el.getAttribute('contenteditable') === 'true';
+
+        if (tag === 'textarea') {
+            // textarea：直接赋值
+            if (typeof value === 'string' || typeof value === 'number') {
+                el.value = String(value);
+                highlightElement(el);
+            }
+        } else if (isContentEditable) {
+            // contenteditable span：设置文本内容（支持内联换行）
+            if (typeof value === 'string' || typeof value === 'number') {
+                el.textContent = String(value);
+                highlightElement(el);
+            }
+        } else if (type === 'radio') {
+            // radio：通过 value 属性匹配（支持布尔值自动转换）
+            var elValue = el.getAttribute('value');
+            if (elValue === null) return;
+            // 兼容 AI 返回布尔值 true/false 与模板中的 "有"/"无" 等中文值
+            var normalized = String(value);
+            if (typeof value === 'boolean') {
+                // true → "true", false → "false"（模板 radio value 需对应为 "true"/"false"）
+                normalized = String(value);
+            }
+            if (elValue === normalized) {
+                el.checked = true;
+                highlightElement(el);
+            }
+        } else if (type === 'checkbox') {
+            // checkbox：数组值匹配（通过 value 属性）
+            var elValue = el.getAttribute('value');
+            if (elValue === null) return;
+
+            if (Array.isArray(value)) {
+                // 数组中的值与 checkbox 的 value 匹配
+                if (value.indexOf(elValue) !== -1) {
+                    el.checked = true;
+                    highlightElement(el);
+                }
+            } else if (typeof value === 'boolean') {
+                el.checked = value;
+                if (value) highlightElement(el);
+            } else if (String(value) === elValue) {
+                el.checked = true;
+                highlightElement(el);
+            }
+        }
+    }
+
+    /** 主填充函数：遍历所有 [data-field] 元素并填入数据 */
+    function fillForm(data) {
+        if (!data) return;
+
+        var elements = document.querySelectorAll('[data-field]');
+        var filledCount = 0;
+
+        elements.forEach(function(el) {
+            var field = el.getAttribute('data-field');
+            if (!field) return;
+
+            var value = getByPath(data, field);
+            // null / undefined 的字段跳过（不填充）
+            if (value === null || value === undefined) return;
+
+            fillElement(el, value);
+            filledCount++;
+        });
+
+        // 触发联动逻辑（如国有→控股/参股的展开）
+        applyLinkages(data);
+
+        // 自动调整文本输入框宽度以适应内容
+        autoResizeTextInputs();
+        // 自动调整 textarea 高度以适应内容（防止打印截断）
+        autoResizeTextareas();
+
+        console.log('[起诉状模板] AI 填充完成，共填充 ' + filledCount + ' 个字段');
+    }
+
+    /** 自适应调整：contenteditable span 自然换行无需宽度计算，仅处理 textarea 高度 */
+    function autoResizeTextInputs() {
+        // contenteditable span 天然支持内联换行，不需要额外宽度调整
+        // 此函数保留用于向后兼容，实际宽度由 CSS display:inline 自动处理
+        autoResizeTextareas();
+    }
+
+    /** 自动调整所有 textarea 高度以适应其内容（解决打印截断问题） */
+    function autoResizeTextareas() {
+        var textareas = document.querySelectorAll('textarea');
+        textareas.forEach(function(ta) {
+            // 先重置高度为最小值，让 scrollHeight 正确计算
+            ta.style.height = 'auto';
+            // 设置为内容实际高度 + 少量 padding
+            var newHeight = Math.max(ta.scrollHeight, 36);
+            ta.style.height = newHeight + 'px';
+        });
+    }
+
+    /** 处理字段间的联动逻辑 */
+    function applyLinkages(data) {
+        // 原告国有→控股/参股联动
+        checkStateOwnedLinkage(data, 'plaintiff');
+        // 被告国有→控股/参股联动
+        checkStateOwnedLinkage(data, 'defendant');
+        // 第三人国有→控股/参股联动
+        checkStateOwnedLinkage(data, 'third_party');
+    }
+
+    /** 检查某方当事人是否选择了"国有"，联动展示控股/参股 */
+    function checkStateOwnedLinkage(data, partyKey) {
+        var party = getByPath(data, partyKey);
+        if (!party || party.type !== 'company') return;
+
+        var entityTypes = getByPath(data, partyKey + '.company.entity_type');
+        if (!Array.isArray(entityTypes) || entityTypes.indexOf('国有') === -1) return;
+
+        // 国有已被勾选，确保控股/参股子选项也有对应勾选
+        var stateDetail = getByPath(data, partyKey + '.company.state_owned_detail');
+        if (Array.isArray(stateDetail)) {
+            // 遍历 state_owned_detail 中的值去勾选对应 checkbox
+            var detailElements = document.querySelectorAll('[data-field="' + partyKey + '.company.state_owned_detail"]');
+            detailElements.forEach(function(el) {
+                var elValue = el.getAttribute('value');
+                if (elValue && stateDetail.indexOf(elValue) !== -1) {
+                    el.checked = true;
+                    highlightElement(el);
+                }
+            });
+        }
+    }
+
+    /** 导出表单数据为 JSON（供前端"获取当前编辑结果"使用） */
+    function exportFormData() {
+        var result = {};
+        var elements = document.querySelectorAll('[data-field]');
+
+        elements.forEach(function(el) {
+            var field = el.getAttribute('data-field');
+            if (!field) return;
+
+            var tag = el.tagName.toLowerCase();
+            var type = (el.getAttribute('type') || 'text').toLowerCase();
+            var isContentEditable = el.getAttribute('contenteditable') === 'true';
+
+            if (isContentEditable) {
+                // contenteditable span：读取文本内容
+                var text = el.textContent || '';
+                text = text.trim();
+                setByPath(result, field, text || null);
+            } else if (tag === 'textarea' || type === 'text') {
+                setByPath(result, field, el.value || null);
+            } else if (type === 'radio') {
+                if (el.checked) {
+                    setByPath(result, field, el.getAttribute('value'));
+                }
+            } else if (type === 'checkbox') {
+                var elValue = el.getAttribute('value');
+                if (el.checked && elValue) {
+                    var arr = getByPath(result, field) || [];
+                    if (!Array.isArray(arr)) arr = [];
+                    arr.push(elValue);
+                    setByPath(result, field, arr);
+                }
+            }
+        });
+
+        return result;
+    }
+
+    /** 按点分隔路径设置对象嵌套值 */
+    function setByPath(obj, path, value) {
+        var parts = path.split('.');
+        var current = obj;
+        for (var i = 0; i < parts.length - 1; i++) {
+            var key = parts[i];
+            if (!(key in current) || typeof current[key] !== 'object' || current[key] === null) {
+                current[key] = {};
+            }
+            current = current[key];
+        }
+        current[parts[parts.length - 1]] = value;
+    }
+
+    // ================================================================
+    // 对外暴露的 API
+    // ================================================================
+    window.__COMPLAINT_DATA__ = window.__COMPLAINT_DATA__ || null;
+    window.fillForm = fillForm;
+    window.exportFormData = exportFormData;
+
+    // ================================================================
+    // 监听父窗口的 postMessage（iframe 模式下的数据注入）
+    // ================================================================
+    window.addEventListener('message', function(event) {
+        var msg = event.data;
+        if (msg && msg.type === 'fill_complaint_form' && msg.data) {
+            window.__COMPLAINT_DATA__ = msg.data;
+            fillForm(msg.data);
+        }
+        if (msg && msg.type === 'export_complaint_form') {
+            var formData = exportFormData();
+            event.source.postMessage({
+                type: 'complaint_form_data',
+                data: formData
+            }, event.origin);
+        }
+    });
+
+    // ================================================================
+    // 用户手动输入时自动调整 textarea 高度
+    // ================================================================
+    document.addEventListener('input', function(event) {
+        var target = event.target;
+        // textarea 输入时自动调整高度
+        if (target.tagName === 'TEXTAREA') {
+            target.style.height = 'auto';
+            target.style.height = Math.max(target.scrollHeight, 36) + 'px';
+        }
+        // contenteditable span 天然支持自适应，无需额外处理
+    });
+
+    // ================================================================
+    // radio 按钮支持取消勾选（再次点击已选中的 radio 可取消）
+    // ================================================================
+    document.addEventListener('mousedown', function(event) {
+        var target = event.target;
+        if (target.tagName === 'INPUT' && target.type === 'radio') {
+            // 在浏览器改变状态前记录当前是否已选中
+            if (target.checked) {
+                target.setAttribute('data-was-checked', 'true');
+            }
+        }
+    }, true); // 使用捕获阶段确保在浏览器处理前记录
+
+    document.addEventListener('click', function(event) {
+        var target = event.target;
+        if (target.tagName === 'INPUT' && target.type === 'radio') {
+            if (target.getAttribute('data-was-checked') === 'true') {
+                // 用户点击了已选中的 radio → 取消选中
+                target.checked = false;
+                target.removeAttribute('data-was-checked');
+                // 触发 change 事件以便其他监听器知晓状态变更
+                target.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            // 清除所有 radio 的标记
+            var allRadios = document.querySelectorAll('input[type="radio"][data-was-checked]');
+            for (var i = 0; i < allRadios.length; i++) {
+                allRadios[i].removeAttribute('data-was-checked');
+            }
+        }
+    });
+
+    // ================================================================
+    // 页面加载完成后自动填充（如果 __COMPLAINT_DATA__ 已被设置）
+    // ================================================================
+    if (window.__COMPLAINT_DATA__) {
+        // 使用 requestAnimationFrame 确保 DOM 完全就绪
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                fillForm(window.__COMPLAINT_DATA__);
+            });
+        } else {
+            fillForm(window.__COMPLAINT_DATA__);
+        }
+    }
+})();
+</script>
+
+</body>
+</html>
