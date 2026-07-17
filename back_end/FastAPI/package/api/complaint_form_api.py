@@ -1,15 +1,19 @@
 """
-起诉状要素提取 API 路由
-接收用户上传的民事起诉状文件（PDF/Word/图片），通过 OCR + DeepSeek v4-flash
+法律文书要素提取 API 路由
+接收用户上传的法律文书文件（PDF/Word/图片），通过 OCR + DeepSeek v4-flash
 提取关键字段，返回结构化 JSON 供前端填充到要素式模板中。
+
+支持模板类型：
+  - complaint: 要素式起诉状（金融借款合同纠纷）
+  - enforcement: 强制执行申请书
 """
 import asyncio
 import logging
 import os
 import tempfile
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session
 
 from ..database.database import get_db
@@ -17,6 +21,7 @@ from ..models.user import User
 from ..api.deps import get_current_active_user
 from ..utils.ocr_helper import perform_smart_extraction
 from ..utils.complaint_extractor import extract_complaint_fields
+from ..utils.enforcement_extractor import extract_enforcement_fields
 
 logger = logging.getLogger("shengyuan_app.complaint_form_api")
 
@@ -37,19 +42,24 @@ MAX_OCR_TEXT_LENGTH = 30000
 
 @router.post("/extract")
 async def extract_complaint_form_fields(
-    files: List[UploadFile] = File(..., description="民事起诉状文件（PDF/Word/图片）"),
+    files: List[UploadFile] = File(..., description="法律文书文件（PDF/Word/图片）"),
+    template_type: Optional[str] = Query("complaint", description="模板类型：complaint（起诉状）或 enforcement（强制执行申请书）"),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """
-    上传民事起诉状文件，通过 OCR + DeepSeek 提取要素字段
+    上传法律文书文件，通过 OCR + DeepSeek 提取要素字段
+
+    支持两种模板类型：
+    - complaint: 要素式起诉状（金融借款合同纠纷）
+    - enforcement: 强制执行申请书
 
     流程：
     1. 接收并校验上传文件
     2. 保存到临时目录
     3. 对每个文件执行 OCR 文本提取
     4. 合并所有 OCR 文本
-    5. 调用 DeepSeek 提取结构化字段
+    5. 根据 template_type 调用对应的 DeepSeek 提取器
     6. 返回 JSON 字段数据
 
     Returns:
@@ -58,10 +68,17 @@ async def extract_complaint_form_fields(
             "fields": { ... JSON 字段数据 ... },
             "ocr_length": 12345,
             "file_count": 2,
+            "template_type": "complaint",
             "disclaimer": "本结果由 AI 自动生成，请仔细核对后使用"
         }
     """
     # ── 1. 基础校验 ──
+    if template_type not in ("complaint", "enforcement"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"不支持的模板类型: {template_type}，可选值: complaint, enforcement",
+        )
+
     if not files:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -168,9 +185,13 @@ async def extract_complaint_form_fields(
         len(combined_text),
     )
 
-    # ── 5. 调用 DeepSeek v4-flash 提取字段 ──
+    # ── 5. 根据模板类型调用对应的 DeepSeek 提取器 ──
+    template_label = "起诉状" if template_type == "complaint" else "强制执行申请书"
     try:
-        fields = await extract_complaint_fields(combined_text)
+        if template_type == "complaint":
+            fields = await extract_complaint_fields(combined_text)
+        else:
+            fields = await extract_enforcement_fields(combined_text)
     except ValueError as e:
         # API Key 未配置等配置错误
         logger.error("提取器配置错误: %s", e)
@@ -193,16 +214,17 @@ async def extract_complaint_form_fields(
             detail=f"AI 服务调用失败: {str(e)}",
         )
     except Exception as e:
-        logger.error("起诉状提取未知错误: %s", e, exc_info=True)
+        logger.error("%s提取未知错误: %s", template_label, e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"起诉状提取失败，请稍后重试",
+            detail=f"{template_label}提取失败，请稍后重试",
         )
 
     # ── 6. 返回结果 ──
     return {
         "success": True,
         "fields": fields,
+        "template_type": template_type,
         "ocr_length": len(combined_text),
         "file_count": len(files),
         "disclaimer": "本结果由 AI 自动生成，请仔细核对所有字段后再导出 PDF。未识别字段已留空。",

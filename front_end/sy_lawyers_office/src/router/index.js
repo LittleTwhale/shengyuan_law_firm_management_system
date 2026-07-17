@@ -76,7 +76,7 @@ const routes = [
       {
         path: 'complaint-form',
         component: ComplaintFormPage,
-        meta: { title: '起诉状提取' },
+        meta: { title: '文书要素提取' },
       },
     ],
   },

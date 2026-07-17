@@ -113,6 +113,8 @@
         }
         /* 短字段：年月日、百分比、条款号等 */
         span[contenteditable="true"].short-input { min-width: 26px; max-width: 56px; text-align: center; }
+        /* 短字段空占位符用更少的空格，避免在窄宽度下折行导致高度异常 */
+        span[contenteditable="true"].short-input:empty::after { content: '\00a0\00a0'; }
         /* 中字段：姓名、电话、职务、金额等 */
         span[contenteditable="true"].medium-input { min-width: 60px; max-width: 100%; }
         /* 长字段：地址、名称、统一社会信用代码等 */
@@ -749,8 +751,8 @@
  * 民事起诉状要素式模板 — AI 提取结果自动填充脚本
  *
  * 使用方式：
- *   1. 在页面中设置 window.__COMPLAINT_DATA__ = { ... JSON 数据 ... };
- *   2. 调用 fillForm(window.__COMPLAINT_DATA__);
+ *   1. 在页面中设置 window.__TEMPLATE_DATA__ = { ... JSON 数据 ... };
+ *   2. 调用 fillForm(window.__TEMPLATE_DATA__);
  *   3. 或在 iframe 中加载本页面后，通过 postMessage 传入数据
  *
  * 字段命名规则（data-field 属性）：
@@ -985,7 +987,7 @@
     // ================================================================
     // 对外暴露的 API
     // ================================================================
-    window.__COMPLAINT_DATA__ = window.__COMPLAINT_DATA__ || null;
+    window.__TEMPLATE_DATA__ = window.__TEMPLATE_DATA__ || null;
     window.fillForm = fillForm;
     window.exportFormData = exportFormData;
 
@@ -994,14 +996,14 @@
     // ================================================================
     window.addEventListener('message', function(event) {
         var msg = event.data;
-        if (msg && msg.type === 'fill_complaint_form' && msg.data) {
-            window.__COMPLAINT_DATA__ = msg.data;
+        if (msg && msg.type === 'fill_template' && msg.data) {
+            window.__TEMPLATE_DATA__ = msg.data;
             fillForm(msg.data);
         }
-        if (msg && msg.type === 'export_complaint_form') {
+        if (msg && msg.type === 'export_template') {
             var formData = exportFormData();
             event.source.postMessage({
-                type: 'complaint_form_data',
+                type: 'template_data',
                 data: formData
             }, event.origin);
         }
@@ -1052,16 +1054,16 @@
     });
 
     // ================================================================
-    // 页面加载完成后自动填充（如果 __COMPLAINT_DATA__ 已被设置）
+    // 页面加载完成后自动填充（如果 __TEMPLATE_DATA__ 已被设置）
     // ================================================================
-    if (window.__COMPLAINT_DATA__) {
+    if (window.__TEMPLATE_DATA__) {
         // 使用 requestAnimationFrame 确保 DOM 完全就绪
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', function() {
-                fillForm(window.__COMPLAINT_DATA__);
+                fillForm(window.__TEMPLATE_DATA__);
             });
         } else {
-            fillForm(window.__COMPLAINT_DATA__);
+            fillForm(window.__TEMPLATE_DATA__);
         }
     }
 })();

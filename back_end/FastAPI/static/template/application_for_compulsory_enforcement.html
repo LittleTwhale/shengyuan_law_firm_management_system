@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>强制执行申请书（申请执行用）- 可打印分页版</title>
+    <style>
+        /* 全局初始化与盒模型预防溢出 */
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "SimSun", "Songti SC", serif; /* 法律文书标准宋体 */
+            line-height: 1.6;
+            color: #000;
+            background-color: #f4f4f5;
+            margin: 0;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 50px 60px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.05);
+            border-radius: 4px;
+        }
+
+        h1, h2 {
+            text-align: center;
+            margin: 0 0 12px 0;
+            font-weight: bold;
+            color: #000;
+        }
+        h1 { font-size: 26px; letter-spacing: 4px; }
+        h2 { font-size: 18px; margin-bottom: 30px; }
+
+        .instructions {
+            border: 1px solid #000;
+            padding: 18px;
+            margin-bottom: 30px;
+            font-size: 14px;
+            background-color: #fafafa;
+        }
+        .instructions p { margin: 6px 0; text-align: justify; }
+        .instructions ul { margin: 6px 0; padding-left: 20px; text-align: justify; list-style-type: disc; }
+        .instructions li { margin: 4px 0; }
+        .instructions strong { font-weight: bold; }
+
+        /* 表格分页优化 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+            font-size: 15px; /* 约等于法律文书五号字 */
+        }
+
+        th, td {
+            border: 1px solid #000;
+            padding: 10px 12px;
+            vertical-align: top;
+            text-align: left;
+        }
+
+        th.section-title {
+            text-align: center;
+            font-size: 16px;
+            font-weight: bold;
+            background-color: #f5f5f5;
+            letter-spacing: 3px;
+            padding: 12px;
+        }
+
+        .label-col {
+            width: 22%;
+            text-align: center;
+            vertical-align: middle;
+            font-weight: bold;
+            background-color: #fafafa;
+        }
+
+        /* 可编辑内联文本 — 支持自然换行和自适应宽度 */
+        span[contenteditable="true"] {
+            display: inline-block;
+            vertical-align: bottom;
+            border-bottom: 1px dotted #c0c4cc;
+            background: transparent;
+            font-family: inherit;
+            font-size: inherit;
+            padding: 1px 3px;
+            outline: none;
+            color: #000;
+            word-break: break-all;
+            line-height: 1.6;
+            transition: border-color 0.2s, background-color 0.2s;
+            min-width: 40px;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        span[contenteditable="true"]:focus {
+            border-bottom-color: #909399;
+            border-bottom-style: solid;
+            background: #fdfdfd;
+        }
+        span[contenteditable="true"]:hover:not(:focus) {
+            border-bottom-color: #909399;
+        }
+        span[contenteditable="true"]:empty::after {
+            content: '\00a0\00a0\00a0\00a0';
+            color: transparent;
+        }
+        /* 短字段：年月日等 */
+        span[contenteditable="true"].short-input { min-width: 26px; max-width: 56px; text-align: center; }
+        /* 短字段空占位符用更少的空格，避免在窄宽度下折行导致高度异常 */
+        span[contenteditable="true"].short-input:empty::after { content: '\00a0\00a0'; }
+        /* 中字段：姓名、职务等 */
+        span[contenteditable="true"].medium-input { min-width: 60px; max-width: 100%; }
+        /* 长字段：案号、机构名称等 */
+        span[contenteditable="true"].long-input { min-width: 120px; max-width: 100%; }
+
+        textarea {
+            width: 100%;
+            border: 1px solid #e0e0e0;
+            border-radius: 3px;
+            background: #fff;
+            font-family: inherit;
+            font-size: inherit;
+            padding: 6px 8px;
+            outline: none;
+            resize: none;          /* 禁止手动拖拽，由 JS 自动撑高 */
+            overflow: hidden;      /* 隐藏滚动条，高度自适应内容 */
+            min-height: 36px;
+            box-sizing: border-box;
+            margin-top: 5px;
+            transition: border-color 0.2s;
+            line-height: 1.6;
+        }
+        textarea:focus {
+            border-color: #909399;
+            background: #fdfdfd;
+        }
+
+        label { margin-right: 12px; cursor: pointer; display: inline-flex; align-items: center; }
+        input[type="checkbox"], input[type="radio"] { vertical-align: middle; margin-right: 4px; }
+
+        .flex-row { display: flex; align-items: flex-start; flex-wrap: wrap; margin-bottom: 6px; width: 100%; }
+        .flex-item { margin-right: 20px; display: inline-flex; align-items: baseline; flex-wrap: wrap; min-width: 0; }
+        .indent-block { padding-left: 20px; margin-bottom: 8px; }
+
+        .signature-section {
+            text-align: right;
+            margin-top: 50px;
+            font-size: 16px;
+            line-height: 2;
+        }
+
+        .ai-filled {
+            background-color: #fffde7 !important;
+            transition: background-color 0.3s;
+        }
+
+        /* ================= 核心打印与PDF分页控制 ================= */
+        @media print {
+            @page {
+                size: A4;
+                margin: 25mm 20mm 25mm 20mm;
+            }
+
+            body {
+                background-color: #ffffff;
+                padding: 0;
+                margin: 0;
+                font-size: 11pt;
+            }
+
+            .container {
+                box-shadow: none;
+                padding: 0;
+                max-width: 100%;
+                background: transparent;
+            }
+
+            .instructions {
+                background-color: transparent !important;
+            }
+
+            th.section-title, .label-col {
+                background-color: transparent !important;
+            }
+
+            .ai-filled {
+                background-color: transparent !important;
+            }
+
+            span[contenteditable="true"] {
+                border-bottom-color: transparent;
+                background: transparent;
+                padding: 0 1px;
+            }
+            textarea {
+                border: 1px solid #ccc;
+                background: transparent;
+                resize: none;
+                overflow: visible !important;
+                height: auto !important;
+                min-height: 0;
+                page-break-inside: avoid;
+            }
+
+            tr {
+                page-break-inside: avoid;
+            }
+
+            th.section-title {
+                page-break-after: avoid;
+            }
+
+            .signature-section {
+                page-break-inside: avoid;
+            }
+
+            table {
+                page-break-inside: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>强制执行申请书</h1>
+    <h2>（申请执行用）</h2>
+
+    <div class="instructions">
+        <strong>说明：</strong>
+        <p>1. 发生法律效力的民事、行政判决、裁定，刑事判决、裁定中的财产部分，以及法律规定由人民法院执行的其他法律文书，当事人必须履行。一方拒绝履行的，当事人可以向人民法院申请执行。为了方便您申请执行，保护您的合法权利，请如实填写本表。</p>
+        <p>2. 申请执行时，除本申请书外，还需向人民法院提供以下材料：（1）证明您身份的材料，如身份证复印件、营业执照复印件、法定代表人身份证明或负责人身份证明等；（2）生效法律文书副本及生效证明；（3）继承人或权利承受人继承或承受权利的证明文件：（4）其他应当提交的文件或证件。</p>
+        <p>3. 本表所涉内容系针对申请执行专用，有些内容可能与您的具体申请无关，您认为与申请无关的项目可以填“无”或不填；对于本表中勾选项可以在对应项打“√”；您认为另有重要内容需要列明的，可以另附页填写。</p>
+        <p>4. 本表 word 电子版填写时，相关栏目可复制粘贴或扩容，但不得改变要素内容、格式设置。例如，多原告、多被告或多委托诉讼代理人等情况，可根据实际情况复制粘贴；需填写文字较多时，可根据实际对栏目进行扩容等。</p>
+        <strong>★特别提示★</strong>
+        <ul>
+            <li>诉讼参加人应遵守诚信原则如实认真填写表格。如果申请执行人违反民事诉讼法的规定，基于捏造的事实获取的仲裁裁决或者调解书、公证债权文书、支付令等生效法律文书申请执行，或者通过捏造事实等导致人民法院错误执行的，人民法院将依法追究责任。</li>
+            <li>被执行人可能存在财产不足或无财产可供执行的情形，执行过程中，申请执行人应当向执行法院积极提供被执行人的财产线索。</li>
+            <li>多份生效法律文书确定的多个债权人分别对同一被执行人申请执行，且该被执行人为法人的，被执行人财产按照执行法院采取执行措施的先后顺序受偿。当作为被执行人的法人财产不足以清偿全部债务时，各债权人可以向人民法院提出被执行人破产、重整等申请。</li>
+        </ul>
+    </div>
+
+    <!-- 1. 当事人信息 -->
+    <table>
+        <thead>
+            <tr>
+                <th colspan="2" class="section-title">当事人信息</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- 申请执行人(自然人) -->
+            <tr>
+                <td class="label-col">申请执行人<br>(自然人)</td>
+                <td>
+                    <div class="flex-row">
+                        <span class="flex-item">姓名：<span contenteditable="true" data-field="applicant.individual.name"></span></span>
+                        <span class="flex-item">性别：<label><input type="radio" name="app_ind_gender" data-field="applicant.individual.gender" value="男">男</label> <label><input type="radio" name="app_ind_gender" data-field="applicant.individual.gender" value="女">女</label></span>
+                        <span class="flex-item">出生日期：<span contenteditable="true" class="short-input" data-field="applicant.individual.birth_year"></span>年<span contenteditable="true" class="short-input" data-field="applicant.individual.birth_month"></span>月<span contenteditable="true" class="short-input" data-field="applicant.individual.birth_day"></span>日</span>
+                        <span class="flex-item">民族：<span contenteditable="true" data-field="applicant.individual.ethnicity"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">工作单位：<span contenteditable="true" data-field="applicant.individual.work_unit"></span></span>
+                        <span class="flex-item">职务：<span contenteditable="true" data-field="applicant.individual.position"></span></span>
+                        <span class="flex-item">联系电话：<span contenteditable="true" data-field="applicant.individual.phone"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">住所地(户籍所在地)：<span contenteditable="true" class="long-input" data-field="applicant.individual.address"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">经常居住地：<span contenteditable="true" class="long-input" data-field="applicant.individual.residence"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">证件类型：<span contenteditable="true" data-field="applicant.individual.id_type"></span></span>
+                        <span class="flex-item">证件号码：<span contenteditable="true" class="long-input" data-field="applicant.individual.id_number"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">银行账号：<span contenteditable="true" class="long-input" data-field="applicant.individual.bank_account"></span></span>
+                        <span class="flex-item">开户名：<span contenteditable="true" data-field="applicant.individual.bank_name"></span></span>
+                        <span class="flex-item">开户行：<span contenteditable="true" class="long-input" data-field="applicant.individual.bank_branch"></span></span>
+                    </div>
+                </td>
+            </tr>
+            <!-- 申请执行人（法人、非法人组织） -->
+            <tr>
+                <td class="label-col">申请执行人<br>（法人、非法人组织）</td>
+                <td>
+                    <div class="flex-row">名称：<span contenteditable="true" class="long-input" data-field="applicant.company.name"></span></div>
+                    <div class="flex-row">
+                        <span class="flex-item">住所地(主要办事机构所在地)：<span contenteditable="true" class="long-input" data-field="applicant.company.address"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">注册地/登记地：<span contenteditable="true" class="long-input" data-field="applicant.company.registered_address"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">法定代表人/负责人：<span contenteditable="true" data-field="applicant.company.legal_representative"></span></span>
+                        <span class="flex-item">职务：<span contenteditable="true" data-field="applicant.company.representative_position"></span></span>
+                        <span class="flex-item">联系电话：<span contenteditable="true" data-field="applicant.company.representative_phone"></span></span>
+                    </div>
+                    <div class="flex-row">统一社会信用代码：<span contenteditable="true" class="long-input" data-field="applicant.company.uscc"></span></div>
+                    <div class="flex-row">
+                        <span class="flex-item">银行账号：<span contenteditable="true" class="long-input" data-field="applicant.company.bank_account"></span></span>
+                        <span class="flex-item">开户名：<span contenteditable="true" data-field="applicant.company.bank_name"></span></span>
+                        <span class="flex-item">开户行：<span contenteditable="true" class="long-input" data-field="applicant.company.bank_branch"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        类型：
+                        <label><input type="checkbox" data-field="applicant.company.entity_type" value="有限责任公司">有限责任公司</label>
+                        <label><input type="checkbox" data-field="applicant.company.entity_type" value="股份有限公司">股份有限公司</label>
+                        <label><input type="checkbox" data-field="applicant.company.entity_type" value="其他企业法人">其他企业法人</label>
+                        <label><input type="checkbox" data-field="applicant.company.entity_type" value="事业单位">事业单位</label>
+                        <label><input type="checkbox" data-field="applicant.company.entity_type" value="社会团体">社会团体</label>
+                        <label><input type="checkbox" data-field="applicant.company.entity_type" value="基金会">基金会</label>
+                        <label><input type="checkbox" data-field="applicant.company.entity_type" value="社会服务机构">社会服务机构</label><br>
+                        <label><input type="checkbox" data-field="applicant.company.entity_type" value="机关法人">机关法人</label>
+                        <label><input type="checkbox" data-field="applicant.company.entity_type" value="农村集体经济组织法人">农村集体经济组织法人</label>
+                        <label><input type="checkbox" data-field="applicant.company.entity_type" value="城镇农村的合作经济组织法人">城镇农村的合作经济组织法人</label>
+                        <label><input type="checkbox" data-field="applicant.company.entity_type" value="基层群众性自治组织法人">基层群众性自治组织法人</label><br>
+                        <label><input type="checkbox" data-field="applicant.company.entity_type" value="个人独资企业">个人独资企业</label>
+                        <label><input type="checkbox" data-field="applicant.company.entity_type" value="合伙企业">合伙企业</label>
+                        <label><input type="checkbox" data-field="applicant.company.entity_type" value="不具有法人资格的专业服务机构">不具有法人资格的专业服务机构</label>
+                    </div>
+                    <div class="flex-row">
+                        所有制性质：
+                        <label><input type="checkbox" data-field="applicant.company.state_owned_detail" value="国有控股">国有控股</label>
+                        <label><input type="checkbox" data-field="applicant.company.state_owned_detail" value="参股">参股</label>
+                        <label><input type="checkbox" data-field="applicant.company.entity_type" value="民营">民营</label>
+                        <label><input type="checkbox" data-field="applicant.company.entity_type" value="其他">其他</label>
+                    </div>
+                </td>
+            </tr>
+            <!-- 委托诉讼代理人 -->
+            <tr>
+                <td class="label-col">委托诉讼代理人</td>
+                <td>
+                    <div class="flex-row">
+                        <label><input type="radio" name="has_agent" data-field="has_agent" value="true">有</label>
+                    </div>
+                    <div class="indent-block">
+                        <div class="flex-row">
+                            <span class="flex-item">姓名：<span contenteditable="true" data-field="agent.name"></span></span>
+                            <span class="flex-item">单位：<span contenteditable="true" data-field="agent.unit"></span></span>
+                            <span class="flex-item">职务：<span contenteditable="true" data-field="agent.position"></span></span>
+                            <span class="flex-item">联系电话：<span contenteditable="true" data-field="agent.phone"></span></span>
+                        </div>
+                        <div class="flex-row">
+                            代理权限：<label><input type="radio" name="agent_auth" data-field="agent.authority" value="一般授权">一般授权</label> <label><input type="radio" name="agent_auth" data-field="agent.authority" value="特别授权">特别授权</label>
+                        </div>
+                    </div>
+                    <div class="flex-row">
+                        <label><input type="radio" name="has_agent" data-field="has_agent" value="false">无</label>
+                    </div>
+                </td>
+            </tr>
+            <!-- 被执行人(自然人) -->
+            <tr>
+                <td class="label-col">被执行人<br>(自然人)</td>
+                <td>
+                    <div class="flex-row">
+                        <span class="flex-item">姓名：<span contenteditable="true" data-field="executor.individual.name"></span></span>
+                        <span class="flex-item">性别：<label><input type="radio" name="exe_ind_gender" data-field="executor.individual.gender" value="男">男</label> <label><input type="radio" name="exe_ind_gender" data-field="executor.individual.gender" value="女">女</label></span>
+                        <span class="flex-item">出生日期：<span contenteditable="true" class="short-input" data-field="executor.individual.birth_year"></span>年<span contenteditable="true" class="short-input" data-field="executor.individual.birth_month"></span>月<span contenteditable="true" class="short-input" data-field="executor.individual.birth_day"></span>日</span>
+                        <span class="flex-item">民族：<span contenteditable="true" data-field="executor.individual.ethnicity"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">工作单位：<span contenteditable="true" data-field="executor.individual.work_unit"></span></span>
+                        <span class="flex-item">职务：<span contenteditable="true" data-field="executor.individual.position"></span></span>
+                        <span class="flex-item">联系电话：<span contenteditable="true" data-field="executor.individual.phone"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">住所地(户籍所在地)：<span contenteditable="true" class="long-input" data-field="executor.individual.address"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">经常居住地：<span contenteditable="true" class="long-input" data-field="executor.individual.residence"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">证件类型：<span contenteditable="true" data-field="executor.individual.id_type"></span></span>
+                        <span class="flex-item">证件号码：<span contenteditable="true" class="long-input" data-field="executor.individual.id_number"></span></span>
+                    </div>
+                </td>
+            </tr>
+            <!-- 被执行人（法人、非法人组织） -->
+            <tr>
+                <td class="label-col">被执行人<br>（法人、非法人组织）</td>
+                <td>
+                    <div class="flex-row">名称：<span contenteditable="true" class="long-input" data-field="executor.company.name"></span></div>
+                    <div class="flex-row">
+                        <span class="flex-item">住所地(主要办事机构所在地)：<span contenteditable="true" class="long-input" data-field="executor.company.address"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">注册地/登记地：<span contenteditable="true" class="long-input" data-field="executor.company.registered_address"></span></span>
+                    </div>
+                    <div class="flex-row">
+                        <span class="flex-item">法定代表人/负责人：<span contenteditable="true" data-field="executor.company.legal_representative"></span></span>
+                        <span class="flex-item">职务：<span contenteditable="true" data-field="executor.company.representative_position"></span></span>
+                        <span class="flex-item">联系电话：<span contenteditable="true" data-field="executor.company.representative_phone"></span></span>
+                    </div>
+                    <div class="flex-row">统一社会信用代码：<span contenteditable="true" class="long-input" data-field="executor.company.uscc"></span></div>
+                    <div class="flex-row">
+                        类型：
+                        <label><input type="checkbox" data-field="executor.company.entity_type" value="有限责任公司">有限责任公司</label>
+                        <label><input type="checkbox" data-field="executor.company.entity_type" value="股份有限公司">股份有限公司</label>
+                        <label><input type="checkbox" data-field="executor.company.entity_type" value="其他企业法人">其他企业法人</label>
+                        <label><input type="checkbox" data-field="executor.company.entity_type" value="事业单位">事业单位</label>
+                        <label><input type="checkbox" data-field="executor.company.entity_type" value="社会团体">社会团体</label>
+                        <label><input type="checkbox" data-field="executor.company.entity_type" value="基金会">基金会</label>
+                        <label><input type="checkbox" data-field="executor.company.entity_type" value="社会服务机构">社会服务机构</label><br>
+                        <label><input type="checkbox" data-field="executor.company.entity_type" value="机关法人">机关法人</label>
+                        <label><input type="checkbox" data-field="executor.company.entity_type" value="农村集体经济组织法人">农村集体经济组织法人</label>
+                        <label><input type="checkbox" data-field="executor.company.entity_type" value="城镇农村的合作经济组织法人">城镇农村的合作经济组织法人</label>
+                        <label><input type="checkbox" data-field="executor.company.entity_type" value="基层群众性自治组织法人">基层群众性自治组织法人</label><br>
+                        <label><input type="checkbox" data-field="executor.company.entity_type" value="个人独资企业">个人独资企业</label>
+                        <label><input type="checkbox" data-field="executor.company.entity_type" value="合伙企业">合伙企业</label>
+                        <label><input type="checkbox" data-field="executor.company.entity_type" value="不具有法人资格的专业服务机构">不具有法人资格的专业服务机构</label>
+                    </div>
+                    <div class="flex-row">
+                        所有制性质：
+                        <label><input type="checkbox" data-field="executor.company.state_owned_detail" value="国有控股">国有控股</label>
+                        <label><input type="checkbox" data-field="executor.company.state_owned_detail" value="参股">参股</label>
+                        <label><input type="checkbox" data-field="executor.company.entity_type" value="民营">民营</label>
+                        <label><input type="checkbox" data-field="executor.company.entity_type" value="其他">其他</label>
+                    </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- 2. 执行依据信息 (这里重构为标准的4列格子网格，完全对齐原PDF的独立要素式设计) -->
+    <table>
+        <thead>
+            <tr>
+                <th colspan="4" class="section-title">执行依据信息</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="label-col" style="width: 22%;">文书类型<br><small style="font-weight:normal; font-size:12px; color:#555; display:block; margin-top:5px;">(注: 1.行政处罚决定、行政处理决定,需先经人民法院裁定准予执行; 2. 申请执行债权文书的, 需一并提交执行证书)</small></td>
+                <td colspan="3">
+                    <div class="flex-row">
+                        <strong>民事类：</strong>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="民事判决书">判决书</label>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="民事裁定书">裁定书</label>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="民事调解书">调解书</label>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="制裁决定">制裁决定</label>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="支付令">支付令</label>
+                    </div>
+                    <div class="flex-row">
+                        <strong>刑事类：</strong>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="刑事附带民事判决书">刑事附带民事判决书</label>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="刑事附带民事调解书">刑事附带民事调解书</label>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="刑事附带民事裁定书">刑事附带民事裁定书</label>
+                    </div>
+                    <div class="flex-row">
+                        <strong>行政类：</strong>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="行政判决书">判决书</label>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="行政裁定书">裁定书</label>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="行政调解书">调解书</label>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="行政处罚决定">行政处罚决定</label>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="行政处理决定">行政处理决定</label>
+                    </div>
+                    <div class="flex-row">
+                        <strong>仲裁、公证类：</strong>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="仲裁裁决书">裁决书</label>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="仲裁调解书">调解书</label>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="财产保全裁定">财产保全裁定</label>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="证据保全裁定">证据保全裁定</label><br>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="赋予强制执行效力的债权文书">赋予强制执行效力的债权文书</label>
+                    </div>
+                    <div class="flex-row">
+                        <strong>其他：</strong>
+                        <label><input type="checkbox" data-field="execution_basis.document_type" value="其他">其他</label>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col" style="width: 22%;">执行依据作出机构</td>
+                <td style="width: 28%;"><span contenteditable="true" style="width:100%; min-height: 24px;" data-field="execution_basis.organization"></span></td>
+                <td class="label-col" style="width: 22%;">案由</td>
+                <td style="width: 28%;"><span contenteditable="true" style="width:100%; min-height: 24px;" data-field="execution_basis.cause_of_action"></span></td>
+            </tr>
+            <tr>
+                <td class="label-col">文书号</td>
+                <td><span contenteditable="true" style="width:100%; min-height: 24px;" data-field="execution_basis.case_number"></span></td>
+                <td class="label-col">生效日期</td>
+                <td>
+                    <span contenteditable="true" class="short-input" data-field="execution_basis.effective_year"></span>年
+                    <span contenteditable="true" class="short-input" data-field="execution_basis.effective_month"></span>月
+                    <span contenteditable="true" class="short-input" data-field="execution_basis.effective_day"></span>日
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">执行依据判项主文</td>
+                <td colspan="3"><textarea rows="5" placeholder="请填入生效法律文书确定的给付内容或判项主文" data-field="execution_basis.text_main"></textarea></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- 3. 申请执行事项 -->
+    <table>
+        <thead>
+            <tr>
+                <th colspan="2" class="section-title">申请执行事项</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="label-col">申请执行事项概要<br><small style="font-weight:normal; font-size:12px; color:#555;">(可概括描述申请执行的请求、事实与理由)</small></td>
+                <td><textarea rows="3" placeholder="相关具体内容请在下方要素式表格中填写" data-field="execution_matters.summary"></textarea></td>
+            </tr>
+            <tr>
+                <td class="label-col">具体执行请求</td>
+                <td>
+                    <div class="flex-row">
+                        <label><input type="checkbox" data-field="execution_matters.types" value="金钱给付"><strong>金钱给付：</strong></label>
+                    </div>
+                    <div class="indent-block">
+                        <div class="flex-row">
+                            <label><input type="checkbox" data-field="execution_matters.money_details" value="本金">本金：</label>
+                            <span contenteditable="true" class="medium-input" data-field="execution_matters.amount_principal"></span> 元
+                        </div>
+                        <div class="flex-row">
+                            <label><input type="checkbox" data-field="execution_matters.money_details" value="一般债务利息">一般债务利息：</label>
+                            <span contenteditable="true" class="medium-input" data-field="execution_matters.amount_interest"></span> 元
+                        </div>
+                        <div class="flex-row">
+                            <label><input type="checkbox" data-field="execution_matters.money_details" value="迟延履行利息">迟延履行利息：</label>
+                            <span contenteditable="true" class="medium-input" data-field="execution_matters.amount_delayed_interest"></span> 元
+                        </div>
+                        <div class="flex-row">
+                            <label><input type="checkbox" data-field="execution_matters.money_details" value="其他费用">其他费用：</label>
+                            <span contenteditable="true" class="medium-input" data-field="execution_matters.amount_other_fees"></span> 元
+                        </div>
+                    </div>
+                    <div style="border-top: 1px dashed #e0e0e0; margin: 8px 0; width: 100%;"></div>
+                    <div class="flex-row">
+                        <label><input type="checkbox" data-field="execution_matters.types" value="行为执行"><strong>行为执行</strong></label>
+                    </div>
+                    <div class="flex-row">
+                        <label><input type="checkbox" data-field="execution_matters.types" value="交付特定物"><strong>交付特定物</strong></label>
+                    </div>
+                    <div class="flex-row">
+                        <label><input type="checkbox" data-field="execution_matters.types" value="其他"><strong>其他</strong></label>
+                    </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- 4. 保全及财产线索 -->
+    <table>
+        <thead>
+            <tr>
+                <th colspan="2" class="section-title">是否有诉前/诉讼保全及其他财产线索</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="label-col">是否有诉前/<br>诉讼保全</td>
+                <td>
+                    <div class="flex-row">
+                        <label><input type="radio" name="has_preservation" data-field="preservation.has_preservation" value="有">有</label>
+                    </div>
+                    <div class="indent-block">
+                        <div class="flex-row">
+                            <span class="flex-item">保全案号：<span contenteditable="true" class="long-input" data-field="preservation.case_number"></span></span>
+                        </div>
+                        <div class="flex-row">
+                            <span class="flex-item">保全措施最早到期时间：<span contenteditable="true" class="short-input" data-field="preservation.expiry_year"></span>年<span contenteditable="true" class="short-input" data-field="preservation.expiry_month"></span>月<span contenteditable="true" class="short-input" data-field="preservation.expiry_day"></span>日</span>
+                        </div>
+                    </div>
+                    <div class="flex-row">
+                        <label><input type="radio" name="has_preservation" data-field="preservation.has_preservation" value="无">无</label>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td class="label-col">其他财产线索</td>
+                <td><textarea rows="4" placeholder="请输入被执行人的银行账户、房产、车辆、股权、债权等财产线索或信息（可另附页）" data-field="property_clues"></textarea></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- 落款区域 -->
+    <div class="signature-section">
+        <p>申请执行人（签字、盖章）：<span contenteditable="true" class="long-input" data-field="signature.name"></span></p>
+        <p>日期：<span contenteditable="true" class="short-input" data-field="signature.year"></span> 年 <span contenteditable="true" class="short-input" data-field="signature.month"></span> 月 <span contenteditable="true" class="short-input" data-field="signature.day"></span> 日</p>
+    </div>
+</div>
+
+<!-- AI 自动填充与数据交互脚本 -->
+<script>
+(function() {
+    'use strict';
+
+    function getByPath(obj, path) {
+        if (obj === null || obj === undefined) return null;
+        var parts = path.split('.');
+        var current = obj;
+        for (var i = 0; i < parts.length; i++) {
+            if (current === null || current === undefined) return null;
+            current = current[parts[i]];
+        }
+        return current;
+    }
+
+    function highlightElement(el) {
+        el.classList.add('ai-filled');
+        setTimeout(function() {
+            el.classList.remove('ai-filled');
+        }, 3000);
+    }
+
+    function fillElement(el, value) {
+        var tag = el.tagName.toLowerCase();
+        var type = (el.getAttribute('type') || 'text').toLowerCase();
+        var isContentEditable = el.getAttribute('contenteditable') === 'true';
+
+        if (tag === 'textarea') {
+            if (typeof value === 'string' || typeof value === 'number') {
+                el.value = String(value);
+                highlightElement(el);
+            }
+        } else if (isContentEditable) {
+            if (typeof value === 'string' || typeof value === 'number') {
+                el.textContent = String(value);
+                highlightElement(el);
+            }
+        } else if (type === 'radio') {
+            var elValue = el.getAttribute('value');
+            if (elValue === null) return;
+            var normalized = String(value);
+            if (elValue === normalized) {
+                el.checked = true;
+                highlightElement(el);
+            }
+        } else if (type === 'checkbox') {
+            var elValue = el.getAttribute('value');
+            if (elValue === null) return;
+
+            if (Array.isArray(value)) {
+                if (value.indexOf(elValue) !== -1) {
+                    el.checked = true;
+                    highlightElement(el);
+                }
+            } else if (typeof value === 'boolean') {
+                el.checked = value;
+                if (value) highlightElement(el);
+            } else if (String(value) === elValue) {
+                el.checked = true;
+                highlightElement(el);
+            }
+        }
+    }
+
+    function fillForm(data) {
+        if (!data) return;
+
+        var elements = document.querySelectorAll('[data-field]');
+        var filledCount = 0;
+
+        elements.forEach(function(el) {
+            var field = el.getAttribute('data-field');
+            if (!field) return;
+
+            var value = getByPath(data, field);
+            if (value === null || value === undefined) return;
+
+            fillElement(el, value);
+            filledCount++;
+        });
+
+        applyLinkages(data);
+        autoResizeTextareas();
+
+        console.log('[执行申请书模板] AI 填充完成，共填充 ' + filledCount + ' 个字段');
+    }
+
+    function autoResizeTextareas() {
+        var textareas = document.querySelectorAll('textarea');
+        textareas.forEach(function(ta) {
+            ta.style.height = 'auto';
+            var newHeight = Math.max(ta.scrollHeight, 36);
+            ta.style.height = newHeight + 'px';
+        });
+    }
+
+    function applyLinkages(data) {
+        checkStateOwnedLinkage(data, 'applicant');
+        checkStateOwnedLinkage(data, 'executor');
+    }
+
+    function checkStateOwnedLinkage(data, partyKey) {
+        var stateDetail = getByPath(data, partyKey + '.company.state_owned_detail');
+        if (Array.isArray(stateDetail)) {
+            var detailElements = document.querySelectorAll('[data-field="' + partyKey + '.company.state_owned_detail"]');
+            detailElements.forEach(function(el) {
+                var elValue = el.getAttribute('value');
+                if (elValue && stateDetail.indexOf(elValue) !== -1) {
+                    el.checked = true;
+                    highlightElement(el);
+                }
+            });
+        }
+    }
+
+    function exportFormData() {
+        var result = {};
+        var elements = document.querySelectorAll('[data-field]');
+
+        elements.forEach(function(el) {
+            var field = el.getAttribute('data-field');
+            if (!field) return;
+
+            var tag = el.tagName.toLowerCase();
+            var type = (el.getAttribute('type') || 'text').toLowerCase();
+            var isContentEditable = el.getAttribute('contenteditable') === 'true';
+
+            if (isContentEditable) {
+                var text = (el.textContent || '').trim();
+                setByPath(result, field, text || null);
+            } else if (tag === 'textarea') {
+                setByPath(result, field, el.value || null);
+            } else if (type === 'radio') {
+                if (el.checked) {
+                    setByPath(result, field, el.getAttribute('value'));
+                }
+            } else if (type === 'checkbox') {
+                var elValue = el.getAttribute('value');
+                if (el.checked && elValue) {
+                    var arr = getByPath(result, field) || [];
+                    if (!Array.isArray(arr)) arr = [];
+                    arr.push(elValue);
+                    setByPath(result, field, arr);
+                }
+            }
+        });
+
+        return result;
+    }
+
+    /** 按点分隔路径设置对象嵌套值（带类型冲突检测） */
+    function setByPath(obj, path, value) {
+        var parts = path.split('.');
+        var current = obj;
+        for (var i = 0; i < parts.length - 1; i++) {
+            var key = parts[i];
+            if (!(key in current) || typeof current[key] !== 'object' || current[key] === null) {
+                // 检测类型冲突：如果 key 已存在但不是对象（如字符串/数字），
+                // 则说明有路径冲突，跳过该字段避免覆盖已有值
+                if (key in current && current[key] !== null && current[key] !== undefined) {
+                    if (typeof console !== 'undefined' && console.warn) {
+                        console.warn(
+                            '[执行申请书模板] setByPath 类型冲突: 路径 "' + path +
+                            '" 中 "' + key + '" 已存在且为 ' + (typeof current[key]) +
+                            ' 类型，无法创建子对象，已跳过'
+                        );
+                    }
+                    return; // 跳过整个字段，防止覆盖已有的非对象值
+                }
+                current[key] = {};
+            }
+            current = current[key];
+        }
+        current[parts[parts.length - 1]] = value;
+    }
+
+    window.__TEMPLATE_DATA__ = window.__TEMPLATE_DATA__ || null;
+    window.fillForm = fillForm;
+    window.exportFormData = exportFormData;
+
+    window.addEventListener('message', function(event) {
+        var msg = event.data;
+        if (msg && msg.type === 'fill_template' && msg.data) {
+            fillForm(msg.data);
+        }
+        if (msg && msg.type === 'export_template') {
+            event.source.postMessage({
+                type: 'template_data',
+                data: exportFormData()
+            }, event.origin);
+        }
+    });
+
+    document.addEventListener('input', function(event) {
+        if (event.target.tagName === 'TEXTAREA') {
+            event.target.style.height = 'auto';
+            event.target.style.height = Math.max(event.target.scrollHeight, 36) + 'px';
+        }
+    });
+
+    document.addEventListener('mousedown', function(event) {
+        if (event.target.tagName === 'INPUT' && event.target.type === 'radio') {
+            if (event.target.checked) {
+                event.target.setAttribute('data-was-checked', 'true');
+            }
+        }
+    }, true);
+
+    document.addEventListener('click', function(event) {
+        var target = event.target;
+        if (target.tagName === 'INPUT' && target.type === 'radio') {
+            if (target.getAttribute('data-was-checked') === 'true') {
+                target.checked = false;
+                target.removeAttribute('data-was-checked');
+                target.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            var allRadios = document.querySelectorAll('input[type="radio"][data-was-checked]');
+            for (var i = 0; i < allRadios.length; i++) {
+                allRadios[i].removeAttribute('data-was-checked');
+            }
+        }
+    });
+
+    if (window.__TEMPLATE_DATA__) {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                fillForm(window.__TEMPLATE_DATA__);
+            });
+        } else {
+            fillForm(window.__TEMPLATE_DATA__);
+        }
+    }
+})();
+</script>
+
+</body>
+</html>

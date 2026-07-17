@@ -5,7 +5,7 @@
     <div class="page-header">
       <h2>
         <el-icon :size="28"><EditPen /></el-icon>
-        起诉状要素提取
+        文书要素提取
         <el-tag
           type="warning"
           effect="dark"
@@ -15,8 +15,30 @@
         >
       </h2>
       <p class="page-desc">
-        上传文件，AI 自动提取关键信息并填充至要素式模板，支持在线编辑和 PDF 导出
+        选择文书模板，上传文件，AI 自动提取关键信息并填充至要素式模板，支持在线编辑和 PDF 导出
       </p>
+    </div>
+
+    <!-- ============ 模板选择 ============ -->
+    <div class="template-select-section" v-if="!extractDone">
+      <el-card shadow="never">
+        <template #header>
+          <span><strong>选择文书模板</strong></span>
+        </template>
+        <div class="template-select-row">
+          <span class="template-label">模板类型：</span>
+          <el-select
+            v-model="selectedTemplate"
+            placeholder="请选择文书模板"
+            style="width: 320px"
+            @change="onTemplateChange"
+          >
+            <el-option label="要素式起诉状（金融借款合同纠纷）" value="complaint" />
+            <el-option label="强制执行申请书（申请执行用）" value="enforcement" />
+          </el-select>
+          <span class="template-tip">请先选择文书模板，再上传对应的文件进行 AI 提取</span>
+        </div>
+      </el-card>
     </div>
 
     <!-- ============ 隐私风险提醒 ============ -->
@@ -48,7 +70,13 @@
     <div class="upload-section" v-if="!extractDone">
       <el-card shadow="never">
         <template #header>
-          <span><strong>① 上传起诉状文件</strong></span>
+          <span
+            ><strong
+              >① 上传{{
+                selectedTemplate === 'complaint' ? '起诉状' : '强制执行申请书'
+              }}文件</strong
+            ></span
+          >
           <span class="card-tip">支持 PDF、Word (.docx/.doc)、图片 (.jpg/.png/.bmp 等)</span>
         </template>
 
@@ -171,10 +199,18 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Document, Download, EditPen, MagicStick, RefreshLeft, UploadFilled } from '@element-plus/icons-vue'
+import {
+  Document,
+  Download,
+  EditPen,
+  MagicStick,
+  RefreshLeft,
+  UploadFilled,
+} from '@element-plus/icons-vue'
 import request from '@/utils/request'
 
 // ============ 状态 ============
+const selectedTemplate = ref('complaint') // 模板类型：complaint（起诉状）/ enforcement（强制执行申请书）
 const fileList = ref([])
 const privacyConfirmed = ref(false)
 const extracting = ref(false)
@@ -189,12 +225,28 @@ const previewIframe = ref(null)
 const iframeSrcdoc = ref('')
 const extractedFields = ref(null)
 
+// ============ 模板名称映射 ============
+const TEMPLATE_URLS = {
+  complaint: '/templates/formal_complaint_form.html',
+  enforcement: '/templates/application_for_compulsory_enforcement.html',
+}
+
+const TEMPLATE_FILE_NAMES = {
+  complaint: '要素式起诉状',
+  enforcement: '强制执行申请书',
+}
+
 // ============ 计算属性 ============
 const canExtract = computed(() => {
   return fileList.value.length > 0 && privacyConfirmed.value && !extracting.value
 })
 
 // ============ 方法 ============
+
+/** 切换模板类型时重置所有状态 */
+function onTemplateChange() {
+  resetAll()
+}
 
 /** 文件超出限制 */
 function handleExceed() {
@@ -262,9 +314,10 @@ async function startExtraction() {
       formData.append('files', file.raw)
     }
 
-    // 调用 API
+    // 调用 API（传入 template_type 参数）
     const res = await request.post('/complaint-form/extract', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      params: { template_type: selectedTemplate.value },
       timeout: 120000, // 2 分钟超时
     })
 
@@ -303,8 +356,10 @@ async function startExtraction() {
 async function loadTemplateWithData(fields) {
   loadingPreview.value = true
   try {
+    // 根据模板类型加载对应的 HTML 模板
+    const templateUrl = TEMPLATE_URLS[selectedTemplate.value] || TEMPLATE_URLS.complaint
     // cache: 'no-cache' 跳过浏览器缓存，每次验证最新模板
-    const res = await fetch('/templates/formal_complaint_form.html', { cache: 'no-cache' })
+    const res = await fetch(templateUrl, { cache: 'no-cache' })
     if (!res.ok) {
       throw new Error('模板请求失败: HTTP ' + res.status)
     }
@@ -327,7 +382,7 @@ function onIframeLoad() {
   if (!iframeWin) return
 
   // 直接设置数据并调用 fillForm（srcdoc iframe 同源，可直接访问）
-  iframeWin.__COMPLAINT_DATA__ = extractedFields.value
+  iframeWin.__TEMPLATE_DATA__ = extractedFields.value
   if (typeof iframeWin.fillForm === 'function') {
     iframeWin.fillForm(extractedFields.value)
   }
@@ -345,7 +400,7 @@ function exportPdf() {
   const iframeDoc = iframe.contentDocument || iframeWin.document
 
   // 预设打印文件名（Chrome「另存为 PDF」会读取 document.title）
-  iframeDoc.title = '要素式起诉状'
+  iframeDoc.title = TEMPLATE_FILE_NAMES[selectedTemplate.value] || '法律文书'
 
   // 确保 iframe 获得焦点，print() 只打印 iframe 内容
   iframeWin.focus()
@@ -416,7 +471,7 @@ function exportHtml() {
   const url = window.URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = '要素式起诉状.html'
+  link.download = (TEMPLATE_FILE_NAMES[selectedTemplate.value] || '法律文书') + '.html'
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
@@ -474,6 +529,25 @@ onUnmounted(() => {
   color: #909399;
   font-size: 14px;
   margin-top: 8px;
+}
+
+/* 模板选择 */
+.template-select-section {
+  margin-bottom: 20px;
+}
+.template-select-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.template-label {
+  font-weight: bold;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.template-tip {
+  font-size: 13px;
+  color: #909399;
 }
 
 /* 隐私提醒 */

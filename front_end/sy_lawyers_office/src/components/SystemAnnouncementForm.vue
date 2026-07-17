@@ -1,4 +1,5 @@
-<template>
+
+  <template>
   <el-dialog
     :title="isEdit ? '编辑系统公告' : '发布新公告'"
     :model-value="visible"
