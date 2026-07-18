@@ -225,29 +225,67 @@ def delete_material(
 def _party_word_convert_and_cleanup(save_path: str, cos_key: Optional[str] = None):
     """
     后台任务：Word→PDF 转换 → 上传 PDF 到 COS 预览缓存 → 清理本地文件
+    增加重试机制：转换失败时静默等待后重试，避免因 LibreOffice 瞬时繁忙导致文件泄漏
     """
-    try:
-        pdf_path = convert_word_to_pdf(save_path)
-        if pdf_path and cos_key and settings.STORAGE_TYPE == "COS":
-            from ..utils.storage_manager import _get_cos_client
-            stem, _ = os.path.splitext(cos_key)
-            pdf_cos_key = f"preview_cache/{stem}.pdf"
-            _get_cos_client().upload_file(
-                Bucket=settings.COS_BUCKET,
-                Key=pdf_cos_key,
-                LocalFilePath=pdf_path,
-            )
-            # 清理本地 Word 和 PDF（级联删除空文件夹）
-            cleanup_local_file(save_path, PARTY_FILE_ROOT)
-            if pdf_path:
-                cleanup_local_file(pdf_path, PARTY_FILE_ROOT)
-            print(f"[PartyWordConvert] 转换 + COS 上传完成，已清理本地文件")
-        elif pdf_path:
-            # LOCAL 模式：转换后删除本地临时 PDF
-            cleanup_local_file(pdf_path, PARTY_FILE_ROOT)
-            print(f"[PartyWordConvert] LOCAL 模式转换完成，已清理临时 PDF")
-    except Exception as e:
-        print(f"[PartyWordConvert] 处理失败: {e}")
+    import time as _time
+    MAX_RETRIES = 5          # 最大重试次数
+    RETRY_DELAY_BASE = 10    # 基础等待秒数（每次重试翻倍）
+
+    # ---- 阶段 1：Word → PDF 转换（带重试） ----
+    pdf_path = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            pdf_path = convert_word_to_pdf(save_path)
+            if pdf_path and os.path.exists(pdf_path):
+                print(f"[PartyWordConvert] 转换成功 (尝试 {attempt}/{MAX_RETRIES}): {pdf_path}")
+                break
+            else:
+                print(f"[PartyWordConvert] 转换返回空 (尝试 {attempt}/{MAX_RETRIES})，等待重试...")
+                pdf_path = None
+        except Exception as e:
+            print(f"[PartyWordConvert] 转换异常 (尝试 {attempt}/{MAX_RETRIES}): {e}，等待重试...")
+            pdf_path = None
+
+        if attempt < MAX_RETRIES:
+            delay = RETRY_DELAY_BASE * (2 ** (attempt - 1))
+            _time.sleep(delay)
+
+    # ---- 阶段 2：上传 PDF 到 COS 预览缓存（带重试） ----
+    cos_uploaded = False
+    if pdf_path and cos_key and settings.STORAGE_TYPE == "COS":
+        from ..utils.storage_manager import _get_cos_client
+        stem, _ = os.path.splitext(cos_key)
+        pdf_cos_key = f"preview_cache/{stem}.pdf"
+
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                _get_cos_client().upload_file(
+                    Bucket=settings.COS_BUCKET,
+                    Key=pdf_cos_key,
+                    LocalFilePath=pdf_path,
+                )
+                cos_uploaded = True
+                print(f"[PartyWordConvert] COS 上传成功 (尝试 {attempt}/{MAX_RETRIES})")
+                break
+            except Exception as e:
+                print(f"[PartyWordConvert] COS 上传失败 (尝试 {attempt}/{MAX_RETRIES}): {e}，等待重试...")
+                if attempt < MAX_RETRIES:
+                    delay = RETRY_DELAY_BASE * (2 ** (attempt - 1))
+                    _time.sleep(delay)
+
+    # ---- 阶段 3：清理本地文件 ----
+    if cos_uploaded:
+        # COS 模式：转换+上传都成功 → 清理本地 Word 和 PDF
+        cleanup_local_file(save_path, PARTY_FILE_ROOT)
+        cleanup_local_file(pdf_path, PARTY_FILE_ROOT)
+        print(f"[PartyWordConvert] COS 模式完成，已清理本地 Word 和 PDF")
+    elif pdf_path and settings.STORAGE_TYPE != "COS":
+        # LOCAL 模式：仅清理转换出的临时 PDF（保留原 Word）
+        cleanup_local_file(pdf_path, PARTY_FILE_ROOT)
+        print(f"[PartyWordConvert] LOCAL 模式完成，已清理临时 PDF")
+    else:
+        # 转换失败或 COS 上传失败 → 保留本地文件作为兜底，避免数据丢失
+        print(f"[PartyWordConvert] 未能完成全流程（pdf={bool(pdf_path)}, cos={cos_uploaded}），保留本地文件作为兜底")
 
 
 @router.post("/attachments", response_model=schemas.PartyAttachmentOut)
@@ -480,6 +518,11 @@ async def upload_rich_text_image(
         file: UploadFile = File(...),
         user: User = Depends(require_party_admin)
 ):
+    """
+    富文本图片上传 — 返回永久代理 URL，避免 COS 签名 URL 过期导致图片无法加载
+    - COS 模式：返回 /api/party_building/images/{filename}（代理端点实时签名跳转）
+    - LOCAL 模式：返回静态资源直链
+    """
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="只能上传图片文件")
 
@@ -501,18 +544,20 @@ async def upload_rich_text_image(
             )
             # 上传到 COS 后删除本地文件
             os.remove(save_path)
-            url = _get_cos_client().get_presigned_url(
-                Method="GET",
-                Bucket=settings.COS_BUCKET,
-                Key=cos_key,
-                Expired=86400,
-            )
+            # 返回永久代理 URL，而非有过期时间的 COS 签名 URL
+            # 使用请求的 base_url 动态构建完整 URL，兼容开发/生产环境
+            base = str(request.base_url).rstrip("/")
+            url = f"{base}/api/party_building/images/{unique_filename}"
         except Exception as e:
             print(f"[PartyImage] COS 上传失败: {e}")
+            # 云服务器上使用
             # url = f"/static_resources/party_images/{unique_filename}"
+            # 本地电脑使用
             url = f"http://127.0.0.1:8002/static_resources/party_images/{unique_filename}"
     else:
+        # 云服务器上使用
         # url = f"/static_resources/party_images/{unique_filename}"
+        # 本地电脑使用
         url = f"http://127.0.0.1:8002/static_resources/party_images/{unique_filename}"
 
     return {
@@ -523,3 +568,50 @@ async def upload_rich_text_image(
             "href": ""
         }
     }
+
+
+# ==========================================
+# 5. 图片代理端点 — 将永久 URL 转为实时 COS 签名 URL
+# ==========================================
+
+@router.get("/images/{filename}")
+def serve_rich_text_image(filename: str):
+    """
+    富文本图片代理端点（无需登录，因为 <img> 标签无法携带 Authorization 头）
+    - COS 模式：生成新的短期签名 URL（1 小时有效），302 重定向
+    - LOCAL 模式：返回静态文件
+    """
+    # 安全检查：防止路径遍历攻击
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="非法文件名")
+
+    if settings.STORAGE_TYPE == "COS":
+        try:
+            from ..utils.storage_manager import _get_cos_client
+            cos_key = f"party_images/{filename}"
+            # 实时生成一个新的短期签名 URL（每次请求都重新签名）
+            url = _get_cos_client().get_presigned_url(
+                Method="GET",
+                Bucket=settings.COS_BUCKET,
+                Key=cos_key,
+                Expired=3600,  # 1 小时，足够浏览器加载
+            )
+            return RedirectResponse(url=url)
+        except Exception as e:
+            print(f"[PartyImage] COS 签名生成失败: {e}")
+            raise HTTPException(status_code=500, detail="图片加载失败")
+
+    # LOCAL 模式：检查本地文件并返回
+    full_path = os.path.join(PARTY_IMAGE_ROOT, filename)
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail="图片不存在")
+
+    # 根据扩展名推断 MIME 类型
+    ext = os.path.splitext(filename)[1].lower()
+    mime_map = {
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".png": "image/png", ".gif": "image/gif",
+        ".webp": "image/webp", ".bmp": "image/bmp",
+        ".svg": "image/svg+xml",
+    }
+    return FileResponse(path=full_path, media_type=mime_map.get(ext, "image/png"))
