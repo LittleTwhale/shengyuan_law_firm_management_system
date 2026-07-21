@@ -5,7 +5,9 @@
 用户可以通过此 API 查看由 DeepSeek 自动分析的服务端错误报告。
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from typing import List
 
 from ..api.deps import get_current_active_user
 from ..database.database import get_db
@@ -14,6 +16,8 @@ from ..crud.error_analysis_crud import (
     get_analysis,
     get_analyses,
     get_all_analyses_admin,
+    get_unnotified_analyses,
+    mark_analyses_notified,
     delete_analysis,
     clean_old_analyses,
 )
@@ -118,6 +122,68 @@ def list_all_analyses_admin(
 
 
 # =================================================================
+#  GET /api/error-analyses/unread — 未通知的已完成分析（兜底轮询）
+# =================================================================
+@router.get("/unread")
+def get_unread_analyses(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    查询当前用户未通知的已完成错误分析记录。
+    用于前端后台兜底轮询，覆盖 HTTP 状态码非 500 的场景。
+    """
+    user_accounts = current_user.accounts
+
+    records = get_unnotified_analyses(
+        db=db,
+        user_accounts=user_accounts,
+        limit=10,
+    )
+
+    return {
+        "items": [
+            {
+                "id": r.id,
+                "error_type": r.error_type,
+                "error_message": r.error_message[:200],
+                "analysis_result": r.analysis_result,
+                "request_method": r.request_method,
+                "request_path": r.request_path,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "analyzed_at": r.analyzed_at.isoformat() if r.analyzed_at else None,
+            }
+            for r in records
+        ],
+    }
+
+
+# =================================================================
+#  PUT /api/error-analyses/mark-read — 标记已通知（批量）
+# =================================================================
+class _MarkReadRequest(BaseModel):
+    """标记已通知请求体"""
+    analysis_ids: List[int]
+
+
+@router.put("/mark-read", status_code=200)
+def mark_analyses_read(
+    body: _MarkReadRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    批量标记分析记录为已通知。
+    前端弹窗后调用此接口，避免重复弹窗。
+    """
+    if not body.analysis_ids:
+        return {"updated_count": 0}
+
+    updated = mark_analyses_notified(db, body.analysis_ids)
+    return {"updated_count": updated}
+
+
+# =================================================================
 #  GET /api/error-analyses/{analysis_id} — 单条详情
 # =================================================================
 @router.get("/{analysis_id}")
@@ -210,3 +276,6 @@ def clean_old_records(
         "retention_days": retention_days,
         "message": f"已清理 {deleted_count} 条超过 {retention_days} 天的旧记录",
     }
+
+
+# =================================================================

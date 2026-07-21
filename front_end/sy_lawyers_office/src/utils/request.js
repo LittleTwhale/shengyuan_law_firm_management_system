@@ -32,7 +32,11 @@ service.interceptors.request.use(
 // 3. 响应拦截器：处理错误
 service.interceptors.response.use(
   (response) => {
-    // 如果后端返回的不是 200，可以在这里统一处理
+    // 兜底：检查成功响应中是否携带 analysis_id（覆盖非 500 异常场景）
+    const data = response.data
+    if (data && data.analysis_id && data.analysis_status === 'completed' && data.analysis_result) {
+      handleErrorAnalysis(data, data.detail)
+    }
     return response
   },
   (error) => {

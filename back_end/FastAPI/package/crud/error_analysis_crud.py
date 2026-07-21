@@ -197,6 +197,44 @@ def delete_analysis(db: Session, analysis_id: int) -> bool:
 
 
 # ==========================================
+# 未通知记录查询 & 标记已通知（兜底轮询用）
+# ==========================================
+def get_unnotified_analyses(
+    db: Session,
+    user_accounts: Optional[str] = None,
+    limit: int = 10,
+) -> List[ErrorAnalysis]:
+    """
+    查询当前用户未通知的已完成分析记录（按时间倒序）
+    用于前端后台轮询兜底，覆盖非 500 响应场景。
+    """
+    query = db.query(ErrorAnalysis).filter(
+        ErrorAnalysis.notified == False,
+        ErrorAnalysis.analysis_status == "completed",
+    )
+    if user_accounts:
+        query = query.filter(ErrorAnalysis.user_accounts == user_accounts)
+    query = query.order_by(desc(ErrorAnalysis.created_at)).limit(limit)
+    return query.all()
+
+
+def mark_analyses_notified(db: Session, analysis_ids: List[int]) -> int:
+    """
+    批量标记分析记录为已通知
+    返回实际更新的记录数
+    """
+    if not analysis_ids:
+        return 0
+    updated = (
+        db.query(ErrorAnalysis)
+        .filter(ErrorAnalysis.id.in_(analysis_ids))
+        .update({"notified": True}, synchronize_session="fetch")
+    )
+    db.commit()
+    return updated
+
+
+# ==========================================
 # 自动清理旧记录（保留 N 天）
 # ==========================================
 def clean_old_analyses(db: Session, retention_days: int = 30) -> int:

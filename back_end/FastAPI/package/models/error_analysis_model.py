@@ -6,7 +6,7 @@
 进行分析，分析结果存入此表，供用户后续查阅。
 """
 from sqlalchemy import (
-    Column, Integer, String, Text, DateTime, TIMESTAMP,
+    Boolean, Column, Integer, String, Text, DateTime, TIMESTAMP,
     func, Enum as SAEnum,
 )
 from ..database.database import Base
@@ -78,6 +78,12 @@ class ErrorAnalysis(Base):
     analysis_error = Column(
         String(500), nullable=True,
         comment="分析失败时的错误信息（如 API 调用失败原因）",
+    )
+
+    # ── 通知状态 ──
+    notified = Column(
+        Boolean, nullable=False, default=False, index=True,
+        comment="是否已通知触发用户（用于前台轮询兜底，覆盖非 500 场景）",
     )
 
     # ── 去重与时间 ──

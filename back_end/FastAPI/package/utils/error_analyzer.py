@@ -342,6 +342,10 @@ def prepare_error_analysis(exc: Exception, request: Request) -> dict:
                 "错误 [%s] 在 60 分钟内已有分析结果（ID=%d），直接复用",
                 error_info["error_type"], existing.id,
             )
+            # 标记已通知，避免后台轮询重复弹窗
+            if not existing.notified:
+                existing.notified = True
+                db.commit()
             return {
                 "analysis_id": existing.id,
                 "status": "completed",

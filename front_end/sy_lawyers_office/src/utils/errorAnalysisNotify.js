@@ -1,8 +1,10 @@
 /**
  * 错误分析通知模块
  *
- * 当 axios 拦截器检测到 500 错误且响应中包含 analysis_id 时调用。
- * 负责轮询分析结果，完成后以弹窗形式展示给触发错误的用户。
+ * 功能一：当 axios 拦截器检测到 500 错误且响应中包含 analysis_id 时，
+ *        立即轮询分析结果并弹窗。
+ * 功能二：后台兜底轮询，定期检查是否有未通知的已完成分析记录，
+ *        覆盖 HTTP 200 但内部出错的场景。
  *
  * 使用原生 fetch 轮询，避免与 request.js（axios 实例）产生循环依赖。
  */
@@ -18,6 +20,86 @@ const POLL_INTERVAL = 5000
 
 /** 最大轮询次数（5s × 24 = 2 分钟） */
 const MAX_RETRIES = 24
+
+/** 后台兜底轮询间隔（60 秒） */
+const BACKGROUND_POLL_INTERVAL = 60000
+
+/** 后台轮询定时器句柄 */
+let backgroundPollTimer = null
+
+/**
+ * 启动后台兜底轮询
+ * 定期检查是否有未通知的已完成错误分析，有则弹窗并标记已通知。
+ * 应该在用户登录成功后调用。
+ */
+export function startBackgroundPolling() {
+  // 避免重复启动
+  if (backgroundPollTimer) return
+
+  // 首次检查：延迟 3 秒，给页面渲染和 token 恢复留时间
+  setTimeout(() => pollUnreadAnalyses(), 3000)
+
+  // 启动定时轮询
+  backgroundPollTimer = setInterval(pollUnreadAnalyses, BACKGROUND_POLL_INTERVAL)
+}
+
+/**
+ * 停止后台兜底轮询
+ * 用户登出时应调用此函数。
+ */
+export function stopBackgroundPolling() {
+  if (backgroundPollTimer) {
+    clearInterval(backgroundPollTimer)
+    backgroundPollTimer = null
+  }
+}
+
+/**
+ * 轮询未通知的已完成分析记录
+ * 查询 /api/error-analyses/unread 接口，有结果则弹窗并标记已通知。
+ */
+async function pollUnreadAnalyses() {
+  const token = localStorage.getItem('token')
+  if (!token) return
+
+  try {
+    const res = await fetch(`${BASE_URL}/error-analyses/unread`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    if (!res.ok) return
+
+    const data = await res.json()
+    const items = data.items || []
+
+    if (items.length === 0) return
+
+    // 收集需要标记已通知的 ID
+    const notifiedIds = []
+
+    for (const item of items) {
+      // 弹窗展示
+      if (item.analysis_result) {
+        showAnalysisDialog(item.analysis_result, item.error_type || '错误分析')
+        notifiedIds.push(item.id)
+      }
+    }
+
+    // 标记已通知，避免重复弹窗
+    if (notifiedIds.length > 0) {
+      await fetch(`${BASE_URL}/error-analyses/mark-read`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ analysis_ids: notifiedIds }),
+      })
+    }
+  } catch {
+    // 静默失败，下次轮询会重试
+  }
+}
 
 /**
  * 入口：处理包含 analysis_id 的 500 错误响应

@@ -6,7 +6,17 @@
 </template>
 
 <script setup>
-// 无需额外逻辑，主要提供路由出口
+import { onMounted, onUnmounted } from 'vue'
+import { startBackgroundPolling, stopBackgroundPolling } from '@/utils/errorAnalysisNotify'
+
+// 挂载时启动后台兜底轮询（内部会检查 token，无 token 时静默跳过）
+onMounted(() => {
+  startBackgroundPolling()
+})
+
+onUnmounted(() => {
+  stopBackgroundPolling()
+})
 </script>
 
 <style>
