@@ -48,7 +48,7 @@ def aggregate_borrower_names(case_obj: Case) -> str:
     borrowers = [p.name for p in case_obj.parties if p.party_type == '借款人' and p.name]
     return "、".join(borrowers)
 
-# 1️⃣ 获取正式生效案件列表（分页可选）
+# 获取正式生效案件列表（分页可选）
 @router.get("/", response_model=CasePageOut)
 def get_cases(
     skip: int = 0,
@@ -107,7 +107,7 @@ def get_cases(
         cases_simple.append(simple)
     return {"items": cases_simple, "total": total}
 
-# 2️⃣ 获取银行案件列表
+# 获取银行案件列表
 @router.get("/bank_cases", response_model=CasePageOut)
 def get_bank_cases(
     skip: int = 0,
@@ -170,7 +170,7 @@ def get_bank_cases(
     return {"items": cases_simple, "total": total}
 
 
-# 5️⃣ 导出案件表格
+# 导出案件表格
 @router.post("/export", response_class=StreamingResponse)
 async def export_cases(
         query: CaseExportQuery,
@@ -208,7 +208,7 @@ async def export_cases(
         }
     )
 
-# 2️⃣ 获取单条案件详情
+# 获取单条案件详情
 @router.get("/{case_id}", response_model=CaseOut)
 def get_case(case_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """
@@ -220,7 +220,7 @@ def get_case(case_id: int, db: Session = Depends(get_db), current_user: User = D
     return case
 
 
-# 3️⃣ 普通用户提交案件操作申请（新增/修改/删除）
+# 普通用户提交案件操作申请（新增/修改/删除）
 @router.post("/case_create", response_model=CaseOut, status_code=status.HTTP_201_CREATED)
 def create_new_case(case_in: CaseCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """
@@ -253,7 +253,7 @@ def delete_existing_case(case_id: int, db: Session = Depends(get_db), current_us
     return
 
 
-# 4️⃣ 获取所有律师列表
+#  获取所有律师列表
 @router.get("/users/lawyers", response_model=List[UserOut])
 def list_lawyers(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     return get_all_lawyers(db)

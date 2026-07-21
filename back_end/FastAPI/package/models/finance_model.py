@@ -13,7 +13,7 @@ class CaseFinance(Base):
     __tablename__ = "case_finances"
 
     id = Column(Integer, primary_key=True, index=True, comment="财务ID")
-    case_id = Column(Integer, ForeignKey("cases.case_id"), unique=True, nullable=False, comment="关联案件ID")
+    case_id = Column(Integer, ForeignKey("cases.case_id"), unique=True, nullable=False, index=True, comment="关联案件ID")
 
     # 1. 合同约定
     contract_amount = Column(DECIMAL(15, 2), default=0, comment="合同规定金额")
@@ -54,7 +54,7 @@ class FinancialRecord(Base):
     __tablename__ = "financial_records"
 
     id = Column(Integer, primary_key=True, index=True)
-    finance_id = Column(Integer, ForeignKey("case_finances.id"), nullable=False, comment="关联财务总表ID")
+    finance_id = Column(Integer, ForeignKey("case_finances.id"), nullable=False, index=True, comment="关联财务总表ID")
 
     # 记录类型
     record_type = Column(String(20), default="income", comment="类型: income(收款), refund(退费)")
@@ -82,7 +82,7 @@ class InvoiceRecord(Base):
     __tablename__ = "invoice_records"
 
     id = Column(Integer, primary_key=True, index=True)
-    finance_id = Column(Integer, ForeignKey("case_finances.id"), nullable=False, comment="关联财务总表ID")
+    finance_id = Column(Integer, ForeignKey("case_finances.id"), nullable=False, index=True, comment="关联财务总表ID")
 
     invoice_amount = Column(DECIMAL(15, 2), nullable=False, comment="开票金额")
     invoice_date = Column(Date, nullable=False, comment="开票日期")
@@ -108,7 +108,7 @@ class LawyerWithdrawal(Base):
     __tablename__ = "lawyer_withdrawals"
 
     id = Column(Integer, primary_key=True, index=True)
-    finance_id = Column(Integer, ForeignKey("case_finances.id"), nullable=False, comment="关联财务总表ID")
+    finance_id = Column(Integer, ForeignKey("case_finances.id"), nullable=False, index=True, comment="关联财务总表ID")
 
     # 领款律师 (可能是主办，也可能是其他律师)
     lawyer_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment="领款律师ID")

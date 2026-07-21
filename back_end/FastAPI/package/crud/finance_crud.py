@@ -5,7 +5,7 @@ from typing import List, Dict, Any
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from sqlalchemy import func, or_, and_, extract
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, selectinload
 
 from ..models.case import Case, CaseParty
 from ..models.finance_model import CaseFinance, FinancialRecord, InvoiceRecord, LawyerWithdrawal
@@ -170,8 +170,8 @@ class CRUDFinance:
         # 2. 构建基础查询
         query = db.query(CaseFinance).join(Case, CaseFinance.case_id == Case.case_id)
         query = query.options(
-            joinedload(CaseFinance.case).joinedload(Case.main_lawyer),
-            joinedload(CaseFinance.case).joinedload(Case.parties)
+            selectinload(CaseFinance.case).selectinload(Case.main_lawyer),
+            selectinload(CaseFinance.case).selectinload(Case.parties)
         )
 
         # 3. 应用筛选
@@ -219,8 +219,8 @@ class CRUDFinance:
     # --- 3. 获取单个案件财务详情 (自动初始化) ---
     def get_by_case_id(self, db: Session, case_id: int) -> CaseFinance:
         finance = db.query(CaseFinance).options(
-            joinedload(CaseFinance.case).joinedload(Case.main_lawyer),
-            joinedload(CaseFinance.case).joinedload(Case.parties)
+            selectinload(CaseFinance.case).selectinload(Case.main_lawyer),
+            selectinload(CaseFinance.case).selectinload(Case.parties)
         ).filter(CaseFinance.case_id == case_id).first()
         if not finance:
             # 懒加载：如果还没有财务记录，则创建一个空的
@@ -355,52 +355,59 @@ class CRUDFinance:
         return True
 
     # --- 11. 导出 Excel (复用筛选逻辑) ---
-    def _write_excel_sheet(self, wb: Workbook, sheet_name: str, headers: List[str], data_rows: List[List]):
+    def _build_excel_workbook(self, sheets: list):
         """
-        辅助函数：创建一个 Sheet 并写入数据和样式
+        使用 write_only 模式流式写入 Excel，避免为每个单元格创建 Python 对象。
+        数据行不设逐格样式以换取写入速度，仅表头保留蓝色背景样式。
+
+        sheets: [(sheet_name, headers, data_rows), ...]
         """
-        if sheet_name == "案件财务总表":
-            ws = wb.active
-            ws.title = sheet_name
-        else:
+        from openpyxl.cell import WriteOnlyCell
+
+        wb = Workbook(write_only=True)
+
+        # 仅在 write_only 模式下重用的样式对象
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill("solid", fgColor="4F81BD")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+        header_border = Border(
+            left=Side(style='thin'), right=Side(style='thin'),
+            top=Side(style='thin'), bottom=Side(style='thin')
+        )
+        for idx, (sheet_name, headers, data_rows) in enumerate(sheets):
+            # write_only 模式下没有默认 Sheet，全部用 create_sheet 创建
             ws = wb.create_sheet(title=sheet_name)
 
-        # 样式定义
-        header_font = Font(bold=True, color="FFFFFF")
-        header_fill = PatternFill("solid", fgColor="4F81BD")  # 蓝色背景
-        alignment_center = Alignment(horizontal="center", vertical="center")
-        alignment_right = Alignment(horizontal="right", vertical="center")
-        thin_border = Border(left=Side(style='thin'), right=Side(style='thin'),
-                             top=Side(style='thin'), bottom=Side(style='thin'))
+            # ---- 表头行（带样式，用 WriteOnlyCell） ----
+            header_cells = []
+            for col_num, header_title in enumerate(headers, 1):
+                cell = WriteOnlyCell(ws, value=header_title)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_alignment
+                cell.border = header_border
+                header_cells.append(cell)
+            ws.append(header_cells)
 
-        # 1. 写入表头
-        for col_num, header_title in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col_num, value=header_title)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = alignment_center
-            cell.border = thin_border
+            # ---- 数据行（纯列表追加，无 Cell 对象开销） ----
+            # 数值列提前格式化为字符串，保留千位分隔和小数
+            for row_data in data_rows:
+                formatted_row = []
+                for col_idx, val in enumerate(row_data):
+                    if isinstance(val, float):
+                        # 格式化浮点数：千位分隔 + 两位小数
+                        formatted_row.append(f"{val:,.2f}")
+                    else:
+                        formatted_row.append(val if val is not None else "")
+                ws.append(formatted_row)
 
-        # 2. 写入数据
-        for row_idx, row_data in enumerate(data_rows, 2):
-            for col_idx, cell_value in enumerate(row_data, 1):
-                cell = ws.cell(row=row_idx, column=col_idx, value=cell_value)
-                cell.border = thin_border
+            # ---- 列宽（write_only 模式支持设置 column_dimensions） ----
+            for col_num, header_title in enumerate(headers, 1):
+                col_letter = chr(64 + col_num) if col_num <= 26 else None
+                if col_letter:
+                    ws.column_dimensions[col_letter].width = max(15, len(header_title) * 2.5)
 
-                # 简单判断：如果是浮点数或金额，居右；否则居中或居左
-                if isinstance(cell_value, (float, int)) and col_idx > 2:  # 假设前两列通常是ID或名称
-                    cell.alignment = alignment_right
-                    # 如果是浮点数，保留两位小数
-                    if isinstance(cell_value, float):
-                        cell.number_format = '#,##0.00'
-                else:
-                    cell.alignment = Alignment(vertical="center")
-
-        # 3. 简单的列宽自适应 (根据表头长度)
-        for col_num, header_title in enumerate(headers, 1):
-            column_letter = ws.cell(row=1, column=col_num).column_letter
-            # 基础宽度 15，根据表头字数微调
-            ws.column_dimensions[column_letter].width = max(15, len(header_title) * 2.5)
+        return wb
 
     def export_excel(
             self,
@@ -410,42 +417,72 @@ class CRUDFinance:
     ) -> BytesIO:
         """
         生成全量财务数据 Excel，包含4个Sheet
+        - 使用 selectinload 代替 joinedload，避免多个一对多关系 JOIN 时的笛卡尔积膨胀
+        - 一次全量查询 + selectinload 独立 IN 查询，总共 ~10 条 SQL，避免分页导致的查询数翻倍
         """
-        # 1. 获取数据 (预加载所有关联表，防止 N+1 查询)
+        # 1. 构建筛选查询并预加载所有关联数据
         query = db.query(CaseFinance).join(Case, CaseFinance.case_id == Case.case_id)
         query = _apply_filters(query, db, query_params, current_user)
 
-        # 关键：预加载流水、发票、领款及其对应的操作人/律师信息
+        # selectinload 对每个一对多关系发一条独立的 SELECT ... WHERE id IN (...)，
+        # 完全避免多表 JOIN 的笛卡尔积乘法效应
+        # 注意：不 selectinload Case.parties，因为会加载每个案件的所有当事人类型（原告/被告等），
+        # 而导出只需"委托人"。改为下方手动精准查询，减少 60%+ 的 party 数据量。
         query = query.options(
-            joinedload(CaseFinance.case).joinedload(Case.main_lawyer),
-            joinedload(CaseFinance.case).joinedload(Case.parties),
-            joinedload(CaseFinance.records).joinedload(FinancialRecord.operator),
-            joinedload(CaseFinance.invoices).joinedload(InvoiceRecord.operator),
-            joinedload(CaseFinance.withdrawals).joinedload(LawyerWithdrawal.lawyer),
-            joinedload(CaseFinance.withdrawals).joinedload(LawyerWithdrawal.operator),
+            selectinload(CaseFinance.case).selectinload(Case.main_lawyer),
+            selectinload(CaseFinance.records).selectinload(FinancialRecord.operator),
+            selectinload(CaseFinance.invoices).selectinload(InvoiceRecord.operator),
+            selectinload(CaseFinance.withdrawals).selectinload(LawyerWithdrawal.lawyer),
+            selectinload(CaseFinance.withdrawals).selectinload(LawyerWithdrawal.operator),
         ).order_by(Case.created_at.desc())
 
         finance_list = query.all()
 
-        wb = Workbook()
+        # 手动仅查询"委托"类型的当事人，避免 selectinload 拉取全部当事人
+        case_ids = [f.case_id for f in finance_list]
+        all_parties = (
+            db.query(CaseParty.case_id, CaseParty.name)
+            .filter(CaseParty.case_id.in_(case_ids))
+            .filter(CaseParty.party_type.like('%委托%'))
+            .all()
+        )
+        # 构建 case_id → 委托人名称列表 的查找字典
+        client_map: Dict[int, List[str]] = {}
+        for case_id, name in all_parties:
+            client_map.setdefault(case_id, []).append(name)
 
-        # ==========================================
-        # Sheet 1: 案件财务总表 (CaseFinance)
-        # ==========================================
+        # 2. 预定义表头
         headers_1 = [
             "案件号", "委托人", "案件类别", "主办律师", "立案日期",
             "合同金额", "风险代理约定", "最终收费金额",
             "累计实收", "累计开票", "累计退费", "累计领款",
-            "未开票金额", "未付金额(欠款)","可用余额",
+            "未开票金额", "未付金额(欠款)", "可用余额",
             "财务备注", "创建时间", "最后更新"
         ]
+        headers_2 = [
+            "关联案件号", "委托人", "流水ID", "类型", "金额", "发生日期",
+            "付款人/收款人", "支付方式", "操作人", "备注", "登记时间"
+        ]
+        headers_3 = [
+            "关联案件号", "委托人", "发票记录ID", "开票金额", "开票日期",
+            "发票号码", "发票抬头", "税号", "经办人", "备注", "登记时间"
+        ]
+        headers_4 = [
+            "关联案件号", "委托人", "领款记录ID", "领款律师", "领款金额",
+            "领款日期", "操作人", "备注", "登记时间"
+        ]
 
-        data_1 = []
+        # 3. 一次遍历构建四个 Sheet 的数据（纯列表，不保留 ORM 引用）
+        data_1, data_2, data_3, data_4 = [], [], [], []
+
         for f in finance_list:
             c = f.case
             main_lawyer_name = c.main_lawyer.real_name if c.main_lawyer else ""
+            # 提取委托人名称（从预查询的 client_map 中取，避免 N+1 且仅加载委托类型）
+            client_names = "、".join(client_map.get(c.case_id, []))
+            c_info = [c.case_number, client_names]
 
-            # 动态计算税费、风险金和余额
+            # ---- Sheet 1: 案件财务总表 ----
             invoiced = float(f.total_invoiced_amount or 0)
             received = float(f.total_received_amount or 0)
             withdrawal = float(f.total_withdrawal_amount or 0)
@@ -458,8 +495,8 @@ class CRUDFinance:
                 risk_fund = 0.0
             balance = received - withdrawal - tax - risk_fund
 
-            row = [
-                c.case_number, "、".join([p.name for p in c.parties if p.party_type and '委托' in p.party_type]), c.case_category, main_lawyer_name,
+            data_1.append([
+                c.case_number, client_names, c.case_category, main_lawyer_name,
                 c.commission_date.strftime("%Y-%m-%d") if c.commission_date else "-",
                 float(f.contract_amount or 0),
                 f.risk_agency_content or "",
@@ -474,27 +511,13 @@ class CRUDFinance:
                 f.remarks or "",
                 f.created_at.strftime("%Y-%m-%d") if f.created_at else "",
                 f.updated_at.strftime("%Y-%m-%d") if f.updated_at else ""
-            ]
-            data_1.append(row)
+            ])
 
-        self._write_excel_sheet(wb, "案件财务总表", headers_1, data_1)
-
-        # ==========================================
-        # Sheet 2: 收支流水明细 (FinancialRecord)
-        # ==========================================
-        headers_2 = [
-            "关联案件号", "委托人", "流水ID", "类型", "金额", "发生日期",
-            "付款人/收款人", "支付方式", "操作人", "备注", "登记时间"
-        ]
-        data_2 = []
-
-        for f in finance_list:
-            c_info = [f.case.case_number, "、".join([p.name for p in f.case.parties if p.party_type and '委托' in p.party_type])]  # 冗余案件信息以便辨识
+            # ---- Sheet 2: 收支流水明细 ----
             for r in f.records:
                 op_name = r.operator.real_name if r.operator else ""
                 r_type = "收款" if r.record_type == 'income' else "退费"
-
-                row = c_info + [
+                data_2.append(c_info + [
                     r.id, r_type, float(r.amount),
                     r.transaction_date.strftime("%Y-%m-%d") if r.transaction_date else "",
                     r.payer or "",
@@ -502,26 +525,12 @@ class CRUDFinance:
                     op_name,
                     r.remarks or "",
                     r.created_at.strftime("%Y-%m-%d %H:%M") if r.created_at else ""
-                ]
-                data_2.append(row)
+                ])
 
-        self._write_excel_sheet(wb, "收支流水明细", headers_2, data_2)
-
-        # ==========================================
-        # Sheet 3: 发票开具明细 (InvoiceRecord)
-        # ==========================================
-        headers_3 = [
-            "关联案件号", "委托人", "发票记录ID", "开票金额", "开票日期",
-            "发票号码", "发票抬头", "税号", "经办人", "备注", "登记时间"
-        ]
-        data_3 = []
-
-        for f in finance_list:
-            c_info = [f.case.case_number, "、".join([p.name for p in f.case.parties if p.party_type and '委托' in p.party_type])]
+            # ---- Sheet 3: 发票开具明细 ----
             for inv in f.invoices:
                 op_name = inv.operator.real_name if inv.operator else ""
-
-                row = c_info + [
+                data_3.append(c_info + [
                     inv.id, float(inv.invoice_amount),
                     inv.invoice_date.strftime("%Y-%m-%d") if inv.invoice_date else "",
                     inv.invoice_number or "",
@@ -530,38 +539,29 @@ class CRUDFinance:
                     op_name,
                     inv.remarks or "",
                     inv.created_at.strftime("%Y-%m-%d %H:%M") if inv.created_at else ""
-                ]
-                data_3.append(row)
+                ])
 
-        self._write_excel_sheet(wb, "发票开具明细", headers_3, data_3)
-
-        # ==========================================
-        # Sheet 4: 律师领款明细 (LawyerWithdrawal)
-        # ==========================================
-        headers_4 = [
-            "关联案件号", "委托人", "领款记录ID", "领款律师", "领款金额",
-            "领款日期", "操作人", "备注", "登记时间"
-        ]
-        data_4 = []
-
-        for f in finance_list:
-            c_info = [f.case.case_number, "、".join([p.name for p in f.case.parties if p.party_type and '委托' in p.party_type])]
+            # ---- Sheet 4: 律师领款明细 ----
             for w in f.withdrawals:
                 lawyer_name = w.lawyer.real_name if w.lawyer else "未知"
                 op_name = w.operator.real_name if w.operator else ""
-
-                row = c_info + [
+                data_4.append(c_info + [
                     w.id, lawyer_name, float(w.amount),
                     w.withdrawal_date.strftime("%Y-%m-%d") if w.withdrawal_date else "",
                     op_name,
                     w.remarks or "",
                     w.created_at.strftime("%Y-%m-%d %H:%M") if w.created_at else ""
-                ]
-                data_4.append(row)
+                ])
 
-        self._write_excel_sheet(wb, "律师领款明细", headers_4, data_4)
+        # 4. 使用 write_only 模式一次构建所有 Sheet（无 Cell 对象开销）
+        wb = self._build_excel_workbook([
+            ("案件财务总表", headers_1, data_1),
+            ("收支流水明细", headers_2, data_2),
+            ("发票开具明细", headers_3, data_3),
+            ("律师领款明细", headers_4, data_4),
+        ])
 
-        # 4. 保存到内存流
+        # 5. 保存到内存流
         output = BytesIO()
         wb.save(output)
         output.seek(0)

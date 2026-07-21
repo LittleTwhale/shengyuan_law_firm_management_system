@@ -35,6 +35,7 @@ database/
 CLAUDE.md
 .deepseek/
 .reasonix/
+AGENTS.md
 
 # Meilisearch文件
 Meilisearch/
