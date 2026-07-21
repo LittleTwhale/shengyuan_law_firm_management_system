@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-from sqlalchemy import func, or_, and_, extract
+from sqlalchemy import case, exists, func, or_, and_, extract
 from sqlalchemy.orm import Session, selectinload
 
 from ..models.case import Case, CaseParty
@@ -87,23 +87,21 @@ def _apply_filters(query, db: Session, params: FinanceStatsQuery, current_user: 
 
 def _recalculate_finance_summary(db: Session, finance_id: int):
     """
-    当流水发生变化时，自动重新计算 CaseFinance 的汇总字段
+    当流水发生变化时，自动重新计算 CaseFinance 的汇总字段。
+    将收入/退费两次查询合并为一条 CASE WHEN 聚合，减少数据库往返。
     """
     finance = db.query(CaseFinance).filter(CaseFinance.id == finance_id).first()
     if not finance:
         return
 
-    # 1. 计算累计实收 (Income - Refund)
-    income_total = db.query(func.sum(FinancialRecord.amount)).filter(
-        FinancialRecord.finance_id == finance_id,
-        FinancialRecord.record_type == 'income'
-    ).scalar() or 0
+    # 1. 合并查询：一次 SQL 同时计算累计实收 (income) 和累计退费 (refund)
+    record_totals = db.query(
+        func.sum(case((FinancialRecord.record_type == 'income', FinancialRecord.amount), else_=0)),
+        func.sum(case((FinancialRecord.record_type == 'refund', FinancialRecord.amount), else_=0)),
+    ).filter(FinancialRecord.finance_id == finance_id).first()
 
-    refund_total = db.query(func.sum(FinancialRecord.amount)).filter(
-        FinancialRecord.finance_id == finance_id,
-        FinancialRecord.record_type == 'refund'
-    ).scalar() or 0
-
+    income_total = record_totals[0] or 0
+    refund_total = record_totals[1] or 0
     finance.total_received_amount = income_total - refund_total
     finance.total_refund_amount = refund_total
 
@@ -155,23 +153,24 @@ class CRUDFinance:
             limit: int = 20
     ) -> (List[CaseFinance], int): # type: ignore
 
-        # 1. 确保数据一致性 (修复缺失 CaseFinance 的逻辑保持不变)
-        subquery = db.query(CaseFinance.case_id)
+        # 1. 确保数据一致性：补建缺失的 CaseFinance 记录
+        #    使用 NOT EXISTS 比 NOT IN 语义更清晰，MySQL 优化器处理更高效
         missing_cases = db.query(Case).filter(
-            Case.case_id.notin_(subquery),
+            ~exists().where(CaseFinance.case_id == Case.case_id),
             Case.is_deleted == False
         ).all()
         if missing_cases:
-            for case in missing_cases:
-                initial_amount = case.case_income if case.case_income else 0
-                db.add(CaseFinance(case_id=case.case_id, contract_amount=initial_amount))
+            new_finances = [
+                CaseFinance(case_id=case.case_id, contract_amount=case.case_income or 0)
+                for case in missing_cases
+            ]
+            db.add_all(new_finances)
             db.commit()
 
-        # 2. 构建基础查询
+        # 2. 构建基础查询（不预加载 parties，改为下方手动精准查询委托人，避免加载全部当事人）
         query = db.query(CaseFinance).join(Case, CaseFinance.case_id == Case.case_id)
         query = query.options(
             selectinload(CaseFinance.case).selectinload(Case.main_lawyer),
-            selectinload(CaseFinance.case).selectinload(Case.parties)
         )
 
         # 3. 应用筛选
@@ -183,6 +182,24 @@ class CRUDFinance:
         # 5. 排序与分页
         query = query.order_by(Case.created_at.desc())
         items = query.offset(skip).limit(limit).all()
+
+        # 6. 手动精准查询委托人（仅加载 party_type 含"委托"的当事人，避免加载原告/被告等无关数据）
+        if items:
+            case_ids = [item.case_id for item in items]
+            all_parties = (
+                db.query(CaseParty)
+                .filter(CaseParty.case_id.in_(case_ids))
+                .filter(CaseParty.party_type.like('%委托%'))
+                .all()
+            )
+            # 构建 case_id → 委托人列表 的查找字典
+            client_map: Dict[int, List[CaseParty]] = {}
+            for party in all_parties:
+                client_map.setdefault(party.case_id, []).append(party)
+            # 替换每个 case 的 parties 集合为仅含委托人（前端 getClientNames 仍正常工作）
+            for item in items:
+                if item.case:
+                    item.case.parties = client_map.get(item.case_id, [])
 
         return items, total
 
@@ -220,7 +237,6 @@ class CRUDFinance:
     def get_by_case_id(self, db: Session, case_id: int) -> CaseFinance:
         finance = db.query(CaseFinance).options(
             selectinload(CaseFinance.case).selectinload(Case.main_lawyer),
-            selectinload(CaseFinance.case).selectinload(Case.parties)
         ).filter(CaseFinance.case_id == case_id).first()
         if not finance:
             # 懒加载：如果还没有财务记录，则创建一个空的
@@ -233,6 +249,17 @@ class CRUDFinance:
             db.add(finance)
             db.commit()
             db.refresh(finance)
+
+        # 手动精准查询委托人（仅加载 party_type 含"委托"的当事人）
+        if finance.case:
+            client_parties = (
+                db.query(CaseParty)
+                .filter(CaseParty.case_id == case_id)
+                .filter(CaseParty.party_type.like('%委托%'))
+                .all()
+            )
+            finance.case.parties = client_parties
+
         return finance
 
     # --- 4. 更新财务总表 (修改合同额/备注) ---
