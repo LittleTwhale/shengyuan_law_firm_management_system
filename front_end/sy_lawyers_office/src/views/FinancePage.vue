@@ -498,7 +498,7 @@
               currentFinance.case ? getClientNames(currentFinance.case.parties) : '-'
             }}</el-descriptions-item>
             <el-descriptions-item label="主办律师">{{
-              currentFinance.case ? currentFinance.case.main_lawyer.real_name : '-'
+              currentFinance.case && currentFinance.case.main_lawyer ? currentFinance.case.main_lawyer.real_name : '-'
             }}</el-descriptions-item>
             <el-descriptions-item label="合同金额">
               <span class="font-bold">{{ formatCurrency(currentFinance.contract_amount) }}</span>

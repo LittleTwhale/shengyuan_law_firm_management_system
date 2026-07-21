@@ -129,7 +129,7 @@ class LawyerWithdrawalResponse(LawyerWithdrawalBase):
 class CaseSimpleInfo(BaseModel):
     """简化案件基础信息"""
     case_number: Optional[str] = None
-    main_lawyer: UserOut
+    main_lawyer: Optional[UserOut] = None  # 允许为空，兼容老数据未登记主办律师的情况
     parties: List[CasePartyOut] = Field(default_factory=list, description="当事人列表 / Case parties")
 
     class Config:
