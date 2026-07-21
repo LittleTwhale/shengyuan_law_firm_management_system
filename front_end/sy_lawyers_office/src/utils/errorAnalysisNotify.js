@@ -21,8 +21,8 @@ const POLL_INTERVAL = 5000
 /** 最大轮询次数（5s × 24 = 2 分钟） */
 const MAX_RETRIES = 24
 
-/** 后台兜底轮询间隔（60 秒） */
-const BACKGROUND_POLL_INTERVAL = 60000
+/** 后台兜底轮询间隔（120 秒，降低后端日志频率） */
+const BACKGROUND_POLL_INTERVAL = 120000
 
 /** 后台轮询定时器句柄 */
 let backgroundPollTimer = null
@@ -51,6 +51,28 @@ export function stopBackgroundPolling() {
   if (backgroundPollTimer) {
     clearInterval(backgroundPollTimer)
     backgroundPollTimer = null
+  }
+}
+
+/**
+ * 标记单条分析记录为已通知（防止后台轮询重复弹窗）
+ * @param {number} analysisId
+ */
+async function markNotified(analysisId) {
+  const token = localStorage.getItem('token')
+  if (!token || !analysisId) return
+
+  try {
+    await fetch(`${BASE_URL}/error-analyses/mark-read`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ analysis_ids: [analysisId] }),
+    })
+  } catch {
+    // 静默失败，不影响用户体验
   }
 }
 
@@ -112,6 +134,8 @@ export function handleErrorAnalysis(errorData, serverMsg) {
   // 去重命中：后端直接返回了已完成的分析结果，立即弹窗
   if (errorData.analysis_status === 'completed' && errorData.analysis_result) {
     showAnalysisDialog(errorData.analysis_result, errorData.error_type || '错误分析')
+    // 标记已通知，避免后台轮询重复弹窗
+    markNotified(analysisId)
     return
   }
 
@@ -149,6 +173,8 @@ async function pollAnalysisResult(analysisId, retries) {
 
     if (data.analysis_status === 'completed') {
       showAnalysisDialog(data.analysis_result, data.error_type || '错误分析')
+      // 标记已通知，避免后台轮询重复弹窗
+      markNotified(analysisId)
       return
     }
 

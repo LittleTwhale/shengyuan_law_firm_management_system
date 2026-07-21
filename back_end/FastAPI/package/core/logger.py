@@ -82,7 +82,12 @@ class EndpointFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         # 拦截包含特定路径的访问日志，如果是轮询接口则返回 False，不在控制台和文件中打印
-        return "/system/announcements/unread" not in record.getMessage()
+        message = record.getMessage()
+        if "/system/announcements/unread" in message:
+            return False
+        if "/api/error-analyses/unread" in message:
+            return False
+        return True
 
 
 # =============================================================================
