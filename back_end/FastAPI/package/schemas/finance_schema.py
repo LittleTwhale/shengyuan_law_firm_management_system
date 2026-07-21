@@ -27,6 +27,16 @@ class FinancialRecordCreate(FinancialRecordBase):
     finance_id: int = Field(..., description="关联的财务总表ID")
 
 
+class FinancialRecordUpdate(BaseModel):
+    """更新流水时的入参（所有字段可选，仅更新传入的字段）"""
+    record_type: Optional[str] = Field(None, description="类型: income(收款), refund(退费)")
+    amount: Optional[Decimal] = Field(None, description="金额")
+    transaction_date: Optional[date] = Field(None, description="发生日期")
+    payer: Optional[str] = Field(None, description="付款人/收款人")
+    payment_method: Optional[str] = Field(None, description="支付方式")
+    remarks: Optional[str] = Field(None, description="备注")
+
+
 class FinancialRecordResponse(FinancialRecordBase):
     """返回给前端的流水详情"""
     id: int
@@ -57,6 +67,16 @@ class InvoiceRecordCreate(InvoiceRecordBase):
     finance_id: int = Field(..., description="关联的财务总表ID")
 
 
+class InvoiceRecordUpdate(BaseModel):
+    """更新发票时的入参（所有字段可选）"""
+    invoice_amount: Optional[Decimal] = Field(None, description="开票金额")
+    invoice_date: Optional[date] = Field(None, description="开票日期")
+    invoice_number: Optional[str] = Field(None, description="发票号码")
+    invoice_title: Optional[str] = Field(None, description="发票抬头")
+    tax_number: Optional[str] = Field(None, description="税号")
+    remarks: Optional[str] = Field(None, description="备注")
+
+
 class InvoiceRecordResponse(InvoiceRecordBase):
     """返回给前端的发票详情"""
     id: int
@@ -81,6 +101,14 @@ class LawyerWithdrawalCreate(LawyerWithdrawalBase):
     """创建领款时的入参"""
     finance_id: int = Field(..., description="关联的财务总表ID")
     lawyer_id: int = Field(..., description="领款律师ID")
+
+
+class LawyerWithdrawalUpdate(BaseModel):
+    """更新领款时的入参（所有字段可选）"""
+    amount: Optional[Decimal] = Field(None, description="领款金额")
+    withdrawal_date: Optional[date] = Field(None, description="领款日期")
+    lawyer_id: Optional[int] = Field(None, description="领款律师ID")
+    remarks: Optional[str] = Field(None, description="备注")
 
 class LawyerWithdrawalResponse(LawyerWithdrawalBase):
     """返回给前端的领款详情"""
@@ -161,11 +189,12 @@ class CaseFinancePagination(BaseModel):
 class FinanceStatsQuery(BaseModel):
     """统计查询参数"""
     keyword: Optional[str] = None
-    start_date: Optional[date]
-    end_date: Optional[date]
-    year: Optional[int]
-    lawyer_id: Optional[int]
-    case_category: Optional[str]
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    year: Optional[int] = None
+    lawyer_id: Optional[int] = None
+    case_category: Optional[str] = None
+    quick_filter: Optional[str] = Field(None, description="快捷筛选: unpaid(欠款案件), uninvoiced(未开票), risk_agency(风险代理)")
 
 
 class FinanceStatsResponse(BaseModel):

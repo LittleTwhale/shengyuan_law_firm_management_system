@@ -57,6 +57,14 @@
       </el-row>
     </div>
 
+    <!-- 月度回款趋势图 -->
+    <el-card shadow="hover" class="chart-card" v-if="!isMobile">
+      <div class="chart-header">
+        <span class="chart-title">月度收支趋势（近12个月）</span>
+      </div>
+      <div ref="monthlyChartRef" class="chart-container"></div>
+    </el-card>
+
     <el-card class="main-content-card" shadow="never">
       <div class="toolbar">
         <div class="toolbar-left">
@@ -115,10 +123,57 @@
         </div>
 
         <div class="toolbar-right">
-          <el-button type="success" plain @click="handleExport" class="export-btn">
-            <el-icon><Download /></el-icon> 导出报表
+          <el-dropdown trigger="click" @command="saveColVisibility" v-if="!isMobile">
+            <el-button plain>
+              <el-icon><Operation /></el-icon> 列设置
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu class="col-dropdown">
+                <el-dropdown-item v-for="(_, key) in columnVisible" :key="key" :command="key">
+                  <el-checkbox
+                    v-model="columnVisible[key]"
+                    :label="columnLabels[key]"
+                    @change="saveColVisibility"
+                    @click.stop
+                  />
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+
+          <el-button type="success" plain :loading="exportLoading" @click="handleExport" class="export-btn">
+            <el-icon><Download /></el-icon> {{ exportLoading ? '导出中...' : '导出报表' }}
           </el-button>
         </div>
+      </div>
+
+      <!-- 快捷筛选标签 -->
+      <div class="quick-filters" v-if="!isMobile">
+        <span class="filter-label">快捷筛选：</span>
+        <el-tag
+          :type="queryParams.quick_filter === null ? 'primary' : 'info'"
+          :effect="queryParams.quick_filter === null ? 'dark' : 'plain'"
+          class="filter-tag"
+          @click="setQuickFilter(null)"
+        >全部</el-tag>
+        <el-tag
+          :type="queryParams.quick_filter === 'unpaid' ? 'danger' : 'info'"
+          :effect="queryParams.quick_filter === 'unpaid' ? 'dark' : 'plain'"
+          class="filter-tag"
+          @click="setQuickFilter('unpaid')"
+        >欠款案件</el-tag>
+        <el-tag
+          :type="queryParams.quick_filter === 'uninvoiced' ? 'warning' : 'info'"
+          :effect="queryParams.quick_filter === 'uninvoiced' ? 'dark' : 'plain'"
+          class="filter-tag"
+          @click="setQuickFilter('uninvoiced')"
+        >未开票案件</el-tag>
+        <el-tag
+          :type="queryParams.quick_filter === 'risk_agency' ? '' : 'info'"
+          :effect="queryParams.quick_filter === 'risk_agency' ? 'dark' : 'plain'"
+          class="filter-tag"
+          @click="setQuickFilter('risk_agency')"
+        >风险代理</el-tag>
       </div>
 
       <el-table
@@ -127,6 +182,8 @@
         stripe
         v-loading="tableLoading"
         class="custom-table"
+        show-summary
+        :summary-method="getSummaries"
         :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: '600' }"
       >
         <el-table-column
@@ -148,12 +205,12 @@
             <span v-else class="text-gray">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="委托人" min-width="200">
+        <el-table-column label="委托人" min-width="200" v-if="columnVisible.client">
           <template #default="{ row }">
             <span class="client-name">{{ row.case ? getClientNames(row.case.parties) : '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="主办律师" width="100" show-overflow-tooltip>
+        <el-table-column label="主办律师" width="100" show-overflow-tooltip v-if="columnVisible.lawyer">
           <template #default="{ row }">
             <el-tag size="small" type="info" effect="plain" v-if="row.case && row.case.main_lawyer">
               {{ row.case.main_lawyer.real_name }}
@@ -161,7 +218,7 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="合同金额" width="120" align="right">
+        <el-table-column label="合同金额" width="120" align="right" v-if="columnVisible.contract">
           <template #default="{ row }">
             <span
               class="font-mono contract-text"
@@ -172,19 +229,19 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="已回款" width="120" align="right">
+        <el-table-column label="已回款" width="120" align="right" v-if="columnVisible.received">
           <template #default="{ row }">
             <span class="amount-received">{{ formatCurrency(row.total_received_amount) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="律师总领款" width="120" align="right">
+        <el-table-column label="律师总领款" width="120" align="right" v-if="columnVisible.withdrawal">
           <template #default="{ row }">
             <span class="text-purple">{{ formatCurrency(row.total_withdrawal_amount) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="已开票" width="120" align="right">
+        <el-table-column label="已开票" width="120" align="right" v-if="columnVisible.invoiced">
           <template #default="{ row }">
             <span v-if="row.total_invoiced_amount > 0" class="status-dot purple">
               {{ formatCurrency(row.total_invoiced_amount) }}
@@ -195,7 +252,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="未开票" width="120" align="right">
+        <el-table-column label="未开票" width="120" align="right" v-if="columnVisible.uninvoiced">
           <template #default="{ row }">
             <span v-if="row.uninvoiced_amount > 0" class="status-dot orange">
               {{ formatCurrency(row.uninvoiced_amount) }}
@@ -206,7 +263,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="税费" width="100" align="right">
+        <el-table-column label="税费" width="100" align="right" v-if="columnVisible.tax">
           <template #default="{ row }">
             <span
               :class="{
@@ -222,7 +279,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="风险金" width="100" align="right">
+        <el-table-column label="风险金" width="100" align="right" v-if="columnVisible.risk">
           <template #default="{ row }">
             <span
               :class="{
@@ -241,7 +298,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="欠款" width="120" align="right">
+        <el-table-column label="欠款" width="120" align="right" v-if="columnVisible.unpaid">
           <template #default="{ row }">
             <span v-if="row.unpaid_amount > 0" class="status-dot red">
               {{ formatCurrency(row.unpaid_amount) }}
@@ -252,7 +309,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="余额" width="120" align="right">
+        <el-table-column label="余额" width="120" align="right" v-if="columnVisible.balance">
           <template #default="{ row }">
             <span class="font-bold" :class="calculateBalance(row) >= 0 ? 'text-green' : 'text-red'">
               {{ formatCurrency(calculateBalance(row)) }}
@@ -281,7 +338,7 @@
           :current-page="pagination.page"
           :page-size="pagination.pageSize"
           :total="pagination.total"
-          :page-sizes="[10, 15, 30, 50]"
+          :page-sizes="[10, 15, 30, 50, 100, 500, 1000]"
           @current-change="handlePageChange"
           @size-change="
             (size) => {
@@ -299,6 +356,7 @@
       :size="drawerSize"
       destroy-on-close
       class="finance-drawer"
+      @closed="() => { if (drawerChartInstance) { drawerChartInstance.dispose(); drawerChartInstance = null } }"
     >
       <div v-if="currentFinance" class="drawer-content">
         <el-row :gutter="15" class="responsive-row">
@@ -418,6 +476,11 @@
           </el-col>
         </el-row>
 
+        <!-- 案件收支走势图 -->
+        <div class="drawer-chart-wrapper" v-if="!isMobile && currentFinance && currentFinance.records && currentFinance.records.length">
+          <div ref="drawerChartRef" class="drawer-chart"></div>
+        </div>
+
         <div class="info-card">
           <div class="card-title-row">
             <span class="title">案件基础信息</span>
@@ -465,7 +528,7 @@
               v-if="hasPermission"
               type="primary"
               size="small"
-              @click="showAddRecordDialog = true"
+              @click="openAddRecord"
             >
               <el-icon><Plus /></el-icon> 新增收支
             </el-button>
@@ -507,12 +570,15 @@
             </el-table-column>
             <el-table-column
               label="操作"
-              width="80"
+              width="120"
               align="center"
               v-if="hasPermission"
               :fixed="isMobile ? false : 'right'"
             >
               <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="openEditRecord(row)"
+                  >编辑</el-button
+                >
                 <el-button type="danger" link size="small" @click="handleDeleteRecord(row.id)"
                   >删除</el-button
                 >
@@ -536,7 +602,7 @@
               type="success"
               plain
               size="small"
-              @click="showAddWithdrawalDialog = true"
+              @click="openAddWithdrawal"
             >
               <el-icon><Wallet /></el-icon> 新增领款
             </el-button>
@@ -572,12 +638,15 @@
             </el-table-column>
             <el-table-column
               label="操作"
-              width="80"
+              width="120"
               align="center"
               v-if="hasPermission"
               :fixed="isMobile ? false : 'right'"
             >
               <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="openEditWithdrawal(row)"
+                  >编辑</el-button
+                >
                 <el-button type="danger" link size="small" @click="handleDeleteWithdrawal(row.id)"
                   >删除</el-button
                 >
@@ -601,7 +670,7 @@
               type="warning"
               plain
               size="small"
-              @click="showAddInvoiceDialog = true"
+              @click="openAddInvoice"
             >
               <el-icon><Plus /></el-icon> 新增发票
             </el-button>
@@ -642,12 +711,15 @@
             </el-table-column>
             <el-table-column
               label="操作"
-              width="80"
+              width="120"
               align="center"
               v-if="hasPermission"
               :fixed="isMobile ? false : 'right'"
             >
               <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="openEditInvoice(row)"
+                  >编辑</el-button
+                >
                 <el-button type="danger" link size="small" @click="handleDeleteInvoice(row.id)"
                   >删除</el-button
                 >
@@ -732,10 +804,11 @@
     </el-dialog>
 
     <el-dialog
-      title="新增收支记录"
+      :title="editingRecordId ? '修改收支记录' : '新增收支记录'"
       v-model="showAddRecordDialog"
       :width="dialogWidth"
       class="custom-dialog"
+      @closed="editingRecordId = null"
     >
       <el-form :model="recordForm" :label-width="isMobile ? '80px' : '100px'">
         <el-form-item label="类型">
@@ -770,15 +843,18 @@
       </el-form>
       <template #footer>
         <el-button @click="showAddRecordDialog = false">取消</el-button>
-        <el-button type="primary" @click="submitRecord">确认登记</el-button>
+        <el-button type="primary" @click="submitRecord">
+          {{ editingRecordId ? '保存修改' : '确认登记' }}
+        </el-button>
       </template>
     </el-dialog>
 
     <el-dialog
-      title="新增发票记录"
+      :title="editingInvoiceId ? '修改发票记录' : '新增发票记录'"
       v-model="showAddInvoiceDialog"
       :width="dialogWidth"
       class="custom-dialog"
+      @closed="editingInvoiceId = null"
     >
       <el-form :model="invoiceForm" :label-width="isMobile ? '80px' : '100px'">
         <el-form-item label="发票抬头">
@@ -813,15 +889,18 @@
       </el-form>
       <template #footer>
         <el-button @click="showAddInvoiceDialog = false">取消</el-button>
-        <el-button type="primary" @click="submitInvoice">确认开票</el-button>
+        <el-button type="primary" @click="submitInvoice">
+          {{ editingInvoiceId ? '保存修改' : '确认开票' }}
+        </el-button>
       </template>
     </el-dialog>
 
     <el-dialog
-      title="新增律师领款"
+      :title="editingWithdrawalId ? '修改律师领款' : '新增律师领款'"
       v-model="showAddWithdrawalDialog"
       :width="dialogWidth"
       class="custom-dialog"
+      @closed="editingWithdrawalId = null"
     >
       <el-form :model="withdrawalForm" :label-width="isMobile ? '80px' : '100px'">
         <el-form-item label="领款律师">
@@ -862,17 +941,20 @@
       </el-form>
       <template #footer>
         <el-button @click="showAddWithdrawalDialog = false">取消</el-button>
-        <el-button type="primary" @click="submitWithdrawal">确认领款</el-button>
+        <el-button type="primary" @click="submitWithdrawal">
+          {{ editingWithdrawalId ? '保存修改' : '确认领款' }}
+        </el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import request from '@/utils/request'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import * as echarts from 'echarts'
 import {
   DataLine,
   Download,
@@ -882,6 +964,7 @@ import {
   DocumentCopy,
   Warning,
   Wallet,
+  Operation,
 } from '@element-plus/icons-vue'
 
 const API_BASE = '/finance'
@@ -889,6 +972,50 @@ const currentUserId = localStorage.getItem('user_id')
 const router = useRouter()
 
 // --- 响应式尺寸适配逻辑 ---
+// 列可见性（持久化到 localStorage）
+const COL_VIS_KEY = 'finance_col_visibility'
+const defaultColumns = {
+  client: true,      // 委托人
+  lawyer: true,      // 主办律师
+  contract: true,    // 合同金额
+  received: true,    // 已回款
+  withdrawal: true,  // 律师总领款
+  invoiced: true,    // 已开票
+  uninvoiced: false, // 未开票（默认隐藏）
+  tax: false,        // 税费（默认隐藏）
+  risk: false,       // 风险金（默认隐藏）
+  unpaid: true,      // 欠款
+  balance: true,     // 余额
+}
+
+const loadColVisibility = () => {
+  try {
+    const saved = localStorage.getItem(COL_VIS_KEY)
+    if (saved) return { ...defaultColumns, ...JSON.parse(saved) }
+  } catch { /* ignore */ }
+  return { ...defaultColumns }
+}
+
+const columnVisible = reactive(loadColVisibility())
+
+const columnLabels = {
+  client: '委托人',
+  lawyer: '主办律师',
+  contract: '合同金额',
+  received: '已回款',
+  withdrawal: '律师总领款',
+  invoiced: '已开票',
+  uninvoiced: '未开票',
+  tax: '税费',
+  risk: '风险金',
+  unpaid: '欠款',
+  balance: '余额',
+}
+
+const saveColVisibility = () => {
+  localStorage.setItem(COL_VIS_KEY, JSON.stringify(columnVisible))
+}
+
 const isMobile = ref(false)
 const checkMobile = () => {
   isMobile.value = window.innerWidth <= 768
@@ -933,6 +1060,12 @@ const stats = ref({
   count_records: 0,
 })
 
+// 图表相关
+const monthlyChartRef = ref(null)
+let monthlyChartInstance = null
+const drawerChartRef = ref(null)
+let drawerChartInstance = null
+
 const financeList = ref([])
 const pagination = reactive({
   page: 1,
@@ -945,6 +1078,7 @@ const queryParams = reactive({
   dateRange: [],
   case_category: '',
   lawyer_id: null,
+  quick_filter: null,
 })
 
 // --- 详情抽屉相关 ---
@@ -961,6 +1095,11 @@ const summaryForm = reactive({
   uninvoiced_amount: 0,
   remarks: '',
 })
+
+// 编辑模式状态：记录当前正在编辑的记录 ID，null 表示新建模式
+const editingRecordId = ref(null)
+const editingInvoiceId = ref(null)
+const editingWithdrawalId = ref(null)
 
 // 计算属性：判断是否为自动计算模式
 const isAutoCalcMode = computed(() => {
@@ -1042,6 +1181,7 @@ const shortcuts = [
 onMounted(async () => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
+  window.addEventListener('resize', handleChartResize)
 
   await fetchUserProfile()
   await fetchLawyers()
@@ -1051,6 +1191,9 @@ onMounted(async () => {
 // 清除监听事件
 onUnmounted(() => {
   window.removeEventListener('resize', checkMobile)
+  window.removeEventListener('resize', handleChartResize)
+  if (monthlyChartInstance) { monthlyChartInstance.dispose(); monthlyChartInstance = null }
+  if (drawerChartInstance) { drawerChartInstance.dispose(); drawerChartInstance = null }
 })
 
 const fetchUserProfile = async () => {
@@ -1101,6 +1244,7 @@ const loadData = async () => {
       case_category: queryParams.case_category || null,
       lawyer_id: queryParams.lawyer_id || null,
       keyword: queryParams.keyword || null,
+      quick_filter: queryParams.quick_filter || null,
       year: null,
     }
 
@@ -1118,6 +1262,9 @@ const loadData = async () => {
 
     financeList.value = listRes.data.items || []
     pagination.total = listRes.data.total || 0
+
+    // 渲染月度图表
+    renderMonthlyChart()
   } catch (err) {
     console.error('加载财务数据失败', err)
     ElMessage.error('加载数据失败')
@@ -1125,6 +1272,242 @@ const loadData = async () => {
     statsLoading.value = false
     tableLoading.value = false
   }
+}
+
+// --- 月度趋势图表渲染 ---
+const renderMonthlyChart = async () => {
+  if (isMobile.value || !monthlyChartRef.value) return
+  await nextTick()
+
+  try {
+    const postBody = {
+      start_date: null,
+      end_date: null,
+      case_category: queryParams.case_category || null,
+      lawyer_id: queryParams.lawyer_id || null,
+      keyword: queryParams.keyword || null,
+      quick_filter: queryParams.quick_filter || null,
+      year: null,
+    }
+    const res = await request.post(`${API_BASE}/monthly-stats`, postBody)
+    const data = res.data || []
+
+    if (!monthlyChartInstance) {
+      monthlyChartInstance = echarts.init(monthlyChartRef.value)
+    }
+
+    const months = data.map(d => d.month)
+    const incomes = data.map(d => d.income)
+    const refunds = data.map(d => d.refund)
+    const nets = data.map(d => d.income - d.refund)
+
+    monthlyChartInstance.setOption({
+      color: ['#67c23a', '#f56c6c', '#409eff'],
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(255,255,255,0.96)',
+        borderColor: '#e4e7ed',
+        borderWidth: 1,
+        textStyle: { color: '#303133', fontSize: 12 },
+        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+        formatter: (params) => {
+          let tip = `<div style="font-weight:600;margin-bottom:6px">${params[0].axisValue}</div>`
+          params.forEach(p => {
+            tip += `<div style="display:flex;align-items:center;margin:3px 0">
+              ${p.marker} ${p.seriesName}:&nbsp;<b>¥${Number(p.value).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}</b>
+            </div>`
+          })
+          return tip
+        }
+      },
+      legend: {
+        data: ['收款', '退费', '净收入'],
+        top: 0,
+        left: 'center',
+        textStyle: { fontSize: 12, color: '#606266' },
+        itemWidth: 16,
+        itemHeight: 8,
+        itemGap: 24,
+      },
+      grid: { left: 65, right: 25, top: 40, bottom: 35 },
+      xAxis: {
+        type: 'category',
+        data: months,
+        axisLine: { lineStyle: { color: '#dcdfe6' } },
+        axisTick: { show: false },
+        axisLabel: { color: '#909399', fontSize: 11, rotate: months.length > 8 ? 30 : 0 },
+      },
+      yAxis: {
+        type: 'value',
+        splitLine: { lineStyle: { color: '#f0f0f0', type: 'dashed' } },
+        axisLabel: { color: '#909399', fontSize: 11, formatter: v => `¥${(v / 10000).toFixed(0)}万` },
+      },
+      series: [
+        {
+          name: '收款', type: 'bar', data: incomes,
+          barMaxWidth: 48,
+          emphasis: { itemStyle: { color: '#95d475' } },
+          itemStyle: {
+            borderRadius: [4, 4, 0, 0],
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: '#95d475' },
+              { offset: 1, color: '#67c23a' }
+            ])
+          },
+          animationDelay: (idx) => idx * 30,
+        },
+        {
+          name: '退费', type: 'bar', data: refunds,
+          barMaxWidth: 48,
+          emphasis: { itemStyle: { color: '#f89898' } },
+          itemStyle: {
+            borderRadius: [4, 4, 0, 0],
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: '#f89898' },
+              { offset: 1, color: '#f56c6c' }
+            ])
+          },
+          animationDelay: (idx) => idx * 30 + 100,
+        },
+        {
+          name: '净收入', type: 'line', data: nets,
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 6,
+          lineStyle: { color: '#409eff', width: 2.5 },
+          itemStyle: { color: '#409eff', borderColor: '#fff', borderWidth: 2 },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: 'rgba(64,158,255,0.25)' },
+              { offset: 1, color: 'rgba(64,158,255,0.02)' }
+            ])
+          },
+          animationDelay: (idx) => idx * 30 + 200,
+        }
+      ],
+      animationEasing: 'elasticOut',
+      animationDuration: 800,
+    }, { notMerge: true })
+  } catch (err) {
+    console.error('加载月度图表失败', err)
+  }
+}
+
+// 响应式图表 resize
+const handleChartResize = () => {
+  if (monthlyChartInstance) monthlyChartInstance.resize()
+  if (drawerChartInstance) drawerChartInstance.resize()
+}
+
+// --- 抽屉内案件收支走势图 ---
+const renderDrawerChart = () => {
+  if (isMobile.value) return
+  nextTick(() => {
+    const container = drawerChartRef.value
+    if (!container) return
+    if (!currentFinance.value || !currentFinance.value.records) return
+
+    const records = [...currentFinance.value.records].sort(
+      (a, b) => (a.transaction_date || '').localeCompare(b.transaction_date || '')
+    )
+
+    if (records.length === 0) {
+      if (drawerChartInstance) { drawerChartInstance.clear() }
+      return
+    }
+
+    if (!drawerChartInstance) {
+      drawerChartInstance = echarts.init(container)
+    }
+
+    // 按日期聚合
+    const dateMap = {}
+    records.forEach(r => {
+      const d = r.transaction_date || ''
+      if (!dateMap[d]) dateMap[d] = { income: 0, refund: 0 }
+      if (r.record_type === 'income') dateMap[d].income += Number(r.amount || 0)
+      else dateMap[d].refund += Number(r.amount || 0)
+    })
+
+    const dates = Object.keys(dateMap)
+    const incomes = dates.map(d => dateMap[d].income)
+    const refunds = dates.map(d => dateMap[d].refund)
+    let cum = 0
+    const cumulative = dates.map(d => { cum += dateMap[d].income - dateMap[d].refund; return cum })
+
+    drawerChartInstance.setOption({
+      color: ['#67c23a', '#f56c6c', '#409eff'],
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(255,255,255,0.96)',
+        borderColor: '#e4e7ed',
+        textStyle: { color: '#303133', fontSize: 11 },
+        boxShadow: '0 3px 8px rgba(0,0,0,0.08)',
+      },
+      legend: {
+        data: ['收款', '退费', '累计净收入'],
+        top: 0,
+        left: 'center',
+        textStyle: { fontSize: 11, color: '#606266' },
+        itemWidth: 14,
+        itemHeight: 7,
+        itemGap: 16,
+      },
+      grid: { left: 55, right: 15, top: 35, bottom: 30 },
+      xAxis: {
+        type: 'category',
+        data: dates,
+        axisLine: { lineStyle: { color: '#dcdfe6' } },
+        axisTick: { show: false },
+        axisLabel: { color: '#909399', fontSize: 10, rotate: dates.length > 8 ? 25 : 0 },
+      },
+      yAxis: {
+        type: 'value',
+        splitLine: { lineStyle: { color: '#f0f0f0', type: 'dashed' } },
+        axisLabel: { color: '#909399', fontSize: 10, formatter: v => `¥${(v / 10000).toFixed(1)}万` },
+      },
+      series: [
+        {
+          name: '收款', type: 'bar', data: incomes,
+          barMaxWidth: 40,
+          itemStyle: {
+            borderRadius: [3, 3, 0, 0],
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: '#95d475' },
+              { offset: 1, color: '#67c23a' }
+            ])
+          },
+        },
+        {
+          name: '退费', type: 'bar', data: refunds,
+          barMaxWidth: 40,
+          itemStyle: {
+            borderRadius: [3, 3, 0, 0],
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: '#f89898' },
+              { offset: 1, color: '#f56c6c' }
+            ])
+          },
+        },
+        {
+          name: '累计净收入', type: 'line', data: cumulative,
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 5,
+          lineStyle: { color: '#409eff', width: 2 },
+          itemStyle: { color: '#409eff', borderColor: '#fff', borderWidth: 2 },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: 'rgba(64,158,255,0.2)' },
+              { offset: 1, color: 'rgba(64,158,255,0.02)' }
+            ])
+          },
+        }
+      ],
+      animationEasing: 'elasticOut',
+      animationDuration: 600,
+    }, { notMerge: true })
+  })
 }
 
 // 税费计算 (仅在有回款时计算)
@@ -1153,7 +1536,54 @@ const calculateBalance = (row) => {
   return received - withdrawal - tax - riskFund
 }
 
+// 列表底部合计行计算（按列 label 匹配，兼容列显隐）
+const getSummaries = (param) => {
+  const { columns, data } = param
+  const sums = new Array(columns.length).fill('')
+  if (!data || data.length === 0) return sums
+
+  const sum = (key) => data.reduce((acc, item) => acc + Number(item[key] || 0), 0)
+
+  // 预计算所有合计值
+  const totals = {
+    '合同金额': sum('contract_amount'),
+    '已回款': sum('total_received_amount'),
+    '律师总领款': sum('total_withdrawal_amount'),
+    '已开票': sum('total_invoiced_amount'),
+    '未开票': sum('uninvoiced_amount'),
+    '欠款': sum('unpaid_amount'),
+  }
+  // 计算字段
+  let totalTax = 0, totalRisk = 0, totalBalance = 0
+  data.forEach(item => {
+    totalTax += calculateTax(item.total_invoiced_amount, item.total_received_amount)
+    totalRisk += calculateRiskFund(item.total_invoiced_amount, item.total_received_amount)
+    totalBalance += calculateBalance(item)
+  })
+  Object.assign(totals, {
+    '税费': totalTax,
+    '风险金': totalRisk,
+    '余额': totalBalance,
+  })
+
+  // 按列 label 匹配填充（第一个可见列为"合计"）
+  columns.forEach((col, idx) => {
+    if (idx === 0 && col.label === '业务号') {
+      sums[idx] = '合计'
+    } else if (totals[col.label] !== undefined) {
+      sums[idx] = formatCurrency(totals[col.label])
+    }
+  })
+
+  return sums
+}
+
 // --- 交互处理 ---
+const setQuickFilter = (value) => {
+  queryParams.quick_filter = value
+  handleSearch()
+}
+
 const handleSearch = () => {
   pagination.page = 1
   loadData()
@@ -1170,6 +1600,7 @@ const openDetailDrawer = async (row) => {
     const res = await request.get(`${API_BASE}/case/${row.case_id}`)
     currentFinance.value = res.data
     drawerVisible.value = true
+    renderDrawerChart()
   } catch (err) {
     console.error(err)
     ElMessage.error(err.response?.data?.detail || '无法获取详情')
@@ -1219,16 +1650,30 @@ const submitRecord = async () => {
   if (!recordForm.transaction_date) return ElMessage.warning('请选择日期')
 
   try {
-    await request.post(`${API_BASE}/record`, {
-      finance_id: currentFinance.value.id,
-      record_type: recordForm.record_type,
-      amount: recordForm.amount,
-      transaction_date: recordForm.transaction_date,
-      payer: recordForm.payer,
-      remarks: recordForm.remarks,
-    })
-    ElMessage.success('登记成功')
+    if (editingRecordId.value) {
+      // 编辑模式
+      await request.put(`${API_BASE}/record/${editingRecordId.value}`, {
+        record_type: recordForm.record_type,
+        amount: recordForm.amount,
+        transaction_date: recordForm.transaction_date,
+        payer: recordForm.payer,
+        remarks: recordForm.remarks,
+      })
+      ElMessage.success('修改成功')
+    } else {
+      // 新建模式
+      await request.post(`${API_BASE}/record`, {
+        finance_id: currentFinance.value.id,
+        record_type: recordForm.record_type,
+        amount: recordForm.amount,
+        transaction_date: recordForm.transaction_date,
+        payer: recordForm.payer,
+        remarks: recordForm.remarks,
+      })
+      ElMessage.success('登记成功')
+    }
     showAddRecordDialog.value = false
+    editingRecordId.value = null
     // 重置表单
     Object.assign(recordForm, {
       record_type: 'income',
@@ -1243,8 +1688,31 @@ const submitRecord = async () => {
     await loadData()
   } catch (err) {
     console.error(err)
-    ElMessage.error('登记失败')
+    ElMessage.error(editingRecordId.value ? '修改失败' : '登记失败')
   }
+}
+
+// 打开编辑收支弹窗
+const openAddRecord = () => {
+  editingRecordId.value = null
+  Object.assign(recordForm, {
+    record_type: 'income',
+    amount: 0,
+    transaction_date: '',
+    payer: '',
+    remarks: '',
+  })
+  showAddRecordDialog.value = true
+}
+
+const openEditRecord = (row) => {
+  editingRecordId.value = row.id
+  recordForm.record_type = row.record_type
+  recordForm.amount = row.amount
+  recordForm.transaction_date = row.transaction_date
+  recordForm.payer = row.payer || ''
+  recordForm.remarks = row.remarks || ''
+  showAddRecordDialog.value = true
 }
 
 // --- 删除流水 ---
@@ -1286,17 +1754,30 @@ const submitInvoice = async () => {
   if (invoiceForm.amount <= 0) return ElMessage.warning('金额必须大于0')
 
   try {
-    await request.post(`${API_BASE}/invoice`, {
-      finance_id: currentFinance.value.id,
-      invoice_title: invoiceForm.invoice_title,
-      tax_number: invoiceForm.tax_number,
-      invoice_amount: invoiceForm.amount,
-      invoice_number: invoiceForm.invoice_number,
-      invoice_date: invoiceForm.invoice_date || new Date().toISOString().split('T')[0],
-      remarks: invoiceForm.remarks,
-    })
-    ElMessage.success('开票记录已添加')
+    if (editingInvoiceId.value) {
+      await request.put(`${API_BASE}/invoice/${editingInvoiceId.value}`, {
+        invoice_title: invoiceForm.invoice_title,
+        tax_number: invoiceForm.tax_number,
+        invoice_amount: invoiceForm.amount,
+        invoice_number: invoiceForm.invoice_number,
+        invoice_date: invoiceForm.invoice_date || new Date().toISOString().split('T')[0],
+        remarks: invoiceForm.remarks,
+      })
+      ElMessage.success('修改成功')
+    } else {
+      await request.post(`${API_BASE}/invoice`, {
+        finance_id: currentFinance.value.id,
+        invoice_title: invoiceForm.invoice_title,
+        tax_number: invoiceForm.tax_number,
+        invoice_amount: invoiceForm.amount,
+        invoice_number: invoiceForm.invoice_number,
+        invoice_date: invoiceForm.invoice_date || new Date().toISOString().split('T')[0],
+        remarks: invoiceForm.remarks,
+      })
+      ElMessage.success('开票记录已添加')
+    }
     showAddInvoiceDialog.value = false
+    editingInvoiceId.value = null
     Object.assign(invoiceForm, {
       invoice_title: '',
       tax_number: '',
@@ -1310,8 +1791,32 @@ const submitInvoice = async () => {
     await loadData()
   } catch (err) {
     console.error(err)
-    ElMessage.error('添加失败')
+    ElMessage.error(editingInvoiceId.value ? '修改失败' : '添加失败')
   }
+}
+
+const openAddInvoice = () => {
+  editingInvoiceId.value = null
+  Object.assign(invoiceForm, {
+    invoice_title: '',
+    tax_number: '',
+    invoice_number: '',
+    amount: 0,
+    invoice_date: '',
+    remarks: '',
+  })
+  showAddInvoiceDialog.value = true
+}
+
+const openEditInvoice = (row) => {
+  editingInvoiceId.value = row.id
+  invoiceForm.invoice_title = row.invoice_title || ''
+  invoiceForm.tax_number = row.tax_number || ''
+  invoiceForm.invoice_number = row.invoice_number || ''
+  invoiceForm.amount = row.invoice_amount
+  invoiceForm.invoice_date = row.invoice_date
+  invoiceForm.remarks = row.remarks || ''
+  showAddInvoiceDialog.value = true
 }
 
 // ---提交：新增领款 ---
@@ -1322,15 +1827,26 @@ const submitWithdrawal = async () => {
   if (!withdrawalForm.withdrawal_date) return ElMessage.warning('请选择领款日期')
 
   try {
-    await request.post(`${API_BASE}/withdrawal`, {
-      finance_id: currentFinance.value.id,
-      lawyer_id: withdrawalForm.lawyer_id,
-      amount: withdrawalForm.amount,
-      withdrawal_date: withdrawalForm.withdrawal_date,
-      remarks: withdrawalForm.remarks,
-    })
-    ElMessage.success('领款记录已添加')
+    if (editingWithdrawalId.value) {
+      await request.put(`${API_BASE}/withdrawal/${editingWithdrawalId.value}`, {
+        lawyer_id: withdrawalForm.lawyer_id,
+        amount: withdrawalForm.amount,
+        withdrawal_date: withdrawalForm.withdrawal_date,
+        remarks: withdrawalForm.remarks,
+      })
+      ElMessage.success('修改成功')
+    } else {
+      await request.post(`${API_BASE}/withdrawal`, {
+        finance_id: currentFinance.value.id,
+        lawyer_id: withdrawalForm.lawyer_id,
+        amount: withdrawalForm.amount,
+        withdrawal_date: withdrawalForm.withdrawal_date,
+        remarks: withdrawalForm.remarks,
+      })
+      ElMessage.success('领款记录已添加')
+    }
     showAddWithdrawalDialog.value = false
+    editingWithdrawalId.value = null
     // 重置
     Object.assign(withdrawalForm, {
       lawyer_id: null,
@@ -1344,8 +1860,28 @@ const submitWithdrawal = async () => {
     await loadData()
   } catch (err) {
     console.error(err)
-    ElMessage.error('添加失败')
+    ElMessage.error(editingWithdrawalId.value ? '修改失败' : '添加失败')
   }
+}
+
+const openAddWithdrawal = () => {
+  editingWithdrawalId.value = null
+  Object.assign(withdrawalForm, {
+    lawyer_id: null,
+    amount: 0,
+    withdrawal_date: '',
+    remarks: '',
+  })
+  showAddWithdrawalDialog.value = true
+}
+
+const openEditWithdrawal = (row) => {
+  editingWithdrawalId.value = row.id
+  withdrawalForm.lawyer_id = row.lawyer_id
+  withdrawalForm.amount = row.amount
+  withdrawalForm.withdrawal_date = row.withdrawal_date
+  withdrawalForm.remarks = row.remarks || ''
+  showAddWithdrawalDialog.value = true
 }
 
 // ---  删除领款 ---
@@ -1365,7 +1901,9 @@ const handleDeleteWithdrawal = async (id) => {
 }
 
 // --- 导出 ---
+const exportLoading = ref(false)
 const handleExport = async () => {
+  exportLoading.value = true
   try {
     // 1. 构造完整的查询参数，与后端 FinanceStatsQuery 对应
     const postBody = {
@@ -1385,6 +1923,9 @@ const handleExport = async () => {
 
       // 律师筛选
       lawyer_id: queryParams.lawyer_id || null,
+
+      // 快捷筛选
+      quick_filter: queryParams.quick_filter || null,
     }
 
     // 2. 发起请求
@@ -1414,8 +1955,9 @@ const handleExport = async () => {
     ElMessage.success('导出成功')
   } catch (err) {
     console.error('导出错误:', err)
-    // 如果后端报错返回的是 JSON 格式的 Blob，可能需要读取出来提示具体错误 (高级处理)
     ElMessage.error('导出失败，请稍后重试')
+  } finally {
+    exportLoading.value = false
   }
 }
 
@@ -1516,6 +2058,27 @@ const formatCurrency = (val) => {
   background: rgba(144, 147, 153, 0.1);
 }
 
+/* 月度趋势图表卡片 */
+.chart-card {
+  margin-bottom: 24px;
+  border: none;
+  border-radius: 8px;
+}
+.chart-header {
+  margin-bottom: 8px;
+}
+.chart-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+  border-left: 4px solid #409eff;
+  padding-left: 10px;
+}
+.chart-container {
+  width: 100%;
+  height: 320px;
+}
+
 /* 主内容卡片 */
 .main-content-card {
   border-radius: 8px;
@@ -1523,6 +2086,40 @@ const formatCurrency = (val) => {
 }
 .main-content-card :deep(.el-card__body) {
   padding: 24px;
+}
+
+/* 快捷筛选标签 */
+.quick-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 8px 0;
+}
+.filter-label {
+  font-size: 13px;
+  color: #909399;
+  margin-right: 4px;
+}
+.filter-tag {
+  cursor: pointer !important;
+  transition: all 0.2s;
+  user-select: none;
+}
+.filter-tag:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 列设置下拉 */
+.col-dropdown {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 5px 0;
+}
+.col-dropdown .el-dropdown-menu__item {
+  padding: 4px 16px;
 }
 
 /* 工具栏优化 */
@@ -1556,6 +2153,14 @@ const formatCurrency = (val) => {
 .custom-table {
   border-radius: 4px;
   overflow: hidden;
+}
+/* 合计行加粗 + 浅蓝背景 */
+.custom-table :deep(.el-table__footer-wrapper) .el-table__footer td {
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  background: #e8f0fe !important;
+  color: #303133 !important;
+  border-top: 2px solid #c0c4cc !important;
 }
 .case-link {
   font-weight: 500;
@@ -1769,6 +2374,17 @@ const formatCurrency = (val) => {
   font-size: 16px;
   font-weight: 600;
   color: #303133;
+}
+.drawer-chart-wrapper {
+  margin: 16px 0;
+  padding: 12px;
+  background: #fafbfc;
+  border-radius: 8px;
+  border: 1px solid #ebeef5;
+}
+.drawer-chart {
+  width: 100%;
+  height: 240px;
 }
 .custom-divider {
   margin: 30px 0;

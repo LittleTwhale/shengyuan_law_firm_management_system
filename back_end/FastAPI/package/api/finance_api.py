@@ -16,8 +16,14 @@ from ..schemas.finance_schema import (
     CaseFinanceUpdate,
     FinancialRecordCreate,
     FinancialRecordResponse,
+    FinancialRecordUpdate,
     InvoiceRecordCreate,
-    InvoiceRecordResponse, CaseFinancePagination, LawyerWithdrawalResponse, LawyerWithdrawalCreate
+    InvoiceRecordResponse,
+    InvoiceRecordUpdate,
+    LawyerWithdrawalResponse,
+    LawyerWithdrawalCreate,
+    LawyerWithdrawalUpdate,
+    CaseFinancePagination,
 )
 from ..crud.finance_crud import finance as crud_finance
 # 依赖
@@ -179,6 +185,21 @@ def create_financial_record(
     return crud_finance.create_record(db, record_in, current_user.id)
 
 
+@router.put("/record/{record_id}", response_model=FinancialRecordResponse)
+def update_financial_record(
+        record_id: int,
+        record_in: FinancialRecordUpdate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)
+):
+    """修改已有的收支记录"""
+    check_finance_manage_permission(current_user)
+    record = crud_finance.update_record(db, record_id, record_in)
+    if not record:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    return record
+
+
 @router.delete("/record/{record_id}")
 def delete_financial_record(
         record_id: int,
@@ -207,6 +228,21 @@ def create_invoice_record(
     """
     check_finance_manage_permission(current_user)
     return crud_finance.create_invoice(db, invoice_in, current_user.id)
+
+@router.put("/invoice/{invoice_id}", response_model=InvoiceRecordResponse)
+def update_invoice_record(
+        invoice_id: int,
+        invoice_in: InvoiceRecordUpdate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)
+):
+    """修改已有的发票记录"""
+    check_finance_manage_permission(current_user)
+    record = crud_finance.update_invoice(db, invoice_id, invoice_in)
+    if not record:
+        raise HTTPException(status_code=404, detail="发票记录不存在")
+    return record
+
 
 @router.delete("/invoice/{invoice_id}")
 def delete_invoice_record(
@@ -257,6 +293,21 @@ def create_lawyer_withdrawal(
     return crud_finance.create_withdrawal(db, withdrawal_in, current_user.id)
 
 
+@router.put("/withdrawal/{withdrawal_id}", response_model=LawyerWithdrawalResponse)
+def update_lawyer_withdrawal(
+        withdrawal_id: int,
+        withdrawal_in: LawyerWithdrawalUpdate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)
+):
+    """修改已有的律师领款记录"""
+    check_finance_manage_permission(current_user)
+    record = crud_finance.update_withdrawal(db, withdrawal_id, withdrawal_in)
+    if not record:
+        raise HTTPException(status_code=404, detail="领款记录不存在")
+    return record
+
+
 @router.delete("/withdrawal/{withdrawal_id}")
 def delete_lawyer_withdrawal(
         withdrawal_id: int,
@@ -274,6 +325,20 @@ def delete_lawyer_withdrawal(
         raise HTTPException(status_code=404, detail="领款记录不存在")
 
     return {"message": "删除成功"}
+
+# =================================================================
+#  图表数据接口
+# =================================================================
+
+@router.post("/monthly-stats")
+def get_monthly_stats(
+        query: FinanceStatsQuery,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)
+):
+    """获取月度收入/退费统计，供首页图表使用（最近12个月）"""
+    return crud_finance.get_monthly_stats(db, current_user, query)
+
 
 # =================================================================
 #  导出接口

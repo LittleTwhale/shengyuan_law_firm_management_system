@@ -12,9 +12,13 @@ from ..models.finance_model import CaseFinance, FinancialRecord, InvoiceRecord, 
 from ..models.user import User
 from ..schemas.finance_schema import (
     FinancialRecordCreate,
+    FinancialRecordUpdate,
     InvoiceRecordCreate,
+    InvoiceRecordUpdate,
     CaseFinanceUpdate,
-    FinanceStatsQuery, LawyerWithdrawalCreate
+    FinanceStatsQuery,
+    LawyerWithdrawalCreate,
+    LawyerWithdrawalUpdate,
 )
 
 
@@ -81,6 +85,15 @@ def _apply_filters(query, db: Session, params: FinanceStatsQuery, current_user: 
         query = query.filter(Case.commission_date >= params.start_date)
     if params.end_date:
         query = query.filter(Case.commission_date <= params.end_date)
+
+    # 快捷筛选（基于 CaseFinance 聚合字段）
+    if params.quick_filter == "unpaid":
+        query = query.filter(CaseFinance.unpaid_amount > 0)
+    elif params.quick_filter == "uninvoiced":
+        query = query.filter(CaseFinance.uninvoiced_amount > 0)
+    elif params.quick_filter == "risk_agency":
+        query = query.filter(CaseFinance.risk_agency_content.isnot(None))
+        query = query.filter(CaseFinance.risk_agency_content != '')
 
     return query
 
@@ -381,7 +394,100 @@ class CRUDFinance:
         _recalculate_finance_summary(db, finance_id)
         return True
 
-    # --- 11. 导出 Excel (复用筛选逻辑) ---
+    # --- 11. 更新流水记录 ---
+    def update_record(
+            self, db: Session, record_id: int, obj_in: FinancialRecordUpdate
+    ) -> FinancialRecord:
+        record = db.query(FinancialRecord).filter(FinancialRecord.id == record_id).first()
+        if not record:
+            return None
+
+        update_data = obj_in.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(record, field, value)
+
+        db.add(record)
+        db.commit()
+        _recalculate_finance_summary(db, record.finance_id)
+        db.refresh(record)
+        return record
+
+    # --- 12. 更新发票记录 ---
+    def update_invoice(
+            self, db: Session, invoice_id: int, obj_in: InvoiceRecordUpdate
+    ) -> InvoiceRecord:
+        record = db.query(InvoiceRecord).filter(InvoiceRecord.id == invoice_id).first()
+        if not record:
+            return None
+
+        update_data = obj_in.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(record, field, value)
+
+        db.add(record)
+        db.commit()
+        _recalculate_finance_summary(db, record.finance_id)
+        db.refresh(record)
+        return record
+
+    # --- 13. 更新律师领款记录 ---
+    def update_withdrawal(
+            self, db: Session, withdrawal_id: int, obj_in: LawyerWithdrawalUpdate
+    ) -> LawyerWithdrawal:
+        record = db.query(LawyerWithdrawal).filter(LawyerWithdrawal.id == withdrawal_id).first()
+        if not record:
+            return None
+
+        update_data = obj_in.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(record, field, value)
+
+        db.add(record)
+        db.commit()
+        _recalculate_finance_summary(db, record.finance_id)
+        db.refresh(record)
+        return record
+
+    # --- 14. 月度收入统计（用于首页图表） ---
+    def get_monthly_stats(
+            self,
+            db: Session,
+            current_user: User,
+            query_params: FinanceStatsQuery,
+            months: int = 12
+    ) -> List[Dict[str, Any]]:
+        """
+        返回最近 N 个月的月度收入/退费汇总，供前端图表使用。
+        复用 _apply_filters 的权限和筛选逻辑（仅对 case 级筛选生效）。
+        """
+        from datetime import datetime, timedelta
+        from sqlalchemy import text
+
+        # 以当前时间为准，计算起始日期
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=months * 31)
+
+        # 基础查询：流水 JOIN 财务总表 JOIN 案件
+        base_query = db.query(
+            func.date_format(FinancialRecord.transaction_date, '%Y-%m').label('month'),
+            func.sum(case((FinancialRecord.record_type == 'income', FinancialRecord.amount), else_=0)).label('income'),
+            func.sum(case((FinancialRecord.record_type == 'refund', FinancialRecord.amount), else_=0)).label('refund'),
+        ).join(CaseFinance, FinancialRecord.finance_id == CaseFinance.id) \
+         .join(Case, CaseFinance.case_id == Case.case_id) \
+         .filter(FinancialRecord.transaction_date >= start_date)
+
+        # 应用权限和案件级筛选
+        base_query = _apply_filters(base_query, db, query_params, current_user)
+
+        base_query = base_query.group_by(text('month')).order_by(text('month'))
+
+        results = base_query.all()
+        return [
+            {"month": r.month, "income": float(r.income or 0), "refund": float(r.refund or 0)}
+            for r in results
+        ]
+
+    # --- 15. 导出 Excel (复用筛选逻辑) ---
     def _build_excel_workbook(self, sheets: list):
         """
         使用 write_only 模式流式写入 Excel，避免为每个单元格创建 Python 对象。
