@@ -124,6 +124,8 @@ async def _generate_search_keywords(case_data: dict) -> list[str]:
     if bank:
         if bank.get('loan_type'):
             summary_parts.append(f"贷款类型：{bank['loan_type']}")
+        if bank.get('loan_category'):
+            summary_parts.append(f"贷款种类：{bank['loan_category']}")
         if bank.get('litigation_target_amount'):
             summary_parts.append(f"标的金额：{bank['litigation_target_amount']}")
 

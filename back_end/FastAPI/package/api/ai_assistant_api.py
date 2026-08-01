@@ -172,6 +172,7 @@ def _aggregate_case_data(db: Session, case_id: int) -> dict:
             "branch_name": bk.branch_name,
             "case_status": bk.case_status,
             "loan_type": bk.loan_type,
+            "loan_category": bk.loan_category,
             "loan_principal": float(bk.loan_principal) if bk.loan_principal else None,
             "litigation_target_amount": float(bk.litigation_target_amount) if bk.litigation_target_amount else None,
             "credit_card_penalty": float(bk.credit_card_penalty) if bk.credit_card_penalty else None,

@@ -153,6 +153,7 @@ BANK_FIELDS = {
     "branch_name": "支行名称",
     "case_status": "案件状态",
     "loan_type": "贷款类型",
+    "loan_category": "贷款种类",
     "loan_principal": "贷款本金",
     "litigation_target_amount": "诉讼标的金额（含利息）",
     "credit_card_penalty": "信用卡违约金",

@@ -1204,7 +1204,7 @@ def export_cases_to_excel(
     ]
     bank_specific_headers = [
         "支行名称", "案件状态", "银行要求案件状态", "缺少具体材料", "抵/质押物信息", "抵押物位置", "客户经理",
-        "贷款类型", "贷款账号",
+        "贷款类型", "贷款种类", "贷款账号",
         "贷款本金", "诉讼标的金额(含利息)", "信用卡违约金", "借款日", "到期日", "诉讼时效", "保证到期日", "收案日期",
         "取材料人", "诉前催收情况", "盖章日", "材料提交法院日", "承办法官", "裁判时间", "裁判方式",
         "裁判摘要", "支持律师费金额", "被告支付律师费金额", "是否还清", "是否有二审/再审",
@@ -1368,6 +1368,7 @@ def export_cases_to_excel(
                 bank.collateral_location if bank else "",
                 bank.account_manager if bank else "",
                 bank.loan_type if bank else "",
+                bank.loan_category if bank else "",
                 bank.loan_account if bank else "",
                 format_decimal(bank.loan_principal if bank else 0),
                 format_decimal(bank.litigation_target_amount if bank else 0),

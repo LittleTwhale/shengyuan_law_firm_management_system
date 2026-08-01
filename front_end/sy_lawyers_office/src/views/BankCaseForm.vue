@@ -888,7 +888,7 @@
 
       <el-divider content-position="left" class="workflow-divider">二、 借贷基础信息</el-divider>
       <el-row :gutter="24">
-        <el-col :span="12">
+        <el-col :span="8">
           <el-form-item label="贷款类型" prop="bank_case_details.loan_type" label-width="150px">
             <el-select
               v-model="formData.bank_case_details.loan_type"
@@ -902,7 +902,15 @@
             </el-select>
           </el-form-item>
         </el-col>
-        <el-col :span="12">
+        <el-col :span="8">
+          <el-form-item label="贷款种类" prop="bank_case_details.loan_category" label-width="150px">
+            <el-input
+              v-model="formData.bank_case_details.loan_category"
+              placeholder="请输入贷款种类"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
           <el-form-item label="贷款账号" prop="bank_case_details.loan_account" label-width="150px">
             <el-input
               v-model="formData.bank_case_details.loan_account"

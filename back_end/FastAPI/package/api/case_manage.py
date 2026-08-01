@@ -600,6 +600,7 @@ def validate_import_row(row_data: dict, parties: list, case_number: str) -> list
         bank_required = [
             ("支行名称", "支行名称"),
             ("贷款类型", "贷款类型"),
+            ("贷款种类", "贷款种类"),
             ("贷款本金", "贷款本金"),
             ("抵/质押物信息", "抵/质押物信息"),
             ("收案日期", "收案日期"),
@@ -757,6 +758,7 @@ def import_cases_from_excel(file: UploadFile = File(...), db: Session = Depends(
                     "collateral_location": str(row_data.get("抵押物位置", "")).strip() or None,
                     "account_manager": str(row_data.get("客户经理", "")).strip() or None,
                     "loan_type": str(row_data.get("贷款类型", "")).strip() or None,
+                    "loan_category": str(row_data.get("贷款种类", "")).strip() or None,
                     "loan_account": str(row_data.get("贷款账号", "")).strip() or None,
                     "loan_principal": parse_decimal(row_data.get("贷款本金")),
                     "litigation_target_amount": parse_decimal(row_data.get("诉讼标的金额(含利息)")),
@@ -1228,6 +1230,7 @@ async def batch_sync_excel(
                     "collateral_location": row_data.get("抵押物位置"),
                     "account_manager": row_data.get("客户经理"),
                     "loan_type": row_data.get("贷款类型"),
+                    "loan_category": row_data.get("贷款种类"),
                     "loan_account": row_data.get("贷款账号"),
                     "loan_principal": parse_decimal(row_data.get("贷款本金")),
                     "litigation_target_amount": parse_decimal(row_data.get("诉讼标的金额(含利息)")),

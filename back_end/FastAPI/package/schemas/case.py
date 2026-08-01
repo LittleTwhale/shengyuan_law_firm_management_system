@@ -24,6 +24,8 @@ class BankCaseBase(BaseModel):
     account_manager: Optional[str] = None
     # 贷款类型
     loan_type: Optional[str] = None
+    # 贷款种类
+    loan_category: Optional[str] = None
     # 贷款账号
     loan_account: Optional[str] = None
 

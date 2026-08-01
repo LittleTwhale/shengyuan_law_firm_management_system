@@ -112,6 +112,7 @@ class BankCase(Base):
     collateral_location = Column(String(255), comment="抵押物位置")
     account_manager = Column(String(50), comment="客户经理")
     loan_type = Column(String(100), comment="贷款类型")
+    loan_category = Column(String(100), comment="贷款种类")
     loan_account = Column(Text, comment="贷款账号")
 
     # 金额相关

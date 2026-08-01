@@ -124,6 +124,10 @@
           <el-descriptions-item label="贷款类型">{{
             details.loan_type || '-'
           }}</el-descriptions-item>
+          <el-descriptions-item label="贷款种类">{{
+            details.loan_category || '-'
+          }}</el-descriptions-item>
+
           <el-descriptions-item label="贷款账号">{{
             details.loan_account || '-'
           }}</el-descriptions-item>
