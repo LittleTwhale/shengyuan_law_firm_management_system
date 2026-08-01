@@ -18,6 +18,7 @@ from ..models.case import Case, CaseParty, BankCase
 from ..models.electronic_volume_model import CaseVolume, VolumeFile
 from ..models.finance_model import CaseFinance
 from ..models.attachment import CaseAttachment
+from ..models.user import User
 from ..models.user import UserSchedule
 from ..schemas.case import CaseCreate, CaseUpdate
 from ..schemas.case import CaseExportQuery
@@ -45,6 +46,60 @@ def get_case_by_id(db: Session, case_id: int) -> Optional[Case]:
         )
         .first()
     )
+
+
+def can_user_view_case(user: User, case: Case) -> bool:
+    """
+    判断用户是否有权查看案件详情（与列表接口的过滤规则保持一致）
+
+    规则：
+    - admin / owner：可查看全部案件
+    - 普通用户：仅可查看自己参与的案件（主办/助理/第二助理/执行主办/执行助理）
+    - 普通用户拥有 can_view_all_bank_events 权限时：额外可查看全部银行案件
+    """
+    if user.role in ["admin", "owner"]:
+        return True
+
+    user_id = user.id
+    if user_id in (
+        case.main_lawyer_id,
+        case.assistant_lawyer_id,
+        case.assistant_lawyer_2_id,
+        case.execution_lawyer_id,
+        case.execution_assistant_id,
+    ):
+        return True
+
+    perms = user.permissions or {}
+    if perms.get("can_view_all_bank_events") and case.case_category == "银行案件":
+        return True
+
+    return False
+
+
+def can_user_edit_case(user: User, case: Case) -> bool:
+    """
+    判断用户是否有权修改/删除案件（写权限，比查看权限更严格）
+
+    规则：
+    - admin / owner：可修改/删除全部案件
+    - 普通用户：仅可修改/删除自己参与的案件（主办/助理/第二助理/执行主办/执行助理）
+    - 注意：can_view_all_bank_events 仅是"查看"权限，不授予修改他人案件的权力
+    """
+    if user.role in ["admin", "owner"]:
+        return True
+
+    user_id = user.id
+    if user_id in (
+        case.main_lawyer_id,
+        case.assistant_lawyer_id,
+        case.assistant_lawyer_2_id,
+        case.execution_lawyer_id,
+        case.execution_assistant_id,
+    ):
+        return True
+
+    return False
 
 
 def list_cases_by_user_role(

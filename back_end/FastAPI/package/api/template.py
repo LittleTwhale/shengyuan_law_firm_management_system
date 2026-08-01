@@ -12,7 +12,7 @@ import shutil
 import mimetypes
 
 from ..core.config import DOCUMENT_TEMPLATE_ROOT, settings
-from ..crud.case import get_case_by_id
+from ..crud.case import get_case_by_id, can_user_view_case
 from ..crud.document import create_template, get_template_by_id, delete_template, get_templates, convert_word_to_pdf
 from ..database.database import get_db
 from ..models.document import DocumentTemplate
@@ -63,7 +63,11 @@ async def download_template(
     """
     通用模板下载接口
     """
-    file_path = os.path.join(TEMPLATE_DIR, filename)
+    # 防路径穿越：解析真实路径后必须仍位于模板目录内
+    template_dir_abs = os.path.abspath(TEMPLATE_DIR)
+    file_path = os.path.abspath(os.path.join(TEMPLATE_DIR, filename))
+    if not file_path.startswith(template_dir_abs + os.sep):
+        raise HTTPException(status_code=400, detail="非法的文件名")
 
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail=f"文件 {filename} 不存在")
@@ -377,6 +381,9 @@ async def generate_document_from_template(
     case = get_case_by_id(db=db, case_id=case_id)
     if not case:
         raise HTTPException(status_code=404, detail="案件不存在")
+    # 权限校验：生成的文书会填充当事人电话/地址/证件号等敏感信息，仅案件可见者可生成
+    if not can_user_view_case(current_user, case):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="您没有权限为此案件生成文书")
 
     # 定义辅助函数：遍历 case.parties 列表，根据指定类型提取当事人名称，并用“、”拼接
     def get_party_names(party_type: str) -> str:

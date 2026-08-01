@@ -12,7 +12,7 @@ from .deps import get_current_active_user
 from ..models.user import User
 from ..schemas.attachment import AttachmentCreate, AttachmentOut
 from ..crud.attachment import create_attachment, get_attachments_by_case_id, delete_attachment_by_id
-from ..crud.case import get_case_by_id  # 用于验证案件存在性
+from ..crud.case import get_case_by_id, can_user_view_case, can_user_edit_case  # 用于验证案件存在性与权限
 
 import os
 import uuid
@@ -66,8 +66,12 @@ async def upload_attachment(
     - LOCAL 模式：接收二进制文件流，保存到本地磁盘
     """
     # 验证案件存在性
-    if not get_case_by_id(db, case_id):
+    case = get_case_by_id(db, case_id)
+    if not case:
         raise HTTPException(status_code=404, detail=f"案件ID {case_id} 不存在")
+    # 写权限校验：仅 admin/owner 或案件参与人可上传附件
+    if not can_user_edit_case(current_user, case):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="您没有权限上传此业务的附件")
 
     if not file:
         raise HTTPException(400, "需要上传文件")
@@ -188,11 +192,15 @@ def get_case_attachments(
 ):
     """根据案件ID查询所有附件"""
     # 验证案件存在性
-    if not get_case_by_id(db, case_id):
+    case = get_case_by_id(db, case_id)
+    if not case:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"案件ID {case_id} 不存在"
         )
+    # 读权限校验：与案件详情查看权限一致
+    if not can_user_view_case(current_user, case):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="您没有权限查看此业务的附件")
 
     return get_attachments_by_case_id(db, case_id)
 
@@ -208,6 +216,10 @@ def update_attachment_size(
     attachment = db.query(CaseAttachment).filter(CaseAttachment.attachment_id == attachment_id).first()
     if not attachment:
         raise HTTPException(status_code=404, detail="附件不存在")
+    # 写权限校验：与上传一致（仅 admin/owner 或案件参与人）
+    case = get_case_by_id(db, attachment.case_id)
+    if not case or not can_user_edit_case(current_user, case):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="您没有权限修改此业务的附件")
     attachment.file_size = file_size
     db.commit()
     return {"ok": True}
@@ -220,6 +232,19 @@ def delete_attachment(
         current_user: User = Depends(get_current_active_user)
 ):
     """删除附件（同时删除文件和数据库记录）"""
+    # 先校验调用者对附件所属案件的写权限
+    attachment = db.query(CaseAttachment).filter(
+        CaseAttachment.attachment_id == attachment_id
+    ).first()
+    if not attachment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"附件ID {attachment_id} 不存在"
+        )
+    case = get_case_by_id(db, attachment.case_id)
+    if not case or not can_user_edit_case(current_user, case):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="您没有权限删除此业务的附件")
+
     try:
         success = delete_attachment_by_id(db, attachment_id)
         if not success:
@@ -248,6 +273,11 @@ def download_attachment(
 
     if not attachment:
         raise HTTPException(status_code=404, detail=f"附件ID {attachment_id} 不存在")
+
+    # 读权限校验：与案件详情查看权限一致
+    case = get_case_by_id(db, attachment.case_id)
+    if not case or not can_user_view_case(current_user, case):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="您没有权限下载此业务的附件")
 
     result = get_file_download_url(attachment, root_dir=CASE_ATTACHMENT_ROOT)
     if result["type"] == "ERROR":
@@ -279,6 +309,11 @@ def preview_attachment(
 
     if not attachment:
         raise HTTPException(status_code=404, detail=f"附件ID {attachment_id} 不存在")
+
+    # 读权限校验：与案件详情查看权限一致
+    case = get_case_by_id(db, attachment.case_id)
+    if not case or not can_user_view_case(current_user, case):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="您没有权限预览此业务的附件")
 
     # 使用 storage_manager 处理本地/COS 逻辑
     result = get_file_preview_url(attachment, root_dir=CASE_ATTACHMENT_ROOT)

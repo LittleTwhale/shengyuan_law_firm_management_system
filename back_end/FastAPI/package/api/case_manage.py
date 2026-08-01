@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, selectinload, joinedload
 from .deps import get_current_active_user
 from ..crud.case import list_cases_by_user_role, get_case_by_id, count_cases_by_user_role, create_case, update_case, \
     delete_case, list_bank_cases_by_user_role, count_bank_cases_by_user_role, \
-    split_with_separators, export_cases_to_excel
+    split_with_separators, export_cases_to_excel, can_user_view_case, can_user_edit_case
 from ..crud.user import get_all_lawyers, get_user_id_by_name
 from ..database.database import get_db
 from ..models.case import Case, CaseParty, BankCase
@@ -217,6 +217,9 @@ def get_case(case_id: int, db: Session = Depends(get_db), current_user: User = D
     case = get_case_by_id(db=db, case_id=case_id)
     if not case:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="案件不存在")
+    # 权限校验：与列表接口的过滤规则保持一致（admin/owner、案件参与人、有银行全量查看权限者）
+    if not can_user_view_case(current_user, case):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="您没有权限查看此业务")
     return case
 
 
@@ -237,6 +240,12 @@ def update_existing_case(case_id: int, case_in: CaseUpdate, db: Session = Depend
     """
     更新案件
     """
+    case = get_case_by_id(db=db, case_id=case_id)
+    if not case:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="案件不存在")
+    # 写权限校验：仅 admin/owner 或案件参与人可修改
+    if not can_user_edit_case(current_user, case):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="您没有权限修改此业务")
     updated_case = update_case(db=db, case_id=case_id, case_in=case_in)
     if not updated_case:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="案件不存在")
@@ -247,6 +256,12 @@ def delete_existing_case(case_id: int, db: Session = Depends(get_db), current_us
     """
     删除案件（逻辑删除）
     """
+    case = get_case_by_id(db=db, case_id=case_id)
+    if not case:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="案件不存在")
+    # 写权限校验：仅 admin/owner 或案件参与人可删除
+    if not can_user_edit_case(current_user, case):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="您没有权限删除此业务")
     success = delete_case(db=db, case_id=case_id)
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="案件不存在")
@@ -989,6 +1004,9 @@ async def batch_sync_excel(
     逻辑：若 ID 存在则更新，若 ID 不存在则新增
     包含对律师信息的同步更新
     """
+    # 系统级数据维护操作：仅 admin/owner 可用（覆盖更新会改动他人案件数据）
+    if current_user.role not in ["admin", "owner"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="您没有权限执行批量同步")
     try:
         contents = await file.read()
         wb = load_workbook(filename=BytesIO(contents), data_only=True)

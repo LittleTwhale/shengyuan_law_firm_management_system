@@ -388,23 +388,34 @@ const loadCaseDetail = async () => {
     const res = await request.get(`/cases/${caseId}`)
     caseData.value = res.data || {}
 
-    // 权限判断逻辑
+    // 权限判断逻辑（前端兜底；后端 GET /cases/{case_id} 已做统一校验，规则一致）
     const role = localStorage.getItem('role')
     const currentUserId = localStorage.getItem('user_id')
+    let permissions = {}
+    try {
+      permissions = JSON.parse(localStorage.getItem('permissions') || '{}')
+    } catch (e) {
+      // localStorage 中权限数据损坏时按无权限处理（后端仍有统一校验兜底）
+      console.warn('解析 permissions 失败，按无细粒度权限处理:', e)
+    }
     const mainLawyerId = caseData.value.main_lawyer?.id
     const assistantLawyerId = caseData.value.assistant_lawyer?.id
     const assistantLawyer2Id = caseData.value.assistant_lawyer_2?.id
     const executionLawyerId = caseData.value.execution_lawyer?.id
     const executionAssistantId = caseData.value.execution_assistant?.id
 
-    if (
-      role === 'user' &&
-      String(mainLawyerId) !== String(currentUserId) &&
-      String(assistantLawyerId) !== String(currentUserId) &&
-      String(assistantLawyer2Id) !== String(currentUserId) &&
-      String(executionLawyerId) !== String(currentUserId) &&
-      String(executionAssistantId) !== String(currentUserId)
-    ) {
+    // 是否为本案件的参与律师（主办/助理/第二助理/执行主办/执行助理）
+    const isInvolved =
+      String(mainLawyerId) === String(currentUserId) ||
+      String(assistantLawyerId) === String(currentUserId) ||
+      String(assistantLawyer2Id) === String(currentUserId) ||
+      String(executionLawyerId) === String(currentUserId) ||
+      String(executionAssistantId) === String(currentUserId)
+    // 拥有"查看全部银行案件事项"权限时可查看所有银行案件
+    const canViewAllBank =
+      permissions.can_view_all_bank_events === true && caseData.value.case_category === '银行案件'
+
+    if (role === 'user' && !isInvolved && !canViewAllBank) {
       ElMessage.error('您没有权限查看此业务')
       await router.push('/main/cases')
     } else {
@@ -412,6 +423,12 @@ const loadCaseDetail = async () => {
       await loadAttachments()
     }
   } catch (err) {
+    // 后端 403 兜底：权限不足时返回来源页（错误提示由 request 拦截器统一弹出）
+    if (err.response && err.response.status === 403) {
+      const from = route.query.from
+      await router.push(from && typeof from === 'string' ? from : '/main/cases')
+      return
+    }
     console.error('加载业务详情失败:', err)
     ElMessage.error('加载业务详情失败')
     await router.push('/main/cases')

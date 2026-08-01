@@ -19,6 +19,7 @@ from ..crud.case_review import list_cases_by_status, count_cases_by_status, upda
 from ..database.database import get_db
 from ..models.case import Case, CaseParty
 from ..models.user import User
+from ..crud.case import can_user_view_case  # 案件查看权限校验
 from ..schemas.case import CasePageOut, CaseSimpleOut, CaseOut, BatchReviewRequest
 from ..utils.keywords_helper import determine_party_side, get_valid_keywords
 
@@ -421,6 +422,10 @@ def generate_approval_form(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="案件不存在"
         )
+
+    # 权限校验：审批表含当事人敏感信息，仅案件可见者（admin/owner/参与人/银行全量权限者）可下载
+    if not can_user_view_case(current_user, case):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="您没有权限查看此业务的审批表")
 
     # 2. 校验状态
     if case.review_status != "已审核":
