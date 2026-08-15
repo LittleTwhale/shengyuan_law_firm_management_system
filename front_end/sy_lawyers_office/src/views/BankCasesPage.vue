@@ -112,6 +112,16 @@
           clearable
           class="toolbar-item year-picker"
         />
+
+        <el-select
+          v-model="selectedMonth"
+          placeholder="选择月份(按委托日期)"
+          clearable
+          @change="handleSearch"
+          class="toolbar-item month-select"
+        >
+          <el-option v-for="m in monthOptions" :key="m" :label="`${m}月`" :value="m" />
+        </el-select>
       </div>
     </div>
 
@@ -436,6 +446,17 @@
             clearable
           />
         </el-form-item>
+
+        <el-form-item label="指定月份">
+          <el-select
+            v-model="exportForm.month"
+            placeholder="选择月份(按委托日期)"
+            clearable
+            style="width: 100%"
+          >
+            <el-option v-for="m in monthOptions" :key="m" :label="`${m}月`" :value="m" />
+          </el-select>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -591,6 +612,10 @@ const selectedLawyerId = ref(null) // 选中的主办律师ID
 const selectedExecutionLawyerId = ref(null) // 选中的执行主办律师ID
 // 年份变量，默认为当前年份字符串
 const selectedYear = ref(new Date().getFullYear().toString())
+// 月份变量（按委托日期筛选，与年份独立叠加），默认为空
+const selectedMonth = ref(null)
+// 月份下拉选项：1-12 月
+const monthOptions = Array.from({ length: 12 }, (_, i) => i + 1)
 // 委托银行相关响应式变量
 const selectedBank = ref(null)
 const bankOptions = [
@@ -705,6 +730,7 @@ const loadBankCases = async () => {
         limit: pageSize.value,
         keyword: searchKeyword.value,
         year: selectedYear.value || '', // 年份筛选
+        month: selectedMonth.value, // 月份筛选（按委托日期）
         case_status: selectedCaseStatus.value, // 案件状态筛选
         sort_field: currentSortField.value, // 排序字段
         sort_dir: currentSortDir.value, // 排序方向
@@ -984,6 +1010,7 @@ const exportForm = reactive({
   main_lawyer_id: null,
   execution_lawyer_id: null,
   year: '',
+  month: null, // 指定月份（按委托日期）
   dateRange: [],
   case_status: null,
 })
@@ -1055,6 +1082,7 @@ const handleExportClick = () => {
   exportForm.execution_lawyer_id = selectedExecutionLawyerId.value || null
   exportForm.case_status = selectedCaseStatus.value || null
   exportForm.year = selectedYear.value || ''
+  exportForm.month = selectedMonth.value || null // 带入当前月份筛选
   exportForm.dateRange = []
   showExportDialog.value = true
 }
@@ -1074,6 +1102,7 @@ const submitExport = async () => {
       execution_lawyer_id: exportForm.execution_lawyer_id || null,
       client_name: exportForm.client_name || null,
       year: exportForm.year || null,
+      month: exportForm.month || null, // 指定月份（按委托日期）
       case_status: exportForm.case_status || null,
       start_date:
         exportForm.dateRange && exportForm.dateRange.length === 2 ? exportForm.dateRange[0] : null,
@@ -1352,6 +1381,9 @@ async function triggerSyncDiagnosis(errors) {
 }
 .year-picker {
   width: 140px;
+}
+.month-select {
+  width: 180px;
 }
 
 /* 输入框高级化处理 */
@@ -1754,7 +1786,8 @@ async function triggerSyncDiagnosis(errors) {
 
   .search-input,
   .filter-select,
-  .year-picker {
+  .year-picker,
+  .month-select {
     width: 100%;
   }
 

@@ -106,6 +106,16 @@
           clearable
           class="toolbar-item year-picker"
         />
+
+        <el-select
+          v-model="selectedMonth"
+          placeholder="选择月份(按委托日期)"
+          clearable
+          @change="handleSearch"
+          class="toolbar-item month-select"
+        >
+          <el-option v-for="m in monthOptions" :key="m" :label="`${m}月`" :value="m" />
+        </el-select>
       </div>
     </div>
 
@@ -510,6 +520,17 @@
             clearable
           />
         </el-form-item>
+
+        <el-form-item label="指定月份">
+          <el-select
+            v-model="exportForm.month"
+            placeholder="选择月份(按委托日期)"
+            clearable
+            style="width: 100%"
+          >
+            <el-option v-for="m in monthOptions" :key="m" :label="`${m}月`" :value="m" />
+          </el-select>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -633,6 +654,10 @@ const selectedExecutionLawyerId = ref(null) // 选中的执行主办律师ID
 const selectedReviewStatus = ref('') // 选中的审核状态筛选
 // 年份变量，默认为当前年份字符串
 const selectedYear = ref(new Date().getFullYear().toString())
+// 月份变量（按委托日期筛选，与年份独立叠加），默认为空
+const selectedMonth = ref(null)
+// 月份下拉选项：1-12 月
+const monthOptions = Array.from({ length: 12 }, (_, i) => i + 1)
 // 排序相关的响应式变量
 const currentSortField = ref('created_at') // 默认按创建时间排序
 const currentSortDir = ref('desc') // 默认降序（最新的在前面）
@@ -683,6 +708,7 @@ const loadCases = async () => {
         keyword: searchKeyword.value, // 搜索关键词
         category: selectedCategory.value, // 类别筛选
         year: selectedYear.value || '', // 年份筛选
+        month: selectedMonth.value, // 月份筛选（按委托日期）
         sort_field: currentSortField.value,
         sort_dir: currentSortDir.value,
         main_lawyer_id: selectedLawyerId.value, // 主办律师筛选
@@ -901,6 +927,7 @@ const exportForm = reactive({
   main_lawyer_id: null,
   execution_lawyer_id: null,
   year: '',
+  month: null, // 指定月份（按委托日期）
   dateRange: [],
 })
 
@@ -969,6 +996,7 @@ const handleExportClick = () => {
   exportForm.main_lawyer_id = selectedLawyerId.value || null
   exportForm.execution_lawyer_id = selectedExecutionLawyerId.value || null
   exportForm.year = selectedYear.value || ''
+  exportForm.month = selectedMonth.value || null // 带入当前月份筛选
   exportForm.dateRange = [] // 默认不设置具体日期区间
 
   showExportDialog.value = true
@@ -989,6 +1017,7 @@ const submitExport = async () => {
       main_lawyer_id: exportForm.main_lawyer_id || null,
       execution_lawyer_id: exportForm.execution_lawyer_id || null,
       year: exportForm.year || null,
+      month: exportForm.month || null, // 指定月份（按委托日期）
       start_date:
         exportForm.dateRange && exportForm.dateRange.length === 2 ? exportForm.dateRange[0] : null,
       end_date:
@@ -1499,6 +1528,9 @@ const handleDownloadApproval = async (row) => {
 .year-picker {
   width: 140px;
 }
+.month-select {
+  width: 180px;
+}
 
 /* 对 Element Plus 输入框做统一高级化处理 */
 :deep(.toolbar-item .el-input__wrapper),
@@ -1918,7 +1950,8 @@ const handleDownloadApproval = async (row) => {
 
   .search-input,
   .filter-select,
-  .year-picker {
+  .year-picker,
+  .month-select {
     width: 100%;
   }
 

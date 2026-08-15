@@ -58,6 +58,7 @@ def get_cases(
     main_lawyer_id: Optional[int] = None,  # 新增主办律师参数
     execution_lawyer_id: Optional[int] = None, # 新增执行主办律师参数
     year: Optional[str] = None,  # 新增年份参数
+    month: Optional[int] = None,  # 新增月份参数（按委托日期，与年份独立叠加）
     review_status: Optional[str] = None,  # 新增审核状态参数
     sort_field: Optional[str] = "created_at",  # 排序参数
     sort_dir: Optional[str] = "desc",  # 排序方式
@@ -82,6 +83,7 @@ def get_cases(
         main_lawyer_id=main_lawyer_id,
         execution_lawyer_id=execution_lawyer_id,
         year=year,
+        month=month,  # 传递月份筛选
         review_status=review_status,
         sort_field=sort_field,
         sort_dir=sort_dir,
@@ -96,6 +98,7 @@ def get_cases(
         main_lawyer_id=main_lawyer_id,
         execution_lawyer_id=execution_lawyer_id,
         year=year,
+        month=month,  # 传递月份筛选
         review_status=review_status,
         can_view_all_bank=can_view_all_bank,
     )
@@ -117,6 +120,7 @@ def get_bank_cases(
     execution_lawyer_id: Optional[int] = None,
     client_name: Optional[str] = None,
     year: Optional[str] = None,
+    month: Optional[int] = None,  # 新增月份参数（按委托日期，与年份独立叠加）
     case_status: Optional[str] = None,
     sort_field: Optional[str] = "created_at",  # 排序参数
     sort_dir: Optional[str] = "desc",  # 排序方式
@@ -141,6 +145,7 @@ def get_bank_cases(
         execution_lawyer_id=execution_lawyer_id,
         client_name=client_name,
         year=year,
+        month=month,  # 传递月份筛选
         case_status=case_status,
         sort_field=sort_field,
         sort_dir=sort_dir,
@@ -155,6 +160,7 @@ def get_bank_cases(
         execution_lawyer_id=execution_lawyer_id,
         client_name=client_name,
         year=year,
+        month=month,  # 传递月份筛选
         case_status=case_status,
         can_view_all_bank=can_view_all_bank,
     )

@@ -495,6 +495,7 @@ class CaseExportQuery(BaseModel):
     execution_lawyer_id: Optional[int] = None
     client_name: Optional[str] = None
     year: Optional[str] = None
+    month: Optional[int] = None  # 月份筛选（按委托日期，与年份/日期区间独立叠加）
     case_status: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None

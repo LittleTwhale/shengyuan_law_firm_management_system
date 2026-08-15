@@ -113,6 +113,7 @@ def list_cases_by_user_role(
         main_lawyer_id: Optional[int] = None,  # 主办律师筛选
         execution_lawyer_id: Optional[int] = None, # 执行主办律师筛选
         year: Optional[str] = None,  # 年份筛选
+        month: Optional[int] = None,  # 月份筛选（按委托日期，与年份独立叠加）
         review_status: Optional[str] = None,  # 审核状态筛选
         sort_field: str = "created_at",  # 排序字段，默认按创建时间
         sort_dir: str = "desc",  # 排序方向，默认降序（最新在前）
@@ -133,8 +134,12 @@ def list_cases_by_user_role(
     ).filter(Case.is_deleted == False)
 
     if year:
-        # 使用 extract 提取委托日期的年份进行匹配
+        # 年份筛选：匹配业务号中的年份（如 “湘生律(2025)…”）
         query = query.filter(Case.case_number.like(f"%({year})%"))
+
+    # 月份筛选：按委托日期的月份过滤（与年份筛选独立叠加）
+    if month:
+        query = query.filter(extract('month', Case.commission_date) == month)
 
     # 角色与主办律师筛选逻辑
     if role not in ["admin", "owner"]:
@@ -204,6 +209,7 @@ def count_cases_by_user_role(
         main_lawyer_id: Optional[int] = None,  # 主办律师筛选
         execution_lawyer_id: Optional[int] = None, # 执行主办律师筛选
         year: Optional[str] = None,  # 年份筛选
+        month: Optional[int] = None,  # 月份筛选（按委托日期，与年份独立叠加）
         review_status: Optional[str] = None,  # 审核状态筛选
         can_view_all_bank: bool = False # 是否允许查看所有银行案件
 ) -> int:
@@ -213,6 +219,10 @@ def count_cases_by_user_role(
     query = db.query(Case).filter(Case.is_deleted == False)
     if year:
         query = query.filter(Case.case_number.like(f"%({year})%"))
+
+    # 月份筛选：按委托日期的月份过滤（与年份筛选独立叠加）
+    if month:
+        query = query.filter(extract('month', Case.commission_date) == month)
 
     # 角色筛选
     if role not in ["admin", "owner"]:
@@ -267,6 +277,7 @@ def list_bank_cases_by_user_role(
         execution_lawyer_id: Optional[int] = None, # 执行主办律师筛选
         client_name: Optional[str] = None, # 委托银行筛选
         year: Optional[str] = None,
+        month: Optional[int] = None,  # 月份筛选（按委托日期，与年份独立叠加）
         case_status: Optional[str] = None,
         sort_field: str = "created_at",  # 排序字段，默认按创建时间
         sort_dir: str = "desc",  # 排序方向，默认降序（最新在前）
@@ -327,6 +338,10 @@ def list_bank_cases_by_user_role(
     if year:
         query = query.filter(Case.case_number.like(f"%({year})%"))
 
+    # 月份筛选：按委托日期的月份过滤（与年份筛选独立叠加）
+    if month:
+        query = query.filter(extract('month', Case.commission_date) == month)
+
     # 案件状态筛选
     if case_status:
         # join BankCase 表进行筛选
@@ -360,6 +375,7 @@ def count_bank_cases_by_user_role(
         execution_lawyer_id: Optional[int] = None,
         client_name: Optional[str] = None,
         year: Optional[str] = None,
+        month: Optional[int] = None,  # 月份筛选（按委托日期，与年份独立叠加）
         case_status: Optional[str] = None,
         can_view_all_bank: bool = False
 ) -> int:
@@ -406,6 +422,10 @@ def count_bank_cases_by_user_role(
     # 委托年份筛选
     if year:
         query = query.filter(Case.case_number.like(f"%({year})%"))
+
+    # 月份筛选：按委托日期的月份过滤（与年份筛选独立叠加）
+    if month:
+        query = query.filter(extract('month', Case.commission_date) == month)
 
     # 案件状态筛选
     if case_status:
@@ -1178,6 +1198,10 @@ def export_cases_to_excel(
                 query = query.filter(Case.commission_date <= query_params.end_date)
         elif query_params.year:
             query = query.filter(Case.case_number.like(f"%({query_params.year})%"))
+
+        # 月份筛选：按委托日期的月份过滤（与年份/日期区间独立叠加）
+        if query_params.month:
+            query = query.filter(extract('month', Case.commission_date) == query_params.month)
 
     cases = query.order_by(Case.created_at.desc()).all()
 
