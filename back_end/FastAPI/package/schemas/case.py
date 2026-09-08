@@ -74,6 +74,8 @@ class BankCaseBase(BaseModel):
     judgment_method: Optional[str] = None
     # 裁判摘要
     judgment_summary: Optional[str] = None
+    # 执行时效
+    execution_limitation_date: Optional[date] = None
     # 支持律师费金额
     lawyer_fee_supported: Optional[Decimal] = 0
     # 被告支付律师费金额

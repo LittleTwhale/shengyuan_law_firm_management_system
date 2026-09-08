@@ -1001,6 +1001,7 @@ def get_upcoming_events(
         # ========== 将银行案件的诉讼时效加入检查点 ==========
         if case.case_category == "银行案件" and case.bank_case_details:
             check_points.append(("诉讼时效到期", case.bank_case_details.statute_of_limitations))
+            check_points.append(("执行时效到期", case.bank_case_details.execution_limitation_date))
             check_points.append(("恢复执行时间", case.bank_case_details.execution_recovery_date))
             check_points.append(("保证到期", case.bank_case_details.guarantee_due_date))
             check_points.append(("冻结到期", case.bank_case_details.freeze_end_date))
@@ -1231,7 +1232,7 @@ def export_cases_to_excel(
         "贷款类型", "贷款种类", "贷款账号",
         "贷款本金", "诉讼标的金额(含利息)", "信用卡违约金", "借款日", "到期日", "诉讼时效", "保证到期日", "收案日期",
         "取材料人", "诉前催收情况", "盖章日", "材料提交法院日", "承办法官", "裁判时间", "裁判方式",
-        "裁判摘要", "支持律师费金额", "被告支付律师费金额", "是否还清", "是否有二审/再审",
+        "裁判摘要", "执行时效", "支持律师费金额", "被告支付律师费金额", "是否还清", "是否有二审/再审",
         "执行案号", "执行立案时间", "执行法官", "借款人工作单位", "是否为恢复执行", "收取执行材料时间",
         "执行材料提交法院时间", "执行本金金额", "执行律师费金额", "财产调查情况", "网络查控财产情况",
         "承办人执行方案", "法院执行措施", "查封冻结时间", "冻结开始日期", "冻结截止日期",
@@ -1410,6 +1411,7 @@ def export_cases_to_excel(
                 format_date(bank.judgment_date if bank else None),
                 bank.judgment_method if bank else "",
                 bank.judgment_summary if bank else "",
+                format_date(bank.execution_limitation_date if bank else None),
                 format_decimal(bank.lawyer_fee_supported if bank else 0),
                 format_decimal(bank.defendant_paid_lawyer_fee if bank else 0),
                 format_bool(bank.is_settled if bank else False),

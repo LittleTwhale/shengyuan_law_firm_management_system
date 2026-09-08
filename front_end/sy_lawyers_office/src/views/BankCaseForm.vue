@@ -179,7 +179,12 @@
                 </el-form-item>
               </el-col>
               <el-col :span="6">
-                <el-form-item label="证件号" label-width="70px" :prop="'party_plaintiffs.' + index + '.id_number'" :rules="{ validator: validateIdNumber, trigger: 'blur' }">
+                <el-form-item
+                  label="证件号"
+                  label-width="70px"
+                  :prop="'party_plaintiffs.' + index + '.id_number'"
+                  :rules="{ validator: validateIdNumber, trigger: 'blur' }"
+                >
                   <el-input
                     v-model="item.id_number"
                     placeholder="选填"
@@ -280,7 +285,12 @@
                 </el-form-item>
               </el-col>
               <el-col :span="6">
-                <el-form-item label="证件号" label-width="70px" :prop="'party_defendants.' + index + '.id_number'" :rules="{ validator: validateIdNumber, trigger: 'blur' }">
+                <el-form-item
+                  label="证件号"
+                  label-width="70px"
+                  :prop="'party_defendants.' + index + '.id_number'"
+                  :rules="{ validator: validateIdNumber, trigger: 'blur' }"
+                >
                   <el-input
                     v-model="item.id_number"
                     placeholder="选填"
@@ -456,7 +466,12 @@
                 </el-form-item>
               </el-col>
               <el-col :span="8">
-                <el-form-item label="证件号" label-width="70px" :prop="'party_bank_guarantors.' + index + '.id_number'" :rules="{ validator: validateIdNumber, trigger: 'blur' }">
+                <el-form-item
+                  label="证件号"
+                  label-width="70px"
+                  :prop="'party_bank_guarantors.' + index + '.id_number'"
+                  :rules="{ validator: validateIdNumber, trigger: 'blur' }"
+                >
                   <el-input
                     v-model="item.id_number"
                     placeholder="身份证/统信代码"
@@ -540,7 +555,12 @@
                 </el-form-item>
               </el-col>
               <el-col :span="8">
-                <el-form-item label="证件号" label-width="70px" :prop="'party_third_parties.' + index + '.id_number'" :rules="{ validator: validateIdNumber, trigger: 'blur' }">
+                <el-form-item
+                  label="证件号"
+                  label-width="70px"
+                  :prop="'party_third_parties.' + index + '.id_number'"
+                  :rules="{ validator: validateIdNumber, trigger: 'blur' }"
+                >
                   <el-input
                     v-model="item.id_number"
                     placeholder="选填"
@@ -638,7 +658,12 @@
                 </el-form-item>
               </el-col>
               <el-col :span="6">
-                <el-form-item label="证件号" label-width="70px" :prop="'party_others.' + index + '.id_number'" :rules="{ validator: validateIdNumber, trigger: 'blur' }">
+                <el-form-item
+                  label="证件号"
+                  label-width="70px"
+                  :prop="'party_others.' + index + '.id_number'"
+                  :rules="{ validator: validateIdNumber, trigger: 'blur' }"
+                >
                   <el-input
                     v-model="item.id_number"
                     placeholder="选填"
@@ -839,7 +864,11 @@
 
         <el-col :span="8">
           <el-form-item label="收费方式" prop="fee_method" label-width="120px">
-            <el-select v-model="formData.fee_method" placeholder="请选择收费方式" style="width: 100%">
+            <el-select
+              v-model="formData.fee_method"
+              placeholder="请选择收费方式"
+              style="width: 100%"
+            >
               <el-option label="固定收费" value="固定收费" />
               <el-option label="风险收费" value="风险收费" />
               <el-option label="免费（顾问单位）" value="免费（顾问单位）" />
@@ -1285,6 +1314,7 @@
               type="date"
               value-format="YYYY-MM-DD"
               style="width: 100%"
+              @change="handleJudgmentDateChange"
             />
           </el-form-item>
         </el-col>
@@ -1316,6 +1346,22 @@
               v-model="formData.bank_case_details.has_second_instance_or_retrial"
               active-text="有"
               inactive-text="无"
+            />
+          </el-form-item>
+        </el-col>
+
+        <el-col :span="12">
+          <el-form-item
+            label="执行时效"
+            prop="bank_case_details.execution_limitation_date"
+            label-width="150px"
+          >
+            <el-date-picker
+              v-model="formData.bank_case_details.execution_limitation_date"
+              type="date"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+              placeholder="默认裁判时间后两年"
             />
           </el-form-item>
         </el-col>
@@ -1650,7 +1696,11 @@
         </el-col>
 
         <el-col :span="12">
-          <el-form-item label="冻结开始日期" prop="bank_case_details.freeze_start_date" label-width="150px">
+          <el-form-item
+            label="冻结开始日期"
+            prop="bank_case_details.freeze_start_date"
+            label-width="150px"
+          >
             <el-date-picker
               v-model="formData.bank_case_details.freeze_start_date"
               type="date"
@@ -1660,7 +1710,11 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="冻结截止日期" prop="bank_case_details.freeze_end_date" label-width="150px">
+          <el-form-item
+            label="冻结截止日期"
+            prop="bank_case_details.freeze_end_date"
+            label-width="150px"
+          >
             <el-date-picker
               v-model="formData.bank_case_details.freeze_end_date"
               type="date"
@@ -1671,7 +1725,11 @@
         </el-col>
 
         <el-col :span="12">
-          <el-form-item label="查封开始日期" prop="bank_case_details.seizure_start_date" label-width="150px">
+          <el-form-item
+            label="查封开始日期"
+            prop="bank_case_details.seizure_start_date"
+            label-width="150px"
+          >
             <el-date-picker
               v-model="formData.bank_case_details.seizure_start_date"
               type="date"
@@ -1681,7 +1739,11 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="查封截止日期" prop="bank_case_details.seizure_end_date" label-width="150px">
+          <el-form-item
+            label="查封截止日期"
+            prop="bank_case_details.seizure_end_date"
+            label-width="150px"
+          >
             <el-date-picker
               v-model="formData.bank_case_details.seizure_end_date"
               type="date"
@@ -1948,11 +2010,13 @@ const branchOptions = [
 const caseStatusOptions = [
   '写诉讼状中',
   '资料不足',
-  '退回案件',
+  '案件退回',
+  '批转',
   '移交法院排队立案',
   '诉讼立案',
   '已开庭',
   '已裁判',
+  '已移交执行组',
   '债务履行完毕结案',
   '银行要求撤诉',
   '终结执行',
@@ -2024,6 +2088,23 @@ const handleLoanDueDateChange = (val) => {
     // 如果没有担保人，确保该字段为空
     formData.bank_case_details.guarantee_due_date = null
   }
+}
+
+// 自动计算执行时效功能（裁判时间往后推2年）
+const handleJudgmentDateChange = (val) => {
+  if (!val) {
+    formData.bank_case_details.execution_limitation_date = null
+    return
+  }
+  const formatDateStr = (date) => {
+    const yyyy = date.getFullYear()
+    const mm = String(date.getMonth() + 1).padStart(2, '0')
+    const dd = String(date.getDate()).padStart(2, '0')
+    return `${yyyy}-${mm}-${dd}`
+  }
+  const dateLimitation = new Date(val)
+  dateLimitation.setFullYear(dateLimitation.getFullYear() + 2)
+  formData.bank_case_details.execution_limitation_date = formatDateStr(dateLimitation)
 }
 
 // ================= 当事人操作方法 =================

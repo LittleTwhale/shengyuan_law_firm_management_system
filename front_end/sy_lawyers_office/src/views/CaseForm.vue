@@ -229,6 +229,7 @@ const initialBankDetails = {
   judgment_method: null,
   has_second_instance_or_retrial: false,
   judgment_summary: null,
+  execution_limitation_date: null, // 执行时效，默认按裁判时间顺延两年
   lawyer_fee_supported: 0,
   defendant_paid_lawyer_fee: 0,
   is_settled: false,

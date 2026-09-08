@@ -302,6 +302,10 @@
             <div class="case-detail-content">{{ details.judgment_summary || '-' }}</div>
           </el-descriptions-item>
 
+          <el-descriptions-item label="执行时效">{{
+            formatDate(details.execution_limitation_date)
+          }}</el-descriptions-item>
+
           <el-descriptions-item label="调解到期日">{{
             formatDate(caseData.mediation_due_date)
           }}</el-descriptions-item>
@@ -561,6 +565,7 @@ const timelineEvents = computed(() => {
     { label: '查封截止日期', date: dData.seizure_end_date, type: 'warning' },
 
     { label: '裁判时间', date: dData.judgment_date, type: 'success' },
+    { label: '执行时效', date: dData.execution_limitation_date, type: 'danger' },
     { label: '结案时间', date: cData.closing_date, type: 'success' },
     { label: '还清时间', date: dData.payoff_date, type: 'success' },
     { label: '调解到期日', date: cData.mediation_due_date, type: 'warning' },

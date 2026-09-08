@@ -168,6 +168,7 @@ BANK_FIELDS = {
     "judgment_date": "裁判时间",
     "judgment_method": "裁判方式",
     "judgment_summary": "裁判摘要",
+    "execution_limitation_date": "执行时效",
     "lawyer_fee_supported": "法院支持律师费金额",
     "is_settled": "是否还清",
     "property_investigation": "财产调查情况",

@@ -187,6 +187,7 @@ def _aggregate_case_data(db: Session, case_id: int) -> dict:
             "judgment_date": str(bk.judgment_date) if bk.judgment_date else None,
             "judgment_method": bk.judgment_method,
             "judgment_summary": bk.judgment_summary,
+            "execution_limitation_date": str(bk.execution_limitation_date) if bk.execution_limitation_date else None,
             "lawyer_fee_supported": float(bk.lawyer_fee_supported) if bk.lawyer_fee_supported else None,
             "is_settled": bk.is_settled,
             "property_investigation": bk.property_investigation,

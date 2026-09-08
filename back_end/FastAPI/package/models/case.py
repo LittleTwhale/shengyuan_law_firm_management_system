@@ -139,6 +139,7 @@ class BankCase(Base):
     judgment_date = Column(Date, comment="裁判时间")
     judgment_method = Column(String(50), comment="裁判方式")
     judgment_summary = Column(Text, comment="裁判摘要")
+    execution_limitation_date = Column(Date, comment="执行时效")
     lawyer_fee_supported = Column(DECIMAL(15, 2), default=0, comment="支持律师费金额")
     defendant_paid_lawyer_fee = Column(DECIMAL(15, 2), default=0, comment="被告支付律师费金额")
     is_settled = Column(Boolean, default=False, comment="是否还清")
