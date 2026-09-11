@@ -515,7 +515,10 @@
           <ul class="warning-list">
             <li>该操作具有<strong>覆盖性</strong>，请务必核实数据后再上传。</li>
             <li><strong>严禁修改业务ID</strong>，否则将导致同步失败或创建重复案件。</li>
-            <li>当前版本基于「当事人明细」Sheet 支持<strong>当事人全量同步</strong>（先删除后重新插入）。</li>
+            <li>
+              当前版本基于「当事人明细」Sheet
+              支持<strong>当事人全量同步</strong>（先删除后重新插入）。
+            </li>
             <li>若“业务ID”为空，系统将基于“业务号”尝试新建案件。</li>
           </ul>
         </el-alert>
@@ -578,8 +581,8 @@ import { Document, Upload, UploadFilled, Download, Refresh } from '@element-plus
 const getClientNames = (parties) => {
   if (!parties || !parties.length) return ''
   return parties
-    .filter(p => p.party_type && p.party_type.includes('委托'))
-    .map(p => p.name)
+    .filter((p) => p.party_type && p.party_type.includes('委托'))
+    .map((p) => p.name)
     .join('、')
 }
 
@@ -632,11 +635,13 @@ const selectedCaseStatus = ref(null) // 选中的案件状态
 const caseStatusOptions = [
   '写诉讼状中',
   '资料不足',
-  '退回案件',
+  '案件退回',
+  '批转',
   '移交法院排队立案',
   '诉讼立案',
   '已开庭',
   '已裁判',
+  '已移交执行组',
   '债务履行完毕结案',
   '银行要求撤诉',
   '终结执行',
@@ -979,9 +984,11 @@ const submitAttachments = async () => {
           throw new Error(result.error || 'COS 上传失败')
         }
         // 回写文件大小（字节），静默失败不影响主流程
-        request.patch(`/attachments/${res.data.attachment_id}/size`, null, {
-          params: { file_size: result.file_size }
-        }).catch(() => {})
+        request
+          .patch(`/attachments/${res.data.attachment_id}/size`, null, {
+            params: { file_size: result.file_size },
+          })
+          .catch(() => {})
       }
       return res
     })
@@ -1283,7 +1290,6 @@ async function triggerSyncDiagnosis(errors) {
     // 诊断失败不弹对话框（静默失败）
   }
 }
-
 </script>
 
 <style scoped>
@@ -1849,8 +1855,15 @@ async function triggerSyncDiagnosis(errors) {
 }
 
 @keyframes diagnosis-spin {
-  0%, 100% { opacity: 1; transform: rotate(0deg); }
-  50% { opacity: 0.5; transform: rotate(180deg); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: rotate(0deg);
+  }
+  50% {
+    opacity: 0.5;
+    transform: rotate(180deg);
+  }
 }
 
 .diagnosis-loading p {
@@ -1898,21 +1911,31 @@ async function triggerSyncDiagnosis(errors) {
   color: #165dff;
   font-weight: 600;
 }
-.analysis-result :deep(h1) { font-size: 19px; }
+.analysis-result :deep(h1) {
+  font-size: 19px;
+}
 .analysis-result :deep(h2) {
   font-size: 17px;
   border-bottom: 1px solid #e5edf5;
   padding-bottom: 6px;
 }
-.analysis-result :deep(h3) { font-size: 15px; }
-.analysis-result :deep(p) { margin: 10px 0; }
+.analysis-result :deep(h3) {
+  font-size: 15px;
+}
+.analysis-result :deep(p) {
+  margin: 10px 0;
+}
 .analysis-result :deep(ul),
 .analysis-result :deep(ol) {
   padding-left: 22px;
   margin: 10px 0;
 }
-.analysis-result :deep(li) { margin: 6px 0; }
-.analysis-result :deep(li::marker) { color: #165dff; }
+.analysis-result :deep(li) {
+  margin: 6px 0;
+}
+.analysis-result :deep(li::marker) {
+  color: #165dff;
+}
 .analysis-result :deep(code) {
   background: #e8f0fe;
   padding: 2px 8px;
