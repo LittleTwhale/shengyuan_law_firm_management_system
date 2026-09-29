@@ -925,7 +925,6 @@
               style="width: 100%"
             >
               <el-option label="个贷" value="个贷" />
-              <el-option label="房贷" value="房贷" />
               <el-option label="信用卡" value="信用卡" />
               <el-option label="普惠" value="普惠" />
             </el-select>
@@ -933,15 +932,10 @@
         </el-col>
         <el-col :span="8">
           <el-form-item label="贷款种类" prop="bank_case_details.loan_category" label-width="150px">
-            <el-select
+            <el-input
               v-model="formData.bank_case_details.loan_category"
-              placeholder="请选择贷款种类"
-              style="width: 100%"
-            >
-              <el-option label="个贷" value="个贷" />
-              <el-option label="信用卡" value="信用卡" />
-              <el-option label="普惠" value="普惠" />
-            </el-select>
+              placeholder="请输入贷款种类"
+            />
           </el-form-item>
         </el-col>
         <el-col :span="8">
