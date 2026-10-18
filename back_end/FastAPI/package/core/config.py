@@ -21,6 +21,18 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 300  # token过期时间（分钟）
 # DeepSeek API 配置（案件智能分析）
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")  # DeepSeek API 密钥
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")  # API 地址
+# 使用的模型名（统一在此维护，可在 .env 中通过 DEEPSEEK_MODEL 覆盖）
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
+
+# 是否启用 DeepSeek thinking 模式（默认关闭）
+# 背景：deepseek-flash（V4.1 Flash）默认开启 thinking，会先输出 reasoning_content，
+# 导致两类问题：
+#   1. 短任务（关键词生成、JSON 字段提取）max_tokens 较小，预算被推理耗尽，content 为空；
+#   2. 流式分析在思考阶段没有 content，前端长时间空白，甚至被代理超时切断。
+# 本项目以“快速、结构化输出”为主，因此默认显式关闭；确有推理需求时可在 .env 中设为 true。
+DEEPSEEK_THINKING_ENABLED = os.getenv(
+    "DEEPSEEK_THINKING_ENABLED", "false"
+).strip().lower() in ("1", "true", "yes", "on")
 
 # Meilisearch 搜索引擎配置
 MEILI_URL = os.getenv("MEILI_URL", "http://localhost:7700")

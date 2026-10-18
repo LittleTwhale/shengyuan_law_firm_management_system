@@ -15,6 +15,8 @@ import meilisearch
 from ..core.config import (
     DEEPSEEK_API_KEY,
     DEEPSEEK_BASE_URL,
+    DEEPSEEK_MODEL,
+    DEEPSEEK_THINKING_ENABLED,
     MEILI_URL,
     MEILI_MASTER_KEY,
 )
@@ -30,8 +32,18 @@ from ..utils.llm_prompts import (
 # 使用 shengyuan_app 作为父 logger，确保日志进入系统统一的日志系统
 logger = logging.getLogger("shengyuan_app.llm_client")
 
-# DeepSeek 模型名
-MODEL_NAME = "deepseek-v4-flash"
+# DeepSeek 模型名（统一从 config 读取，避免多处硬编码）
+MODEL_NAME = DEEPSEEK_MODEL
+
+
+def _thinking_param() -> dict:
+    """
+    构造 Chat Completions 的 thinking 控制参数
+
+    deepseek-flash 默认开启 thinking（effort=high），会先输出 reasoning_content。
+    本项目需要确定性的 JSON / 快速 Markdown 输出，因此默认显式关闭。
+    """
+    return {"type": "enabled" if DEEPSEEK_THINKING_ENABLED else "disabled"}
 
 
 # 请求超时（秒）— 长文本分析可能需要较长时间
@@ -160,8 +172,9 @@ async def _generate_search_keywords(case_data: dict) -> list[str]:
         "model": MODEL_NAME,
         "messages": messages,
         "temperature": 0.1,  # 低温度确保确定性输出
-        "max_tokens": 300,   # 关键词很短，不需要很多 token
+        "max_tokens": 800,   # 关闭 thinking 后余量充足，防止偶发长输出被截断
         "stream": False,
+        "thinking": _thinking_param(),  # 显式关闭 thinking，避免推理 token 耗尽预算
     }
 
     try:
@@ -175,23 +188,43 @@ async def _generate_search_keywords(case_data: dict) -> list[str]:
                     max_retries=1,  # 只重试 1 次，快速失败
                 )
 
-        content = response.json()["choices"][0]["message"]["content"]
+        result = response.json()
+        choice = result["choices"][0]
+        content = (choice["message"]["content"] or "").strip()
+        finish_reason = choice.get("finish_reason")
 
-        # 用正则提取 JSON 数组（防御 LLM 输出多余文字）
+        # 防御：空内容通常是 thinking 截断或模型未正常输出，单独记录便于排查
+        if not content:
+            logger.warning(
+                "LLM 关键词生成为空（finish_reason=%s，模型=%s）",
+                finish_reason, MODEL_NAME,
+            )
+            return []
+
+        # 用正则提取 JSON 数组（防御 LLM 输出多余文字/代码块）
         json_match = re.search(r'\[.*?\]', content, re.DOTALL)
         if json_match:
-            keywords = json.loads(json_match.group())
+            try:
+                keywords = json.loads(json_match.group())
+            except json.JSONDecodeError as e:
+                # 解析失败单独记录，避免与“空内容”混为一谈
+                logger.warning("LLM 关键词 JSON 解析失败（finish_reason=%s）: %s", finish_reason, e)
+                keywords = None
+
             if isinstance(keywords, list) and len(keywords) > 0:
-                # 过滤：只保留 2-20 字的有效关键词
+                # 过滤：只保留 2-20 字的有效关键词（同时防御非字符串元素）
                 keywords = [
                     kw.strip() for kw in keywords
-                    if kw.strip() and 2 <= len(kw.strip()) <= 20
+                    if isinstance(kw, str) and 2 <= len(kw.strip()) <= 20
                 ]
                 if keywords:
                     logger.info("LLM 生成检索关键词: %s", keywords)
                     return keywords[:8]  # 最多 8 个
 
-        logger.warning("LLM 关键词格式异常，原始输出: %s", content[:200])
+        logger.warning(
+            "LLM 关键词格式异常（finish_reason=%s，内容长度=%d），原始输出: %s",
+            finish_reason, len(content), content[:200],
+        )
     except Exception as e:
         logger.warning("LLM 关键词生成失败（降级到基础检索）: %s", e)
 
@@ -373,7 +406,7 @@ def _build_user_message(
                 parts.append(f"- 分类：{f.get('category', '其他')}")
                 ocr = f.get("ocr_content", "")
                 if ocr and len(ocr.strip()) > 20:
-                    # deepseek-v4 上下文窗口极大，可传入更多内容
+                    # deepseek-flash 上下文窗口极大，可传入更多内容
                     truncated = ocr.strip()[:8000]
                     parts.append(f"- OCR 内容摘要（前 8000 字）：\n```\n{truncated}\n```")
                 else:
@@ -504,6 +537,8 @@ async def analyze_case(
         "stream": False,
         # 启用联网搜索，确保法律条文和典型案例的准确性与时效性
         "enable_search": True,
+        # 显式关闭 thinking，保证报告正文持续输出，避免前端长时间空白
+        "thinking": _thinking_param(),
     }
 
     logger.info(
@@ -611,6 +646,9 @@ async def analyze_case_stream(
         "stream": True,
         "stream_options": {"include_usage": True},
         "enable_search": True,
+        # 显式关闭 thinking：否则流式 chunk 只有 reasoning_content，
+        # 代码只转发 delta.content，前端将长时间收不到任何正文
+        "thinking": _thinking_param(),
     }
 
     logger.info(
@@ -763,6 +801,8 @@ async def chat_about_case(
         "max_tokens": max_tokens,
         "stream": False,
         "enable_search": True,
+        # 显式关闭 thinking：追问需要快速响应
+        "thinking": _thinking_param(),
     }
 
     logger.info("DeepSeek 对话追问（历史 %d 轮，当前问题: %s...）",
@@ -896,6 +936,8 @@ async def diagnose_excel_errors(
         "temperature": temperature,
         "max_tokens": max_tokens,
         "stream": False,
+        # 显式关闭 thinking：错误诊断需要快速、确定的 Markdown 输出
+        "thinking": _thinking_param(),
     }
 
     logger.info("调用 DeepSeek 诊断 Excel 错误（错误数: %d）", len(errors))

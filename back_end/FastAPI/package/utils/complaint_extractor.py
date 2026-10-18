@@ -1,6 +1,6 @@
 """
 起诉状要素提取器
-使用 DeepSeek v4-flash 模型从 OCR 文本中提取民事起诉状的关键字段，
+使用 DeepSeek flash 模型从 OCR 文本中提取民事起诉状的关键字段，
 填充到要素式起诉状模板中。
 
 复用 llm_client 的全局信号量和重试机制，使用独立的模型常量和超时配置。
@@ -14,8 +14,8 @@ from typing import Optional
 
 import httpx
 
-from ..core.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL
-from .llm_client import _LLM_SEMAPHORE, _retry_with_backoff
+from ..core.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
+from .llm_client import _LLM_SEMAPHORE, _retry_with_backoff, _thinking_param
 
 logger = logging.getLogger("shengyuan_app.complaint_extractor")
 
@@ -23,8 +23,8 @@ logger = logging.getLogger("shengyuan_app.complaint_extractor")
 #  起诉状提取专用配置
 # =================================================================
 
-# 使用 v4-flash 模型（结构化提取不需要深度推理，flash 更快更便宜）
-COMPLAINT_MODEL = "deepseek-v4-flash"
+# 使用 flash 模型（结构化提取不需要深度推理，flash 更快更便宜）
+COMPLAINT_MODEL = DEEPSEEK_MODEL
 
 # 请求超时（秒）
 COMPLAINT_TIMEOUT = 120
@@ -309,7 +309,7 @@ def _build_extraction_prompt(ocr_text: str) -> tuple:
 
 async def extract_complaint_fields(ocr_text: str) -> dict:
     """
-    调用 DeepSeek v4-flash 从 OCR 文本中提取起诉状字段
+    调用 DeepSeek flash 从 OCR 文本中提取起诉状字段
 
     Args:
         ocr_text: OCR 识别后的文本内容（至少 20 个有效字符）
@@ -347,10 +347,12 @@ async def extract_complaint_fields(ocr_text: str) -> dict:
         "max_tokens": COMPLAINT_MAX_TOKENS,
         "stream": False,
         "response_format": {"type": "json_object"},  # 强制 JSON 输出
+        # 显式关闭 thinking：JSON 字段提取需要快速、确定的结构化输出
+        "thinking": _thinking_param(),
     }
 
     logger.info(
-        "调用 DeepSeek v4 提取起诉状字段（OCR 文本长度: %d 字符）",
+        "调用 DeepSeek flash 提取起诉状字段（OCR 文本长度: %d 字符）",
         len(ocr_text),
     )
 
@@ -366,7 +368,7 @@ async def extract_complaint_fields(ocr_text: str) -> dict:
                 _do_request, max_retries=3, base_delay=1.0
             )
     except httpx.TimeoutException:
-        logger.error("DeepSeek v4-flash 提取请求超时（%d秒）", COMPLAINT_TIMEOUT)
+        logger.error("DeepSeek flash 提取请求超时（%d秒）", COMPLAINT_TIMEOUT)
         raise RuntimeError(
             f"DeepSeek API 请求超时（{COMPLAINT_TIMEOUT}秒），请稍后重试"
         )
@@ -398,7 +400,7 @@ async def extract_complaint_fields(ocr_text: str) -> dict:
     content = result["choices"][0]["message"]["content"]
     usage = result.get("usage", {})
     logger.info(
-        "DeepSeek v4-flash 提取完成（输入 %d tokens, 输出 %d tokens）",
+        "DeepSeek flash 提取完成（输入 %d tokens, 输出 %d tokens）",
         usage.get("prompt_tokens", 0),
         usage.get("completion_tokens", 0),
     )

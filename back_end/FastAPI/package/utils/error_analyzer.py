@@ -25,7 +25,12 @@ import httpx
 from fastapi import Request
 from sqlalchemy.orm import Session
 
-from ..core.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL
+from ..core.config import (
+    DEEPSEEK_API_KEY,
+    DEEPSEEK_BASE_URL,
+    DEEPSEEK_MODEL,
+    DEEPSEEK_THINKING_ENABLED,
+)
 from ..crud.error_analysis_crud import (
     create_error_analysis,
     find_recent_analysis_by_fingerprint,
@@ -38,9 +43,8 @@ from ..database.database import SessionLocal
 
 logger = logging.getLogger("shengyuan_app.error_analyzer")
 
-# DeepSeek 模型配置
-# 与 llm_client.py 保持一致，使用 deepseek-v4-flash 模型
-MODEL_NAME = "deepseek-v4-flash"
+# DeepSeek 模型配置（统一从 config 读取，与 llm_client.py 保持一致）
+MODEL_NAME = DEEPSEEK_MODEL
 REQUEST_TIMEOUT = 60  # 错误分析不需要像案件分析那么长超时
 MAX_TOKENS = 2000     # 面向用户的操作指导
 
@@ -253,6 +257,8 @@ async def call_deepseek_for_analysis(error_info: dict) -> str:
         ],
         "max_tokens": MAX_TOKENS,
         "temperature": 0.3,  # 低温度让输出更聚焦、更确定
+        # 显式关闭 thinking：错误诊断需要快速、确定的 Markdown 输出
+        "thinking": {"type": "enabled" if DEEPSEEK_THINKING_ENABLED else "disabled"},
     }
 
     api_url = f"{DEEPSEEK_BASE_URL.rstrip('/')}/v1/chat/completions"

@@ -1,6 +1,6 @@
 """
 法律文书要素提取 API 路由
-接收用户上传的法律文书文件（PDF/Word/图片），通过 OCR + DeepSeek v4-flash
+接收用户上传的法律文书文件（PDF/Word/图片），通过 OCR + DeepSeek flash
 提取关键字段，返回结构化 JSON 供前端填充到要素式模板中。
 
 支持模板类型：
